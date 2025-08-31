@@ -36,6 +36,15 @@ from pathlib import Path
 from datetime import datetime, timezone, timedelta
 from requests.exceptions import RequestException, Timeout
 
+# Import gameweek validator
+try:
+    from .gameweek_validator import perform_full_validation, should_trigger_api_refresh
+except ImportError:
+    # Handle case when running as main script
+    import sys
+    sys.path.append(str(Path(__file__).parent))
+    from gameweek_validator import perform_full_validation, should_trigger_api_refresh
+
 # Configuration
 BASE_URL = "https://fantasy.premierleague.com/api/"
 CURRENT_SEASON = "2025/2026"
@@ -703,29 +712,61 @@ def process_fixtures_gameweeks_data(gameweeks_data, fixtures_data, team_mapping,
     finally:
         conn.close()
 
-def main(season=CURRENT_SEASON, dry_run=False, cleanup_count=5):
+def main(season=CURRENT_SEASON, dry_run=False, cleanup_count=5, force_refresh=False):
     """Main execution function"""
     logger = setup_logging()
     logger.info("Starting fixtures and gameweeks data fetch process...")
     
-    # Collect data from APIs
-    gameweeks_data, fixtures_data, team_mapping = collect_fixtures_gameweeks_data(logger)
+    # Perform gameweek validation before fetching new data
+    should_fetch_new_data = force_refresh
     
-    if gameweeks_data and fixtures_data and team_mapping:
-        # Save sample data
-        save_sample_data(gameweeks_data, fixtures_data, team_mapping, logger)
+    if not force_refresh:
+        logger.info("Validating current gameweek data...")
+        validation_results = perform_full_validation(logger)
         
-        # Process data into database
-        process_fixtures_gameweeks_data(gameweeks_data, fixtures_data, team_mapping, season, logger, dry_run=dry_run)
+        if not validation_results['is_valid']:
+            logger.warning("Gameweek validation failed - issues detected with current data")
+            should_fetch_new_data = should_trigger_api_refresh(validation_results)
+            
+            if should_fetch_new_data:
+                logger.info("Triggering FPL API refresh due to validation failures")
+            else:
+                logger.info("Validation issues don't require immediate API refresh")
+        else:
+            logger.info("Gameweek validation passed - current data appears accurate")
+            # Still fetch data but this helps us understand if refresh was needed
+    
+    if should_fetch_new_data or force_refresh:
+        # Collect data from APIs
+        gameweeks_data, fixtures_data, team_mapping = collect_fixtures_gameweeks_data(logger)
         
-        # Clean up old sample files
-        if cleanup_count > 0:
-            logger.info(f"Cleaning up old sample files, keeping latest {cleanup_count}...")
-            cleanup_old_sample_files(keep_count=cleanup_count, logger=logger)
-        
-        logger.info("Fixtures and gameweeks data fetch process completed successfully")
+        if gameweeks_data and fixtures_data and team_mapping:
+            # Save sample data
+            save_sample_data(gameweeks_data, fixtures_data, team_mapping, logger)
+            
+            # Process data into database
+            process_fixtures_gameweeks_data(gameweeks_data, fixtures_data, team_mapping, season, logger, dry_run=dry_run)
+            
+            # Clean up old sample files
+            if cleanup_count > 0:
+                logger.info(f"Cleaning up old sample files, keeping latest {cleanup_count}...")
+                cleanup_old_sample_files(keep_count=cleanup_count, logger=logger)
+            
+            # Perform post-update validation
+            logger.info("Performing post-update gameweek validation...")
+            post_validation = perform_full_validation(logger)
+            if post_validation['is_valid']:
+                logger.info("Post-update validation passed - gameweek data is now accurate")
+            else:
+                logger.error("Post-update validation still shows issues - may need manual intervention")
+                for issue in post_validation['issues']:
+                    logger.error(f"  {issue['severity'].upper()}: {issue['message']}")
+            
+            logger.info("Fixtures and gameweeks data fetch process completed successfully")
+        else:
+            logger.error("No data collected - aborting process")
     else:
-        logger.error("No data collected - aborting process")
+        logger.info("Skipping API fetch - gameweek validation indicates current data is accurate")
 
 def test_with_sample_data(season=CURRENT_SEASON, dry_run=False):
     """Test the script using existing sample data"""
@@ -756,6 +797,8 @@ def parse_arguments():
                        help=f'Season to process (default: {CURRENT_SEASON})')
     parser.add_argument('--cleanup-count', type=int, default=5,
                        help='Number of sample files to keep (0 to disable cleanup)')
+    parser.add_argument('--force-refresh', action='store_true',
+                       help='Force API refresh regardless of validation results')
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -764,4 +807,4 @@ if __name__ == "__main__":
     if args.test:
         test_with_sample_data(season=args.season, dry_run=args.dry_run)
     else:
-        main(season=args.season, dry_run=args.dry_run, cleanup_count=args.cleanup_count)
+        main(season=args.season, dry_run=args.dry_run, cleanup_count=args.cleanup_count, force_refresh=args.force_refresh)

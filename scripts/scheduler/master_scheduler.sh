@@ -1,0 +1,184 @@
+#!/bin/bash
+#
+# Master Scheduler Script for Prediction League Automation
+#
+# Centralized orchestrator that runs every minute via cron and manages all script execution
+# with proper timing, delays, error handling, and process management.
+#
+# SCHEDULING:
+# - fetch_results.py: Every minute (00 seconds)
+# - monitor_and_upload.py: Every minute (30 seconds delay)
+# - clean_predictions_dropbox.py: Every 15 minutes
+# - fetch_fixtures_gameweeks.py: Every 30 minutes (with gameweek validation)
+# - automated_predictions.py: Every hour
+# - fetch_fpl_data.py: Daily at 7 AM
+# - fetch_odds.py: Daily at 7 AM
+#
+# USAGE:
+# - Add single cron entry: * * * * * /path/to/master_scheduler.sh
+# - Logs to scheduler/ directory with rotation
+# - Uses lock files to prevent overlapping executions
+#
+
+set -euo pipefail
+
+# Configuration
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+VENV_PYTHON="$PROJECT_DIR/venv/bin/python"
+LOG_DIR="$PROJECT_DIR/logs/scheduler"
+LOCK_DIR="$PROJECT_DIR/logs/scheduler/locks"
+CONFIG_FILE="$SCRIPT_DIR/scheduler_config.conf"
+
+# Ensure directories exist
+mkdir -p "$LOG_DIR" "$LOCK_DIR"
+
+# Load configuration if it exists
+if [[ -f "$CONFIG_FILE" ]]; then
+    source "$CONFIG_FILE"
+fi
+
+# Default configuration (override in scheduler_config.conf)
+ENABLE_FETCH_RESULTS=${ENABLE_FETCH_RESULTS:-true}
+ENABLE_MONITOR_UPLOAD=${ENABLE_MONITOR_UPLOAD:-true}
+ENABLE_CLEAN_PREDICTIONS=${ENABLE_CLEAN_PREDICTIONS:-true}
+ENABLE_FETCH_FIXTURES=${ENABLE_FETCH_FIXTURES:-true}
+ENABLE_AUTOMATED_PREDICTIONS=${ENABLE_AUTOMATED_PREDICTIONS:-true}
+ENABLE_FETCH_FPL_DATA=${ENABLE_FETCH_FPL_DATA:-true}
+ENABLE_FETCH_ODDS=${ENABLE_FETCH_ODDS:-true}
+DELAY_BETWEEN_RESULTS_UPLOAD=${DELAY_BETWEEN_RESULTS_UPLOAD:-30}
+
+# Logging function
+log() {
+    local level="$1"
+    local message="$2"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[$timestamp] [$level] $message" | tee -a "$LOG_DIR/master_scheduler_$(date +%Y%m%d).log"
+}
+
+# Lock management
+acquire_lock() {
+    local script_name="$1"
+    local lock_file="$LOCK_DIR/${script_name}.lock"
+    local max_age_minutes=60  # Remove locks older than 1 hour
+    
+    # Remove stale locks
+    if [[ -f "$lock_file" ]]; then
+        local lock_age=$(( $(date +%s) - $(stat -c %Y "$lock_file" 2>/dev/null || echo 0) ))
+        if [[ $lock_age -gt $((max_age_minutes * 60)) ]]; then
+            log "WARN" "Removing stale lock for $script_name (age: ${lock_age}s)"
+            rm -f "$lock_file"
+        fi
+    fi
+    
+    # Try to acquire lock
+    if [[ -f "$lock_file" ]]; then
+        local pid=$(cat "$lock_file" 2>/dev/null || echo "unknown")
+        log "DEBUG" "Script $script_name already running (PID: $pid), skipping"
+        return 1
+    fi
+    
+    echo $$ > "$lock_file"
+    return 0
+}
+
+release_lock() {
+    local script_name="$1"
+    local lock_file="$LOCK_DIR/${script_name}.lock"
+    rm -f "$lock_file"
+}
+
+# Script execution wrapper
+run_script() {
+    local script_path="$1"
+    local script_name="$2"
+    local args="${3:-}"
+    
+    if ! acquire_lock "$script_name"; then
+        return 1
+    fi
+    
+    log "INFO" "Starting $script_name $args"
+    local start_time=$(date +%s)
+    
+    # Run script and capture exit code
+    if cd "$PROJECT_DIR" && timeout 3600 "$VENV_PYTHON" "$script_path" $args >> "$LOG_DIR/${script_name}_$(date +%Y%m%d).log" 2>&1; then
+        local end_time=$(date +%s)
+        local duration=$((end_time - start_time))
+        log "INFO" "Completed $script_name in ${duration}s"
+        release_lock "$script_name"
+        return 0
+    else
+        local exit_code=$?
+        local end_time=$(date +%s)
+        local duration=$((end_time - start_time))
+        log "ERROR" "Failed $script_name (exit: $exit_code, duration: ${duration}s)"
+        release_lock "$script_name"
+        return $exit_code
+    fi
+}
+
+# Get current time components
+current_minute=$(date +%M | sed 's/^0//')
+current_hour=$(date +%H | sed 's/^0//')
+current_second=$(date +%S | sed 's/^0//')
+
+# Handle empty values (when minute/hour/second is 00)
+current_minute=${current_minute:-0}
+current_hour=${current_hour:-0}
+current_second=${current_second:-0}
+
+log "DEBUG" "Scheduler tick: $(date '+%H:%M:%S')"
+
+# Every minute tasks (with delays)
+if [[ "$ENABLE_FETCH_RESULTS" == "true" ]] && [[ $current_second -ge 0 ]] && [[ $current_second -lt 15 ]]; then
+    run_script "scripts/fpl/fetch_results.py" "fetch_results" &
+fi
+
+if [[ "$ENABLE_MONITOR_UPLOAD" == "true" ]] && [[ $current_second -ge $DELAY_BETWEEN_RESULTS_UPLOAD ]] && [[ $current_second -lt $((DELAY_BETWEEN_RESULTS_UPLOAD + 15)) ]]; then
+    run_script "scripts/database/monitor_and_upload.py" "monitor_and_upload" &
+fi
+
+# Every 15 minutes (at :00, :15, :30, :45)
+if [[ "$ENABLE_CLEAN_PREDICTIONS" == "true" ]] && [[ $((current_minute % 15)) -eq 0 ]] && [[ $current_second -ge 0 ]] && [[ $current_second -lt 15 ]]; then
+    run_script "scripts/prediction_league/clean_predictions_dropbox.py" "clean_predictions" &
+fi
+
+# Every 30 minutes (at :00, :30)  
+if [[ "$ENABLE_FETCH_FIXTURES" == "true" ]] && [[ $((current_minute % 30)) -eq 0 ]] && [[ $current_second -ge 15 ]] && [[ $current_second -lt 30 ]]; then
+    run_script "scripts/fpl/fetch_fixtures_gameweeks.py" "fetch_fixtures" &
+fi
+
+# Every hour (at :00)
+if [[ "$ENABLE_AUTOMATED_PREDICTIONS" == "true" ]] && [[ $current_minute -eq 0 ]] && [[ $current_second -ge 45 ]] && [[ $current_second -lt 60 ]]; then
+    run_script "scripts/prediction_league/automated_predictions.py" "automated_predictions" &
+fi
+
+# Daily at 7 AM
+if [[ $current_hour -eq 7 ]] && [[ $current_minute -eq 0 ]] && [[ $current_second -ge 0 ]] && [[ $current_second -lt 15 ]]; then
+    if [[ "$ENABLE_FETCH_FPL_DATA" == "true" ]]; then
+        run_script "scripts/fpl/fetch_fpl_data.py" "fetch_fpl_data" &
+    fi
+    
+    if [[ "$ENABLE_FETCH_ODDS" == "true" ]]; then
+        run_script "scripts/odds-api/fetch_odds.py" "fetch_odds" &
+    fi
+fi
+
+# Wait for background processes to complete
+wait
+
+# Cleanup old locks and logs (daily at 2 AM)
+if [[ $current_hour -eq 2 ]] && [[ $current_minute -eq 0 ]] && [[ $current_second -ge 0 ]] && [[ $current_second -lt 15 ]]; then
+    log "INFO" "Starting daily cleanup"
+    
+    # Remove old logs (older than 30 days)
+    find "$LOG_DIR" -name "*.log" -mtime +30 -delete 2>/dev/null || true
+    
+    # Remove stale locks (older than 1 hour)
+    find "$LOCK_DIR" -name "*.lock" -mmin +60 -delete 2>/dev/null || true
+    
+    log "INFO" "Completed daily cleanup"
+fi
+
+log "DEBUG" "Scheduler tick completed"

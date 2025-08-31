@@ -2,6 +2,76 @@
 
 This guide covers usage of all data fetching and monitoring scripts in the system.
 
+## Master Scheduler System
+
+### Overview
+
+The Master Scheduler provides centralized orchestration of all automation scripts through a single cron job. It manages timing, process isolation, and health monitoring.
+
+#### Installation
+
+```bash
+# Test installation
+./scripts/scheduler/install_scheduler.sh --dry-run
+
+# Install scheduler
+./scripts/scheduler/install_scheduler.sh
+
+# Check installation status
+./scripts/scheduler/install_scheduler.sh --status
+```
+
+#### Configuration
+
+Edit `scripts/scheduler/scheduler_config.conf` to control:
+- Enable/disable individual scripts
+- Timing adjustments
+- Seasonal modes (off-season)
+- Debug settings
+
+```bash
+# Key configuration options
+ENABLE_FETCH_RESULTS=true
+ENABLE_MONITOR_UPLOAD=true
+ENABLE_CLEAN_PREDICTIONS=true
+ENABLE_FETCH_FIXTURES=true
+ENABLE_AUTOMATED_PREDICTIONS=true
+ENABLE_FETCH_FPL_DATA=true
+ENABLE_FETCH_ODDS=true
+
+DELAY_BETWEEN_RESULTS_UPLOAD=30
+OFFSEASON_MODE=false
+```
+
+#### Monitoring
+
+```bash
+# Check overall system status
+./scripts/scheduler/scheduler_status.sh
+
+# Detailed status with logs
+./scripts/scheduler/scheduler_status.sh --detailed
+
+# Health metrics only
+./scripts/scheduler/scheduler_status.sh --health
+
+# Clean old files
+./scripts/scheduler/scheduler_status.sh --clean
+```
+
+#### Manual Testing
+
+```bash
+# Run scheduler once manually
+./scripts/scheduler/master_scheduler.sh
+
+# Test individual validation
+./scripts/fpl/gameweek_validator.py
+
+# Force gameweek refresh
+./scripts/fpl/fetch_fixtures_gameweeks.py --force-refresh
+```
+
 ## Database Monitoring Script
 
 ### Database Change Monitor & Upload
@@ -10,22 +80,22 @@ The `monitor_and_upload.py` script provides automated database change detection 
 
 #### Basic Usage
 
-##### Normal Operation (Cron Mode)
+##### Normal Operation (Manual/Interactive)
 ```bash
 python scripts/database/monitor_and_upload.py
 ```
-- Silent operation suitable for cron jobs
+- Shows console output when run interactively
+- Automatically detects if run from terminal vs cron
 - Uploads database when changes detected
 - Uploads every 30+ minutes as health check
 - Logs to daily log files
-- Exits with proper codes for automation
 
-##### Test Mode with Console Output
+##### Test Mode with Verbose Output
 ```bash
 python scripts/database/monitor_and_upload.py --test
 ```
-- Shows console output for debugging
-- Performs actual upload operations
+- Forces console output regardless of environment
+- Performs actual upload operations  
 - Useful for manual testing and validation
 - Logs both to console and file
 

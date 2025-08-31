@@ -15,6 +15,7 @@ import sqlite3 as sql
 import logging
 import paramiko
 import argparse
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Tuple, Optional
@@ -39,12 +40,15 @@ def setup_logging(test_mode: bool = False) -> logging.Logger:
     
     log_path = LOG_DIR / log_filename
     
+    # Always show console output for manual runs (when stdin is a tty)
+    show_console = test_mode or sys.stdin.isatty()
+    
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s',
         handlers=[
             logging.FileHandler(log_path),
-            logging.StreamHandler() if test_mode else logging.NullHandler()
+            logging.StreamHandler() if show_console else logging.NullHandler()
         ]
     )
     
@@ -60,6 +64,23 @@ def acquire_lock() -> Optional[int]:
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         return fd
     except (OSError, IOError):
+        # Check if it's a stale lock (older than 10 minutes)
+        try:
+            import stat
+            if os.path.exists(lock_file):
+                file_stat = os.stat(lock_file)
+                age_seconds = time.time() - file_stat.st_mtime
+                if age_seconds > 600:  # 10 minutes
+                    os.remove(lock_file)
+                    # Try again after removing stale lock
+                    try:
+                        fd = os.open(lock_file, os.O_CREAT | os.O_TRUNC | os.O_RDWR)
+                        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        return fd
+                    except (OSError, IOError):
+                        pass
+        except Exception:
+            pass
         return None
 
 
@@ -312,8 +333,8 @@ def main():
     # Acquire lock to prevent multiple instances
     lock_fd = acquire_lock()
     if lock_fd is None:
-        if args.test:
-            print("Another instance is already running")
+        if args.test or sys.stdin.isatty():
+            print("Another instance is already running or unable to acquire lock")
         sys.exit(0)  # Exit silently for cron
     
     try:

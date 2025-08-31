@@ -4,9 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [2025-08-31] - Major System Improvements & Fixes
+## [2025-08-31] - Master Scheduler System & Major Improvements
 
-### Added - Database Change Monitor & PythonAnywhere Upload System
+### Added - Master Scheduler System
+- **Centralized Orchestration**: `scripts/scheduler/master_scheduler.sh` - Single cron job manages all automation
+- **Intelligent Timing**: Smart scheduling with delays and process management
+- **Gameweek Validation**: `scripts/fpl/gameweek_validator.py` - Deadline-based validation with auto-refresh triggers
+- **Process Isolation**: Individual script failures don't affect other components
+- **Configuration Management**: `scripts/scheduler/scheduler_config.conf` - Easy enable/disable and timing adjustments
+- **Health Monitoring**: `scripts/scheduler/scheduler_status.sh` - Comprehensive system status and diagnostics
+- **Installation System**: `scripts/scheduler/install_scheduler.sh` - Automated setup with dry-run testing
+- **Lock Management**: Prevents script overlap with stale lock cleanup
+
+### Enhanced - Database Change Monitor & PythonAnywhere Upload System
+- **Interactive Console Output**: Automatically detects terminal vs cron execution for appropriate output
+- **Stale Lock Management**: Automatically removes locks older than 10 minutes
+- **Improved Error Handling**: Better handling of connection issues and process conflicts
 - **Database Monitoring**: `scripts/database/monitor_and_upload.py` - Automated database change detection and upload system
 - **Immediate Change Response**: Uploads to PythonAnywhere within 1 minute of any database changes
 - **Health Check Uploads**: Guaranteed upload every 30 minutes as system health monitoring
@@ -17,6 +30,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Refresh Token Support**: Automatic token refresh when expired using proper OAuth2 flow
 - **Legacy Token Migration**: Seamless upgrade from long-lived tokens to OAuth2 tokens
 - **Interactive Setup**: Browser-based authorization flow with step-by-step guidance
+
+### Enhanced - FPL Data Processing with Gameweek Validation
+- **Gameweek Validation Integration**: `scripts/fpl/fetch_fixtures_gameweeks.py` now includes pre-execution validation
+- **Deadline-Based Logic**: Compares gameweek deadlines with current time for accuracy
+- **Auto-refresh Triggers**: Automatically refreshes FPL API data when validation fails
+- **Post-update Verification**: Confirms data accuracy after API refresh
+- **Force Refresh Option**: `--force-refresh` flag bypasses validation checks
 
 ### Fixed - FPL Results Processing
 - **Timezone Issue**: Fixed "can't compare offset-naive and offset-aware datetimes" error
@@ -30,11 +50,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Performance Improvement**: Significant reduction in unnecessary database operations
 - **Accurate Logging**: Shows actual changes vs unchanged records
 
-### Added - Deployment Documentation
-- **Proxmox VM Guide**: `docs/Proxmox_Deployment_Guide.md` - Complete VM deployment guide
+### Enhanced - Deployment Documentation
+- **Master Scheduler Integration**: Updated `docs/Proxmox_Deployment_Guide.md` with scheduler installation
+- **Built-in Health Monitoring**: Integration with scheduler status and health checks
+- **Simplified Setup**: Single command installation with comprehensive status monitoring
 - **Production Setup**: Full Ubuntu Server installation and configuration
 - **System Hardening**: Security, monitoring, and backup strategies
-- **Automation Setup**: Cron jobs, systemd services, and health monitoring
 
 ### Added - GitHub Repository Setup
 - **README.md**: Comprehensive GitHub documentation with badges and architecture diagrams

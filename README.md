@@ -8,6 +8,13 @@ A comprehensive automated system for managing Fantasy Premier League predictions
 
 ## 🌟 Features
 
+### 🔄 **Master Scheduler System**
+- **Centralized Orchestration**: Single cron job manages all automation
+- **Intelligent Timing**: Smart scheduling with delays and process management
+- **Gameweek Validation**: Deadline-based validation with auto-refresh triggers
+- **Process Isolation**: Individual script failures don't affect other components
+- **Configuration-Driven**: Easy enable/disable and timing adjustments
+
 ### 🔄 **Automated Data Processing**
 - **FPL API Integration**: Automatic fixtures, gameweeks, and results collection
 - **Smart Change Detection**: Only updates database when data actually changes
@@ -29,7 +36,7 @@ A comprehensive automated system for managing Fantasy Premier League predictions
 ### 🔧 **Production Ready**
 - **Comprehensive Logging**: Daily log files with detailed operation tracking
 - **Error Handling**: Graceful failure recovery and retry logic
-- **Cron Integration**: Designed for automated scheduling
+- **Master Scheduler**: Advanced automation with lock files and health monitoring
 - **Security**: API key protection and secure authentication
 
 ## 🚀 Quick Start
@@ -67,15 +74,23 @@ A comprehensive automated system for managing Fantasy Premier League predictions
    python scripts/prediction_league/setup_dropbox_oauth.py
    ```
 
-5. **Test the system:**
+5. **Install the Master Scheduler:**
+   ```bash
+   ./scripts/scheduler/install_scheduler.sh --dry-run  # Test first
+   ./scripts/scheduler/install_scheduler.sh            # Install
+   ```
+
+6. **Test the system:**
    ```bash
    python scripts/fpl/fetch_fixtures_gameweeks.py --test --dry-run
    python scripts/fpl/fetch_results.py --test --dry-run
+   ./scripts/scheduler/scheduler_status.sh             # Check status
    ```
 
 ## 📖 Documentation
 
 ### Core Guides
+- **[Master Scheduler Guide](scripts/scheduler/README.md)** - Complete automation system
 - **[Proxmox Deployment Guide](docs/Proxmox_Deployment_Guide.md)** - Complete VM setup guide
 - **[Usage Guide](docs/Usage_Guide.md)** - Comprehensive usage instructions
 - **[API Integration](docs/API_Integration.md)** - API endpoints and authentication
@@ -99,7 +114,13 @@ A comprehensive automated system for managing Fantasy Premier League predictions
           │                      │                      │
           ▼                      ▼                      ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Core Processing Engine                       │
+│                    Master Scheduler System                     │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │          Centralized Orchestration Engine              │   │
+│  │  - Timing Control    - Process Management              │   │
+│  │  - Lock Files        - Gameweek Validation            │   │
+│  │  - Health Monitoring - Configuration Management       │   │
+│  └─────────────────────────────────────────────────────────┘   │
 │                                                                 │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
 │  │   FPL       │  │ Prediction  │  │  Database   │             │
@@ -117,13 +138,21 @@ A comprehensive automated system for managing Fantasy Premier League predictions
 
 ## 🛠️ Core Components
 
-### FPL Data Processing
-- **`scripts/fpl/fetch_fixtures_gameweeks.py`** - Manages fixtures and gameweeks
+### Master Scheduler System
+- **`scripts/scheduler/master_scheduler.sh`** - Main orchestration engine
+- **`scripts/scheduler/gameweek_validator.py`** - Deadline-based validation
+- **`scripts/scheduler/scheduler_config.conf`** - Centralized configuration
+- **`scripts/scheduler/install_scheduler.sh`** - Installation and setup
+- **`scripts/scheduler/scheduler_status.sh`** - Health monitoring
+
+### FPL Data Processing  
+- **`scripts/fpl/fetch_fixtures_gameweeks.py`** - Manages fixtures and gameweeks with validation
 - **`scripts/fpl/fetch_results.py`** - Processes match results with timezone handling
 - **`scripts/fpl/fetch_fpl_data.py`** - Comprehensive player data collection
 
 ### Prediction Management
 - **`scripts/prediction_league/clean_predictions_dropbox.py`** - Dropbox integration
+- **`scripts/prediction_league/automated_predictions.py`** - Automated prediction generation
 - **`scripts/prediction_league/setup_dropbox_oauth.py`** - OAuth2 setup helper
 
 ### Database Operations
@@ -147,21 +176,51 @@ Create `keys.json` from template and configure:
 }
 ```
 
-### Automation Setup
+### Master Scheduler Configuration
 
-**Cron Jobs Example:**
+**Single Cron Job (Recommended):**
 ```bash
-# FPL Data (every 6 hours)
-0 */6 * * * cd /path/to/project && ./venv/bin/python scripts/fpl/fetch_fixtures_gameweeks.py
+# Master Scheduler - Manages all automation
+* * * * * /path/to/project/scripts/scheduler/master_scheduler.sh
+```
 
-# Results Processing (every 30 minutes during season)  
-*/30 * * * * cd /path/to/project && ./venv/bin/python scripts/fpl/fetch_results.py
+**Configuration File (`scripts/scheduler/scheduler_config.conf`):**
+```bash
+# Enable/disable individual components
+ENABLE_FETCH_RESULTS=true
+ENABLE_MONITOR_UPLOAD=true
+ENABLE_CLEAN_PREDICTIONS=true
+ENABLE_FETCH_FIXTURES=true
+ENABLE_AUTOMATED_PREDICTIONS=true
+ENABLE_FETCH_FPL_DATA=true
+ENABLE_FETCH_ODDS=true
+
+# Timing controls
+DELAY_BETWEEN_RESULTS_UPLOAD=30
+
+# Seasonal adjustments
+OFFSEASON_MODE=false
+```
+
+**Legacy Cron Jobs (Manual Setup):**
+```bash
+# FPL Data (every 30 minutes)
+*/30 * * * * cd /path/to/project && ./venv/bin/python scripts/fpl/fetch_fixtures_gameweeks.py
+
+# Results Processing (every minute)  
+* * * * * cd /path/to/project && ./venv/bin/python scripts/fpl/fetch_results.py
 
 # Prediction Processing (every 15 minutes)
 */15 * * * * cd /path/to/project && ./venv/bin/python scripts/prediction_league/clean_predictions_dropbox.py
 
-# Database Upload (every minute)
-* * * * * cd /path/to/project && ./venv/bin/python scripts/database/monitor_and_upload.py
+# Database Upload (every minute with delay)
+* * * * * sleep 30; cd /path/to/project && ./venv/bin/python scripts/database/monitor_and_upload.py
+
+# Automated Predictions (every hour)
+0 * * * * cd /path/to/project && ./venv/bin/python scripts/prediction_league/automated_predictions.py
+
+# Daily Data Refresh (7 AM)
+0 7 * * * cd /path/to/project && ./venv/bin/python scripts/fpl/fetch_fpl_data.py
 ```
 
 ## 🔒 Security Features
@@ -245,12 +304,14 @@ This system is built with **hobby project principles**:
 ## 📈 Version History
 
 ### Recent Major Updates
-- **v2025.08.31**: Major system improvements and fixes
-  - Database change monitoring with PythonAnywhere uploads
-  - Dropbox OAuth2 system with automatic token refresh
-  - FPL results processing fixes (timezone handling)
-  - Fixtures update optimization (eliminated phantom updates)
-  - Comprehensive deployment documentation
+- **v2025.08.31**: Master Scheduler System & Major Improvements
+  - **Master Scheduler System**: Centralized orchestration with single cron job
+  - **Gameweek Validation**: Deadline-based validation with auto-refresh
+  - **Enhanced Monitoring**: Process management, lock files, and health checks
+  - **Database Improvements**: Change monitoring with PythonAnywhere uploads
+  - **Dropbox OAuth2 System**: Automatic token refresh and secure authentication
+  - **FPL Results Processing**: Timezone handling fixes and smart timing
+  - **Configuration Management**: Easy enable/disable and timing controls
 
 See **[CHANGELOG.md](docs/CHANGELOG.md)** for complete version history.
 

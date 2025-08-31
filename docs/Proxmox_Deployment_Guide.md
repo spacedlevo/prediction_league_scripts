@@ -319,31 +319,85 @@ conn.close()
 
 ## Part 7: Automation Setup
 
-### 7.1 Create Cron Jobs
+### 7.1 Master Scheduler Installation (Recommended)
+
+**Install Master Scheduler System:**
+```bash
+cd /home/predictionleague/projects/prediction_league_script
+
+# Test installation (dry-run)
+./scripts/scheduler/install_scheduler.sh --dry-run
+
+# Install the scheduler
+./scripts/scheduler/install_scheduler.sh
+
+# Check status
+./scripts/scheduler/scheduler_status.sh
+```
+
+**Configure the scheduler:**
+```bash
+# Edit configuration file
+vim scripts/scheduler/scheduler_config.conf
+
+# Key settings:
+ENABLE_FETCH_RESULTS=true
+ENABLE_MONITOR_UPLOAD=true  
+ENABLE_CLEAN_PREDICTIONS=true
+ENABLE_FETCH_FIXTURES=true
+ENABLE_AUTOMATED_PREDICTIONS=true
+ENABLE_FETCH_FPL_DATA=true
+ENABLE_FETCH_ODDS=true
+
+# Timing controls
+DELAY_BETWEEN_RESULTS_UPLOAD=30
+OFFSEASON_MODE=false
+```
+
+**Monitor the scheduler:**
+```bash
+# Check overall status
+./scripts/scheduler/scheduler_status.sh
+
+# View detailed logs
+./scripts/scheduler/scheduler_status.sh --detailed
+
+# Check recent activity
+tail -f logs/scheduler/master_scheduler_$(date +%Y%m%d).log
+```
+
+### 7.2 Manual Cron Jobs (Legacy Approach)
 
 **Edit crontab:**
 ```bash
 crontab -e
 ```
 
-**Add cron jobs (example schedule):**
+**Add cron jobs (manual schedule):**
 ```bash
 # Prediction League Scripts - All times in server timezone
 
-# FPL Data Fetching (every 6 hours)
-0 */6 * * * cd /home/predictionleague/projects/prediction_league_script && ./venv/bin/python scripts/fpl/fetch_fixtures_gameweeks.py >/dev/null 2>&1
+# Master Scheduler (recommended - replaces all below)
+* * * * * /home/predictionleague/projects/prediction_league_script/scripts/scheduler/master_scheduler.sh >/dev/null 2>&1
 
-# FPL Results Processing (every 30 minutes during season)
-*/30 * * * * cd /home/predictionleague/projects/prediction_league_script && ./venv/bin/python scripts/fpl/fetch_results.py >/dev/null 2>&1
+# OR Manual Individual Scripts:
+# FPL Fixtures/Gameweeks (every 30 minutes)
+# */30 * * * * cd /home/predictionleague/projects/prediction_league_script && ./venv/bin/python scripts/fpl/fetch_fixtures_gameweeks.py >/dev/null 2>&1
+
+# FPL Results Processing (every minute)
+# * * * * * cd /home/predictionleague/projects/prediction_league_script && ./venv/bin/python scripts/fpl/fetch_results.py >/dev/null 2>&1
 
 # Dropbox Prediction Cleaning (every 15 minutes) 
-*/15 * * * * cd /home/predictionleague/projects/prediction_league_script && ./venv/bin/python scripts/prediction_league/clean_predictions_dropbox.py >/dev/null 2>&1
+# */15 * * * * cd /home/predictionleague/projects/prediction_league_script && ./venv/bin/python scripts/prediction_league/clean_predictions_dropbox.py >/dev/null 2>&1
 
-# Database Monitoring & Upload (every minute)
-* * * * * cd /home/predictionleague/projects/prediction_league_script && ./venv/bin/python scripts/database/monitor_and_upload.py >/dev/null 2>&1
+# Database Monitoring & Upload (every minute with delay)
+# * * * * * sleep 30; cd /home/predictionleague/projects/prediction_league_script && ./venv/bin/python scripts/database/monitor_and_upload.py >/dev/null 2>&1
 
-# System maintenance - log cleanup (daily at 2 AM)
-0 2 * * * find /home/predictionleague/projects/prediction_league_script/logs -name "*.log" -mtime +30 -delete
+# Automated Predictions (every hour)
+# 0 * * * * cd /home/predictionleague/projects/prediction_league_script && ./venv/bin/python scripts/prediction_league/automated_predictions.py >/dev/null 2>&1
+
+# Daily Data Refresh (7 AM)
+# 0 7 * * * cd /home/predictionleague/projects/prediction_league_script && ./venv/bin/python scripts/fpl/fetch_fpl_data.py >/dev/null 2>&1
 ```
 
 **Verify cron jobs:**
@@ -351,7 +405,7 @@ crontab -e
 crontab -l
 ```
 
-### 7.2 Create Systemd Services (Alternative)
+### 7.3 Create Systemd Services (Alternative)
 
 For more robust service management, you can create systemd services:
 
@@ -570,7 +624,19 @@ ping google.com
 
 ### 11.2 Service Health Checks
 
-**Create health check script:**
+**Use Built-in Scheduler Status:**
+```bash
+# Comprehensive health check
+./scripts/scheduler/scheduler_status.sh
+
+# Detailed health information
+./scripts/scheduler/scheduler_status.sh --health --detailed
+
+# Clean old files
+./scripts/scheduler/scheduler_status.sh --clean
+```
+
+**Create custom health check script (optional):**
 ```bash
 vim ~/health_check.sh
 ```
@@ -582,9 +648,12 @@ PROJECT_DIR="/home/predictionleague/projects/prediction_league_script"
 
 echo "=== Health Check $(date) ==="
 
+# Use built-in scheduler status
+cd $PROJECT_DIR
+./scripts/scheduler/scheduler_status.sh --health
+
 # Test database connectivity
 echo "Testing database..."
-cd $PROJECT_DIR
 ./venv/bin/python -c "
 import sqlite3
 try:
