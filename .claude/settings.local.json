@@ -8,7 +8,12 @@
       "Bash(source:*)",
       "Bash(timeout:*)",
       "Bash(./venv/bin/python:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Read(/tmp/**)",
+      "Bash(./scripts/scheduler/install_scheduler.sh:*)",
+      "Bash(./scripts/scheduler/master_scheduler.sh:*)",
+      "Bash(./scripts/scheduler/scheduler_status.sh:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []
