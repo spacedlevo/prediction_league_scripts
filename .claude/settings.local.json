@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sqlite3:*)",
+      "Bash(cat:*)",
+      "Bash(python:*)",
+      "Bash(chmod:*)",
+      "Bash(source:*)",
+      "Bash(timeout:*)",
+      "Bash(./venv/bin/python:*)",
+      "Bash(tree:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

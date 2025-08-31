@@ -1,0 +1,282 @@
+# Prediction League Script - Git Ignore File
+
+# ==============================================================================
+# SENSITIVE DATA - NEVER COMMIT
+# ==============================================================================
+
+# API Keys and Secrets
+keys.json
+*.key
+*.secret
+
+# Database Files
+data/database.db
+data/database.db-journal
+data/database.db-wal
+data/database.db-shm
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+
+# Backup Files
+data/backups/
+*.backup
+database_backup_*.db
+keys_backup_*.json
+
+# ==============================================================================
+# PYTHON
+# ==============================================================================
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+.env/
+
+# Python Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Distribution / Packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit Test / Coverage
+.coverage
+.pytest_cache/
+.tox/
+.nox/
+htmlcov/
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# PEP 582
+__pypackages__/
+
+# ==============================================================================
+# LOGS AND TEMPORARY FILES
+# ==============================================================================
+
+# Log Files
+logs/
+*.log
+log_*.txt
+
+# Sample Data (can be large)
+samples/
+sample_data/
+*.json.sample
+
+# Temporary Files
+tmp/
+temp/
+.tmp/
+*.tmp
+*.temp
+*~
+
+# Cache Files
+.cache/
+*.cache
+
+# ==============================================================================
+# DEVELOPMENT & IDE
+# ==============================================================================
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Vim
+*.swp
+*.swo
+*.un~
+Session.vim
+.netrwhist
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# ==============================================================================
+# SYSTEM FILES
+# ==============================================================================
+
+# OS Generated Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Windows
+*.lnk
+
+# Linux
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ==============================================================================
+# PROJECT SPECIFIC
+# ==============================================================================
+
+# Configuration Overrides
+config.local.json
+settings.local.py
+
+# Development Data
+test_data/
+dev_data/
+*.dev
+
+# Generated CSV Files (can be regenerated)
+data/predictions/*.csv
+data/cleaned/*.csv
+
+# OAuth Tokens and Refresh Data
+*_token*
+.oauth_*
+auth_cache
+
+# Cron Logs (system generated)
+cron.log
+cron_*.log
+
+# Monitor Outputs
+monitor_*.out
+health_check_*.out
+
+# ==============================================================================
+# DOCUMENTATION ARTIFACTS
+# ==============================================================================
+
+# Generated Documentation
+docs/_build/
+docs/build/
+site/
+_site/
+
+# LaTeX
+*.aux
+*.fdb_latexmk
+*.fls
+*.out
+*.toc
+
+# ==============================================================================
+# DEPLOYMENT
+# ==============================================================================
+
+# Docker
+.dockerignore
+Dockerfile.local
+docker-compose.override.yml
+
+# Deployment Scripts
+deploy_*.sh
+.env.local
+.env.production
+
+# SSL Certificates
+*.pem
+*.crt
+*.key
+*.p12
+*.pfx
+
+# ==============================================================================
+# LEGACY AND ARCHIVE
+# ==============================================================================
+
+# Old Versions
+*.old
+*.bak
+*_backup
+*_old
+
+# Archives
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# ==============================================================================
+# EXCEPTIONS - Files to INCLUDE despite patterns above
+# ==============================================================================
+
+# Include important documentation
+!docs/
+!README.md
+!CHANGELOG.md
+!LICENSE
+
+# Include sample configuration templates
+!keys.json.template
+!config.json.template
+
+# Include empty directories with placeholder files
+!data/.gitkeep
+!logs/.gitkeep
+!samples/.gitkeep
+
+# Include essential scripts
+!scripts/
+
+# ==============================================================================
+# END OF .gitignore
+# ==============================================================================

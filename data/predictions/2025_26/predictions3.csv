@@ -1,0 +1,261 @@
+gameweek,player,home_team,away_team,home_goals,away_goals
+3,tom levin,chelsea,fulham,2,1
+3,tom levin,burnley,man utd,2,1
+3,tom levin,bournemouth,spurs,2,1
+3,tom levin,brentford,sunderland,1,2
+3,tom levin,everton,wolves,2,1
+3,tom levin,newcastle,leeds,1,2
+3,tom levin,brighton,man city,1,2
+3,tom levin,west ham,nott'm forest,2,1
+3,tom levin,liverpool,arsenal,2,1
+3,tom levin,crystal palace,aston villa,2,1
+3,tom hunt,chelsea,fulham,2,1
+3,tom hunt,burnley,man utd,2,0
+3,tom hunt,bournemouth,spurs,2,1
+3,tom hunt,brentford,sunderland,1,1
+3,tom hunt,everton,wolves,1,1
+3,tom hunt,newcastle,leeds,1,1
+3,tom hunt,brighton,man city,1,3
+3,tom hunt,west ham,nott'm forest,2,0
+3,tom hunt,liverpool,arsenal,2,2
+3,tom hunt,crystal palace,aston villa,2,1
+3,graham kay,chelsea,fulham,2,1
+3,graham kay,burnley,man utd,2,0
+3,graham kay,bournemouth,spurs,2,1
+3,graham kay,brentford,sunderland,1,1
+3,graham kay,everton,wolves,1,1
+3,graham kay,newcastle,leeds,0,1
+3,graham kay,brighton,man city,1,2
+3,graham kay,west ham,nott'm forest,2,1
+3,graham kay,liverpool,arsenal,2,1
+3,graham kay,crystal palace,aston villa,2,2
+3,josh jones,chelsea,fulham,2,0
+3,josh jones,burnley,man utd,2,0
+3,josh jones,bournemouth,spurs,2,1
+3,josh jones,brentford,sunderland,0,1
+3,josh jones,everton,wolves,0,2
+3,josh jones,newcastle,leeds,1,2
+3,josh jones,brighton,man city,0,2
+3,josh jones,west ham,nott'm forest,2,0
+3,josh jones,liverpool,arsenal,2,1
+3,josh jones,crystal palace,aston villa,1,0
+3,colin croft,chelsea,fulham,2,1
+3,colin croft,burnley,man utd,2,0
+3,colin croft,bournemouth,spurs,2,1
+3,colin croft,brentford,sunderland,1,1
+3,colin croft,everton,wolves,1,2
+3,colin croft,newcastle,leeds,1,2
+3,colin croft,brighton,man city,1,2
+3,colin croft,west ham,nott'm forest,2,0
+3,colin croft,liverpool,arsenal,2,2
+3,colin croft,crystal palace,aston villa,1,0
+3,joe daley,chelsea,fulham,2,0
+3,joe daley,burnley,man utd,1,0
+3,joe daley,bournemouth,spurs,3,1
+3,joe daley,brentford,sunderland,2,2
+3,joe daley,everton,wolves,0,3
+3,joe daley,newcastle,leeds,1,2
+3,joe daley,brighton,man city,0,1
+3,joe daley,west ham,nott'm forest,3,1
+3,joe daley,liverpool,arsenal,1,2
+3,joe daley,crystal palace,aston villa,2,0
+3,col turner,chelsea,fulham,2,0
+3,col turner,burnley,man utd,1,0
+3,col turner,bournemouth,spurs,3,1
+3,col turner,brentford,sunderland,2,1
+3,col turner,everton,wolves,1,2
+3,col turner,newcastle,leeds,1,1
+3,col turner,brighton,man city,0,3
+3,col turner,west ham,nott'm forest,1,1
+3,col turner,liverpool,arsenal,2,1
+3,col turner,crystal palace,aston villa,3,2
+3,graham handley,chelsea,fulham,2,0
+3,graham handley,burnley,man utd,2,0
+3,graham handley,bournemouth,spurs,2,1
+3,graham handley,brentford,sunderland,0,1
+3,graham handley,everton,wolves,1,1
+3,graham handley,newcastle,leeds,0,2
+3,graham handley,brighton,man city,1,3
+3,graham handley,west ham,nott'm forest,2,0
+3,graham handley,liverpool,arsenal,2,2
+3,graham handley,crystal palace,aston villa,1,1
+3,andy mckenna,chelsea,fulham,3,1
+3,andy mckenna,burnley,man utd,2,0
+3,andy mckenna,bournemouth,spurs,2,1
+3,andy mckenna,brentford,sunderland,2,1
+3,andy mckenna,everton,wolves,1,1
+3,andy mckenna,newcastle,leeds,1,2
+3,andy mckenna,brighton,man city,1,2
+3,andy mckenna,west ham,nott'm forest,2,1
+3,andy mckenna,liverpool,arsenal,2,2
+3,andy mckenna,crystal palace,aston villa,2,1
+3,dean charles,chelsea,fulham,2,0
+3,dean charles,burnley,man utd,2,0
+3,dean charles,bournemouth,spurs,2,1
+3,dean charles,brentford,sunderland,2,1
+3,dean charles,everton,wolves,0,2
+3,dean charles,newcastle,leeds,1,2
+3,dean charles,brighton,man city,0,2
+3,dean charles,west ham,nott'm forest,2,0
+3,dean charles,liverpool,arsenal,1,1
+3,dean charles,crystal palace,aston villa,2,1
+3,michael green,chelsea,fulham,2,1
+3,michael green,burnley,man utd,2,1
+3,michael green,bournemouth,spurs,2,1
+3,michael green,brentford,sunderland,1,3
+3,michael green,everton,wolves,0,1
+3,michael green,newcastle,leeds,1,1
+3,michael green,brighton,man city,1,2
+3,michael green,west ham,nott'm forest,2,0
+3,michael green,liverpool,arsenal,3,2
+3,michael green,crystal palace,aston villa,1,1
+3,jake walbank,chelsea,fulham,2,1
+3,jake walbank,burnley,man utd,2,0
+3,jake walbank,bournemouth,spurs,2,1
+3,jake walbank,brentford,sunderland,2,1
+3,jake walbank,everton,wolves,1,1
+3,jake walbank,newcastle,leeds,0,1
+3,jake walbank,brighton,man city,1,2
+3,jake walbank,west ham,nott'm forest,1,0
+3,jake walbank,liverpool,arsenal,1,1
+3,jake walbank,crystal palace,aston villa,2,2
+3,chris johnson,chelsea,fulham,2,1
+3,chris johnson,burnley,man utd,1,0
+3,chris johnson,bournemouth,spurs,2,0
+3,chris johnson,brentford,sunderland,1,2
+3,chris johnson,everton,wolves,1,1
+3,chris johnson,newcastle,leeds,0,3
+3,chris johnson,brighton,man city,1,2
+3,chris johnson,west ham,nott'm forest,2,0
+3,chris johnson,liverpool,arsenal,2,1
+3,chris johnson,crystal palace,aston villa,1,0
+3,kate daley,chelsea,fulham,2,0
+3,kate daley,burnley,man utd,2,1
+3,kate daley,bournemouth,spurs,3,1
+3,kate daley,brentford,sunderland,2,1
+3,kate daley,everton,wolves,0,2
+3,kate daley,newcastle,leeds,1,2
+3,kate daley,brighton,man city,1,3
+3,kate daley,west ham,nott'm forest,2,0
+3,kate daley,liverpool,arsenal,2,3
+3,kate daley,crystal palace,aston villa,1,1
+3,jonny parker,chelsea,fulham,2,1
+3,jonny parker,burnley,man utd,1,0
+3,jonny parker,bournemouth,spurs,2,1
+3,jonny parker,brentford,sunderland,2,1
+3,jonny parker,everton,wolves,1,1
+3,jonny parker,newcastle,leeds,1,2
+3,jonny parker,brighton,man city,1,2
+3,jonny parker,west ham,nott'm forest,2,1
+3,jonny parker,liverpool,arsenal,2,2
+3,jonny parker,crystal palace,aston villa,2,1
+3,scott frazer,chelsea,fulham,2,1
+3,scott frazer,burnley,man utd,1,0
+3,scott frazer,bournemouth,spurs,2,1
+3,scott frazer,brentford,sunderland,2,1
+3,scott frazer,everton,wolves,1,1
+3,scott frazer,newcastle,leeds,1,1
+3,scott frazer,brighton,man city,1,2
+3,scott frazer,west ham,nott'm forest,2,1
+3,scott frazer,liverpool,arsenal,1,1
+3,scott frazer,crystal palace,aston villa,1,1
+3,chris hart,chelsea,fulham,2,1
+3,chris hart,burnley,man utd,2,0
+3,chris hart,bournemouth,spurs,2,1
+3,chris hart,brentford,sunderland,1,1
+3,chris hart,everton,wolves,0,1
+3,chris hart,newcastle,leeds,1,1
+3,chris hart,brighton,man city,1,2
+3,chris hart,west ham,nott'm forest,2,0
+3,chris hart,liverpool,arsenal,2,2
+3,chris hart,crystal palace,aston villa,2,1
+3,amy hart,chelsea,fulham,2,1
+3,amy hart,burnley,man utd,2,1
+3,amy hart,bournemouth,spurs,3,1
+3,amy hart,brentford,sunderland,1,2
+3,amy hart,everton,wolves,1,2
+3,amy hart,newcastle,leeds,2,3
+3,amy hart,brighton,man city,1,3
+3,amy hart,west ham,nott'm forest,1,0
+3,amy hart,liverpool,arsenal,3,3
+3,amy hart,crystal palace,aston villa,1,2
+3,gary regan,chelsea,fulham,2,1
+3,gary regan,burnley,man utd,2,0
+3,gary regan,bournemouth,spurs,2,1
+3,gary regan,brentford,sunderland,1,1
+3,gary regan,everton,wolves,1,1
+3,gary regan,newcastle,leeds,0,1
+3,gary regan,brighton,man city,1,2
+3,gary regan,west ham,nott'm forest,3,0
+3,gary regan,liverpool,arsenal,2,2
+3,gary regan,crystal palace,aston villa,2,1
+3,dan barrell,chelsea,fulham,2,0
+3,dan barrell,burnley,man utd,1,0
+3,dan barrell,bournemouth,spurs,3,0
+3,dan barrell,brentford,sunderland,2,1
+3,dan barrell,everton,wolves,1,1
+3,dan barrell,newcastle,leeds,0,2
+3,dan barrell,brighton,man city,0,2
+3,dan barrell,west ham,nott'm forest,2,0
+3,dan barrell,liverpool,arsenal,2,1
+3,dan barrell,crystal palace,aston villa,1,0
+3,ste harrison,chelsea,fulham,3,1
+3,ste harrison,burnley,man utd,2,1
+3,ste harrison,bournemouth,spurs,2,1
+3,ste harrison,brentford,sunderland,1,2
+3,ste harrison,everton,wolves,2,1
+3,ste harrison,newcastle,leeds,0,2
+3,ste harrison,brighton,man city,1,3
+3,ste harrison,west ham,nott'm forest,3,0
+3,ste harrison,liverpool,arsenal,1,1
+3,ste harrison,crystal palace,aston villa,1,1
+3,luke prior,chelsea,fulham,2,0
+3,luke prior,burnley,man utd,2,1
+3,luke prior,bournemouth,spurs,2,1
+3,luke prior,brentford,sunderland,1,1
+3,luke prior,everton,wolves,0,1
+3,luke prior,newcastle,leeds,1,2
+3,luke prior,brighton,man city,1,4
+3,luke prior,west ham,nott'm forest,2,1
+3,luke prior,liverpool,arsenal,2,1
+3,luke prior,crystal palace,aston villa,2,2
+3,olly spence robb,chelsea,fulham,2,1
+3,olly spence robb,burnley,man utd,2,0
+3,olly spence robb,bournemouth,spurs,3,2
+3,olly spence robb,brentford,sunderland,0,1
+3,olly spence robb,everton,wolves,1,1
+3,olly spence robb,newcastle,leeds,1,2
+3,olly spence robb,brighton,man city,1,4
+3,olly spence robb,west ham,nott'm forest,3,0
+3,olly spence robb,liverpool,arsenal,2,1
+3,olly spence robb,crystal palace,aston villa,1,0
+3,sean burns,chelsea,fulham,2,1
+3,sean burns,burnley,man utd,1,0
+3,sean burns,bournemouth,spurs,2,1
+3,sean burns,brentford,sunderland,1,1
+3,sean burns,everton,wolves,1,1
+3,sean burns,newcastle,leeds,1,2
+3,sean burns,brighton,man city,1,2
+3,sean burns,west ham,nott'm forest,2,0
+3,sean burns,liverpool,arsenal,2,0
+3,sean burns,crystal palace,aston villa,2,0
+3,edward fenna,chelsea,fulham,2,0
+3,edward fenna,burnley,man utd,2,1
+3,edward fenna,bournemouth,spurs,3,1
+3,edward fenna,brentford,sunderland,1,1
+3,edward fenna,everton,wolves,0,2
+3,edward fenna,newcastle,leeds,0,2
+3,edward fenna,brighton,man city,1,3
+3,edward fenna,west ham,nott'm forest,2,0
+3,edward fenna,liverpool,arsenal,2,2
+3,edward fenna,crystal palace,aston villa,2,1
+3,james forshaw,chelsea,fulham,2,1
+3,james forshaw,burnley,man utd,2,0
+3,james forshaw,bournemouth,spurs,3,2
+3,james forshaw,brentford,sunderland,1,1
+3,james forshaw,everton,wolves,0,2
+3,james forshaw,newcastle,leeds,1,2
+3,james forshaw,brighton,man city,2,3
+3,james forshaw,west ham,nott'm forest,3,0
+3,james forshaw,liverpool,arsenal,2,2
+3,james forshaw,crystal palace,aston villa,1,1

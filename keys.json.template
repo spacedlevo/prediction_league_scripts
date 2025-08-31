@@ -1,0 +1,11 @@
+{
+  "odds_api_key": "your_odds_api_key_here",
+  "dropbox_oath_token": "will_be_updated_by_oauth_setup_script",
+  "dropbox_app_key": "your_dropbox_app_key",
+  "dropbox_app_secret": "your_dropbox_app_secret",
+  "dropbox_refresh_token": "will_be_created_by_oauth_setup",
+  "PUSHOVER_USER": "your_pushover_user_key_optional",
+  "PUSHOVER_TOKEN": "your_pushover_app_token_optional",
+  "pythonanywhere_username": "your_pythonanywhere_username",
+  "pythonanywhere_password": "your_pythonanywhere_password"
+}

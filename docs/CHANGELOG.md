@@ -1,0 +1,377 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+
+## [2025-08-31] - Major System Improvements & Fixes
+
+### Added - Database Change Monitor & PythonAnywhere Upload System
+- **Database Monitoring**: `scripts/database/monitor_and_upload.py` - Automated database change detection and upload system
+- **Immediate Change Response**: Uploads to PythonAnywhere within 1 minute of any database changes
+- **Health Check Uploads**: Guaranteed upload every 30 minutes as system health monitoring
+- **Cron Integration**: Designed for minute-by-minute cron execution with proper locking
+
+### Added - Dropbox OAuth2 System
+- **OAuth2 Setup Helper**: `scripts/prediction_league/setup_dropbox_oauth.py` - Automated OAuth2 token generation
+- **Refresh Token Support**: Automatic token refresh when expired using proper OAuth2 flow
+- **Legacy Token Migration**: Seamless upgrade from long-lived tokens to OAuth2 tokens
+- **Interactive Setup**: Browser-based authorization flow with step-by-step guidance
+
+### Fixed - FPL Results Processing
+- **Timezone Issue**: Fixed "can't compare offset-naive and offset-aware datetimes" error
+- **Missing Results Detection**: Added comprehensive query to find fixtures needing results
+- **Smart Logic**: Results fetched when needed regardless of timing windows
+- **Enhanced Error Handling**: Better timezone parsing and datetime comparison
+
+### Fixed - Fixtures Update Optimization
+- **Change Detection**: Added field-by-field comparison for fixtures and gameweeks
+- **Eliminated Phantom Updates**: Only updates database when data actually changes
+- **Performance Improvement**: Significant reduction in unnecessary database operations
+- **Accurate Logging**: Shows actual changes vs unchanged records
+
+### Added - Deployment Documentation
+- **Proxmox VM Guide**: `docs/Proxmox_Deployment_Guide.md` - Complete VM deployment guide
+- **Production Setup**: Full Ubuntu Server installation and configuration
+- **System Hardening**: Security, monitoring, and backup strategies
+- **Automation Setup**: Cron jobs, systemd services, and health monitoring
+
+### Added - GitHub Repository Setup
+- **README.md**: Comprehensive GitHub documentation with badges and architecture diagrams
+- **requirements.txt**: Python dependencies specification for easy installation
+- **LICENSE**: MIT license for open source distribution
+- **.gitignore**: Comprehensive ignore rules protecting sensitive data
+- **Template System**: `keys.json.template` for secure configuration setup
+
+### Technical Details
+
+#### Database Change Monitor Features
+- **Smart Change Detection**: Monitors `last_update` table for changes since last upload
+- **Dual Upload Logic**: Immediate uploads for changes + 30-minute health checks
+- **PythonAnywhere Integration**: SSH/SFTP upload using paramiko with secure authentication
+- **Comprehensive Logging**: Daily log files with upload reasons and error tracking
+- **Process Locking**: Prevents multiple instances from running simultaneously
+- **Cron-Friendly**: Silent operation with proper exit codes for automated scheduling
+
+### Technical Implementation
+- **Change Detection**: Compares all `last_update` table timestamps vs last uploaded timestamp
+- **Health Check Logic**: Automatic upload if no upload occurred in last 30 minutes  
+- **Upload Process**: SSH to ssh.pythonanywhere.com, SFTP upload database.db (~4MB)
+- **Transaction Safety**: Updates upload timestamp only after successful upload
+- **Error Recovery**: Graceful handling of network failures and authentication errors
+
+### Upload Scenarios
+1. **Database Changes**: Any script updating `last_update` table triggers immediate upload
+2. **Health Check**: Upload every 30+ minutes even without changes (system monitoring)
+3. **Error Recovery**: Failed uploads retry on next cron execution
+4. **Monitoring**: All upload attempts logged with reasons for troubleshooting
+
+### Configuration
+**Keys.json additions:**
+```json
+{
+  "pythonanywhere_username": "spacedlevo",
+  "pythonanywhere_password": "password"
+}
+```
+
+### Command Line Usage
+```bash
+# Normal execution (for cron)
+python scripts/database/monitor_and_upload.py
+
+# Test with console output
+python scripts/database/monitor_and_upload.py --test
+
+# Dry run mode  
+python scripts/database/monitor_and_upload.py --dry-run
+
+# Force upload regardless of timing
+python scripts/database/monitor_and_upload.py --force
+```
+
+### Cron Setup
+```bash
+# Run every minute for responsive uploads
+* * * * * cd /home/levo/Documents/projects/prediction_league_script && ./venv/bin/python scripts/database/monitor_and_upload.py >/dev/null 2>&1
+```
+
+### Benefits
+- **Responsive Updates**: Database changes uploaded within 1 minute
+- **System Monitoring**: Regular uploads prove system health and connectivity
+- **Automated Operation**: No manual intervention required
+- **Comprehensive Logging**: Full audit trail of all upload activities
+- **Error Resilience**: Graceful handling of network and authentication issues
+
+This provides automated, reliable database synchronization with PythonAnywhere while serving as a continuous system health monitor.
+
+## [2025-08-30] - FPL Results Processing System
+
+### Added
+- **FPL Results Fetching**: `scripts/fpl/fetch_results.py` - Modern results and status tracking script
+- **Match Day Intelligence**: Only runs during actual match days within timing windows  
+- **Change Detection**: Updates fixtures and results tables only when data changes
+- **Sample Data System**: JSON backups with automatic cleanup for testing
+- **Command-line Interface**: Test, override, dry-run, and cleanup options
+
+### Features
+- **Smart Timing Windows**: Runs between first kickoff and last kickoff + 2.5 hours on match days
+- **Database Integration**: Updates fixture status flags (started, finished, provisional_finished)  
+- **Results Processing**: Inserts match results into results table with change detection
+- **API Efficiency**: Avoids unnecessary FPL API calls when no matches scheduled
+- **Comprehensive Logging**: Detailed operation tracking with daily log files
+
+### Technical Implementation
+- **Match Day Detection**: Database query to check for fixtures on current date
+- **Timing Logic**: Calculates kickoff windows from database fixture data
+- **Change Detection**: Compares API data against existing database records
+- **Status Mapping**: FPL started/finished flags to database boolean columns
+- **Results Processing**: Processes team_h_score/team_a_score into home_goals/away_goals
+
+### Database Operations
+- **Fixtures Status Updates**: Updates started, finished, provisional_finished flags
+- **Results Management**: Inserts/updates match results with goal scores and calculated results
+- **Foreign Key Relationships**: Maintains proper references between fixtures and results
+- **Transaction Safety**: Atomic operations with rollback on failures
+
+### Command Line Usage
+```bash
+# Normal execution (respects timing windows)
+python scripts/fpl/fetch_results.py
+
+# Override timing for development
+python scripts/fpl/fetch_results.py --override
+
+# Test with sample data
+python scripts/fpl/fetch_results.py --test
+
+# Dry run mode
+python scripts/fpl/fetch_results.py --dry-run
+
+# Custom sample file retention
+python scripts/fpl/fetch_results.py --cleanup-count 3
+```
+
+### Processing Flow
+1. **Gameweek Detection**: Get current gameweek from database
+2. **Match Day Check**: Verify fixtures scheduled for today
+3. **Timing Window**: Calculate if within match day processing window
+4. **API Request**: Fetch fixtures data for current gameweek (if within window)
+5. **Status Changes**: Process fixture status updates (started/finished flags)
+6. **Results Processing**: Insert/update match results when scores available
+7. **Change Detection**: Skip database operations if no changes detected
+
+This modernizes the legacy results system with efficient API usage, intelligent timing, and comprehensive change detection.
+
+## [2025-08-30] - Dropbox Prediction Database Integration
+
+### Added
+- **Direct Database Integration**: `clean_predictions_dropbox.py` now inserts predictions directly into `predictions` table
+- **Enhanced Duplicate Resolution**: Latest-prediction-wins logic for multiple submissions per player per fixture
+- **Foreign Key Mapping**: Automatic conversion of player names and team pairs to database IDs
+- **Conflict Resolution**: Uses `INSERT OR REPLACE` to handle duplicate predictions gracefully
+- **Predicted Result Calculation**: Generates H/D/A results from goal scores
+- **Comprehensive Logging**: Detailed insertion tracking with success/skip counts and reasons
+
+### Enhanced Features
+- **Primary Storage**: Database is now primary storage method, CSV files serve as backup
+- **Transaction Safety**: All database operations use transactions for data integrity
+- **Reference Validation**: Skips predictions for missing players or fixtures with detailed logging
+- **Dry Run Support**: Shows both database insertion and CSV counts in test mode
+
+### Database Schema Updates
+- **Predictions Table**: Enhanced usage with full foreign key relationships
+- **Constraint Enforcement**: One prediction per `(player_id, fixture_id)` combination
+- **Referential Integrity**: Foreign keys ensure valid player and fixture references
+
+### Technical Implementation
+```python
+# Key functions added:
+def get_player_id(player_name, cursor)          # Player name → player_id
+def get_fixture_id(home_team, away_team, gameweek, cursor)  # Teams+gameweek → fixture_id  
+def calculate_predicted_result(home_goals, away_goals)      # Goals → H/D/A result
+def insert_predictions_to_database(predictions, gameweek, cursor, logger)  # Database insertion
+```
+
+### Processing Flow (Updated)
+1. **File Change Detection**: Track `.txt` file timestamps
+2. **Content Processing**: Extract predictions with enhanced duplicate handling
+3. **Foreign Key Resolution**: Convert names to database IDs
+4. **Database Insertion**: Primary storage with conflict resolution
+5. **CSV Backup**: Secondary storage for reference
+6. **Metadata Updates**: Track file timestamps and processing status
+
+### Performance Results
+- Successfully processed 259 predictions from Dropbox
+- Inserted 113 valid predictions into database
+- Skipped 146 predictions with missing fixture references (expected behavior)
+- Maintained CSV backup compatibility
+
+### Usage Examples
+```bash
+# Process predictions with database integration
+python scripts/prediction_league/clean_predictions_dropbox.py
+
+# Dry run shows both database and CSV operations
+python scripts/prediction_league/clean_predictions_dropbox.py --dry-run
+
+# Process specific gameweek
+python scripts/prediction_league/clean_predictions_dropbox.py --gameweek 3
+```
+
+### Benefits
+- **Eliminates Manual Steps**: No separate CSV-to-database import required
+- **Data Integrity**: Foreign key constraints ensure valid references
+- **Conflict Resolution**: Handles multiple submissions automatically
+- **Comprehensive Logging**: Full visibility into processing results
+- **Backup Safety**: Maintains CSV files as fallback
+
+## [2025-08-29] - Automated Predictions System
+
+### Added
+- `scripts/prediction_league/automated_predictions.py` - Complete automated prediction generation system
+- Dropbox API integration for prediction file uploads
+- Pushover API integration for instant notifications
+- Smart prevention system to avoid duplicate runs
+- Comprehensive odds-based prediction logic
+
+### Features
+- **Automated Trigger**: Only runs when gameweek deadline is within 36 hours
+- **Odds-Based Logic**: Favorite team (lower odds) wins 2-1, underdog wins 1-2  
+- **File Management**: Uploads to Dropbox at `predictions_league/odds-api/predictions{gameweek}.txt`
+- **Dual Notifications**: Sends both predictions and fixtures via Pushover
+- **Duplicate Prevention**: Checks existing files and recent processing timestamps
+- **Team Name Formatting**: Properly capitalized team names (e.g., "Chelsea", "Man Utd")
+- **UK Timezone**: Converts UTC deadlines to UK timezone for display
+
+### Database Integration
+- Uses existing `gameweeks`, `fixtures`, `fixture_odds_summary` tables
+- Updates `last_update` table with "predictions" and "send_fixtures" entries
+- Leverages gameweek_odds.sql for odds data retrieval
+- Implements 1-hour cooldown to prevent spam
+
+### API Integrations
+- **Dropbox**: File existence checking and automated uploads
+- **Pushover**: Real-time notifications with error handling
+- **Database**: Efficient queries with proper error handling and transactions
+
+### Technical Details
+- **Trigger Window**: 36-hour deadline detection window
+- **Processing Logic**: SQL-based odds analysis with favorite detection
+- **File Format**: Text files with "Tom Levin" header and score predictions
+- **Notification Format**: Separate messages for predictions and fixture lists
+- **Error Handling**: Comprehensive exception handling for all API calls
+
+### Command Line Usage
+```bash
+# Manual execution
+python scripts/prediction_league/automated_predictions.py
+
+# Cron scheduling (every 6 hours)
+0 */6 * * * cd /path/to/project && /path/to/venv/bin/python scripts/prediction_league/automated_predictions.py
+```
+
+## [2025-08-29] - FPL Fixtures and Gameweeks Data Management
+
+### Added
+- `scripts/fpl/fetch_fixtures_gameweeks.py` - Unified fixtures and gameweeks data fetching script
+- `samples/fixtures/` directory for JSON data backup and testing  
+- Comprehensive FPL API integration for fixtures and gameweeks
+- Database schema compatibility for existing `gameweeks` table structure
+- Command-line interface with test, dry-run, and cleanup options
+
+### Features
+- **Dual API Integration**: Bootstrap API for gameweeks, Fixtures API for match data
+- **Team Mapping**: FPL team ID to database team_id conversion with caching
+- **Timezone Handling**: UTC to UK time conversion for kickoff times and deadlines
+- **Batch Operations**: Efficient INSERT OR REPLACE upserts for optimal performance
+- **Sample Data System**: JSON backups with metadata and automatic cleanup
+- **Schema Compatibility**: Works with existing database structure without modifications
+
+### Database Integration
+- Updates `gameweeks` table with deadline information and status flags
+- Updates `fixtures` table with FPL fixture data, team mappings, and match status
+- Creates indexes for improved query performance
+- Updates `last_update` tracking table with execution timestamps
+
+### Command Line Options
+- `--test`: Use cached sample data for development
+- `--dry-run`: Preview changes without database modifications
+- `--season`: Specify custom season (default: 2025/2026) 
+- `--cleanup-count`: Configure sample file retention
+
+### Technical Details
+- Data sources: FPL Bootstrap API (`/api/bootstrap-static/`) and Fixtures API (`/api/fixtures/`)
+- Processing: ~38 gameweeks and ~380 fixtures per Premier League season
+- Error handling: Graceful handling of API failures, missing team mappings, and database errors
+- Transaction management: Atomic operations with rollback on failures
+
+## [2025-08-29] - Fantasy Premier League Data Migration
+
+### Added
+- `fantasy_pl_scores` table to main database (`data/database.db`)
+- Comprehensive player performance tracking for 2025/2026 season
+- Database indexes for improved query performance on fixture_id, player_id, and gameweek
+- Foreign key relationship between fantasy_pl_scores and fixtures table
+
+### Changed
+- Migrated 689 player score records from legacy database (`legacy/pick_player/fpl_players.db`)
+- Mapped legacy fixture IDs (1-10) to proper fixture_id references (3735-3744) for 2025/2026 season
+- Renamed original `player_scores` table to `fantasy_pl_scores` for better naming consistency
+
+### Technical Details
+- Data source: Legacy FPL players database
+- Records migrated: 689 player performances from gameweek 1
+- Fixtures covered: 10 Premier League fixtures (FPL fixture IDs 1-10)
+- Database: SQLite with proper referential integrity
+
+### Schema
+The `fantasy_pl_scores` table includes:
+- Basic info: player_name, player_id, gameweek, fixture_id
+- Performance stats: total_points, minutes, goals, assists, clean_sheets
+- Advanced metrics: expected_goals, expected_assists, ICT index, BPS
+- Transfer data: value, transfers_in, transfers_out, selected
+
+This migration enables comprehensive analysis of Fantasy Premier League player performance within the existing database structure.
+
+## [2025-08-29] - Fantasy Premier League Data Fetching System
+
+### Added
+- `scripts/fpl/fetch_fpl_data.py` - Modern FPL data fetching script
+- `samples/fantasypl/` directory for JSON data caching
+- Efficient upsert system for `fantasy_pl_scores` table updates
+- Comprehensive FPL API integration with proper error handling
+- JSON sample data backup system (keeps 5 most recent files)
+- Command-line interface with test mode and dry-run capabilities
+
+### Features
+- **Intelligent Updates**: Only processes records that have actually changed
+- **Fixture Mapping**: Proper conversion from FPL fixture IDs to database fixture_id
+- **API Management**: Rate limiting, timeout protection, and error recovery
+- **Progress Tracking**: Visual progress indication with tqdm
+- **Sample Data Testing**: Test mode using cached JSON responses
+- **Logging**: Daily log files with detailed operation tracking
+
+### Technical Implementation
+- **Upsert Strategy**: Uses `INSERT OR REPLACE` with change detection
+- **Error Handling**: Individual player failures don't stop entire process  
+- **Database Integrity**: Maintains foreign key relationships
+- **Memory Efficient**: Processes data in streams without loading everything
+- **Season-Aware**: Maps fixtures to current 2025/2026 season only
+
+### Usage Examples
+```bash
+# Fetch live FPL data
+python scripts/fpl/fetch_fpl_data.py
+
+# Test with sample data
+python scripts/fpl/fetch_fpl_data.py --test
+
+# Dry run to see what would change
+python scripts/fpl/fetch_fpl_data.py --dry-run
+
+# Custom sample file management
+python scripts/fpl/fetch_fpl_data.py --cleanup-count 3
+```
+
+This replaces the legacy FPL system with a modern, efficient approach that respects the FPL API while maintaining data consistency and providing comprehensive logging and error handling.

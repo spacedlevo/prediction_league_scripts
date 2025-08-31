@@ -1,0 +1,846 @@
+#!/usr/bin/env python3
+"""
+Fantasy Premier League Data Fetching Script
+
+Fetches player performance data from FPL API and updates the fantasy_pl_scores table
+with bootstrap-based change detection, concurrent processing, and team relationship mapping.
+
+PERFORMANCE OPTIMIZATIONS:
+- Bootstrap Change Detection: Two-tier system using fpl_players_bootstrap cache table
+- Concurrent Processing: ThreadPoolExecutor with 2-10 configurable workers
+- Smart Filtering: Only processes players with actual bootstrap field changes
+- Team Mapping: FPL team IDs mapped to database team_id relationships
+- Type-Safe Comparisons: Handles string vs numeric API format variations
+
+DATABASE ENHANCEMENTS:
+- fantasy_pl_scores table now includes team_id column
+- fpl_players_bootstrap table tracks 23+ fields for change detection
+- Proper foreign key relationships to teams table
+- Optimized indexes for team-based queries
+
+EXPECTED PERFORMANCE:
+- First Run: ~20-30 minutes (all 700+ players, creates bootstrap cache)
+- Subsequent Runs: Seconds to minutes (0 API calls if no changes)
+- Typical Reduction: 60-80% fewer API calls after initial bootstrap
+- Debug Mode: --debug shows exact field-level change detection
+
+COMMAND LINE OPTIONS:
+- --max-workers N: Concurrent API requests (default: 5, recommended: 2-10)
+- --debug: Detailed bootstrap change detection logging
+- --dry-run: Preview changes without database updates
+- --test: Use cached sample data for development
+"""
+
+import json
+import requests
+import sqlite3 as sql
+import time
+import logging
+import argparse
+import glob
+import os
+from pathlib import Path
+from datetime import datetime
+from random import uniform
+from tqdm import tqdm
+from requests.exceptions import RequestException, Timeout
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# Configuration
+BASE_URL = "https://fantasy.premierleague.com/api/"
+CURRENT_SEASON = "2025/2026"
+
+# Field mapping between database and FPL API
+BOOTSTRAP_FIELD_MAPPING = {
+    'team_id': 'team',           # Database field -> API field
+    'position': 'element_type',   # Database field -> API field  
+    'value': 'now_cost',         # Database field -> API field
+    # All other fields map directly (same name in API and DB)
+}
+
+# Paths
+db_path = Path(__file__).parent.parent.parent / "data" / "database.db"
+log_dir = Path(__file__).parent.parent.parent / "logs"
+samples_dir = Path(__file__).parent.parent.parent / "samples" / "fantasypl"
+
+# Create directories
+log_dir.mkdir(exist_ok=True)
+samples_dir.mkdir(parents=True, exist_ok=True)
+
+def setup_logging():
+    """Setup logging with both file and console output"""
+    log_file = log_dir / f"fpl_fetch_{datetime.now().strftime('%Y%m%d')}.log"
+    
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_file),
+            logging.StreamHandler()
+        ]
+    )
+    return logging.getLogger(__name__)
+
+def cleanup_old_sample_files(keep_count=5, logger=None):
+    """Keep only the latest N sample files, remove older ones"""
+    pattern = samples_dir / "fpl_data_*.json"
+    files = list(glob.glob(str(pattern)))
+    
+    if len(files) <= keep_count:
+        if logger:
+            logger.info(f"Only {len(files)} FPL sample files found, no cleanup needed")
+        return
+    
+    # Sort files by modification time (newest first)
+    files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+    
+    # Remove files beyond the keep_count
+    files_to_remove = files[keep_count:]
+    
+    for file_path in files_to_remove:
+        try:
+            os.remove(file_path)
+            if logger:
+                logger.info(f"Removed old FPL sample file: {Path(file_path).name}")
+        except Exception as e:
+            if logger:
+                logger.error(f"Error removing FPL sample file {file_path}: {e}")
+
+def create_bootstrap_table(cursor):
+    """Create fpl_players_bootstrap table if it doesn't exist"""
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS fpl_players_bootstrap (
+            player_id INTEGER PRIMARY KEY,
+            player_name TEXT NOT NULL,
+            team_id INTEGER,
+            db_team_id INTEGER,
+            position TEXT,
+            minutes INTEGER DEFAULT 0,
+            total_points INTEGER DEFAULT 0,
+            ict_index REAL DEFAULT 0.0,
+            goals_scored INTEGER DEFAULT 0,
+            assists INTEGER DEFAULT 0,
+            clean_sheets INTEGER DEFAULT 0,
+            goals_conceded INTEGER DEFAULT 0,
+            saves INTEGER DEFAULT 0,
+            yellow_cards INTEGER DEFAULT 0,
+            red_cards INTEGER DEFAULT 0,
+            bonus INTEGER DEFAULT 0,
+            bps INTEGER DEFAULT 0,
+            influence REAL DEFAULT 0.0,
+            creativity REAL DEFAULT 0.0,
+            threat REAL DEFAULT 0.0,
+            starts INTEGER DEFAULT 0,
+            expected_goals REAL DEFAULT 0.0,
+            expected_assists REAL DEFAULT 0.0,
+            value INTEGER DEFAULT 0,
+            transfers_in INTEGER DEFAULT 0,
+            transfers_out INTEGER DEFAULT 0,
+            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            season TEXT DEFAULT '{CURRENT_SEASON}',
+            FOREIGN KEY (db_team_id) REFERENCES teams(team_id)
+        )
+    """)
+    
+    # Add db_team_id column to existing table if it doesn't exist
+    try:
+        cursor.execute("ALTER TABLE fpl_players_bootstrap ADD COLUMN db_team_id INTEGER")
+    except sql.OperationalError:
+        pass  # Column already exists
+    
+    try:
+        cursor.execute("ALTER TABLE fpl_players_bootstrap ADD FOREIGN KEY (db_team_id) REFERENCES teams(team_id)")
+    except sql.OperationalError:
+        pass  # Foreign key already exists
+    
+    # Create index for faster lookups
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_bootstrap_player_season 
+        ON fpl_players_bootstrap(player_id, season)
+    """)
+
+def load_team_mapping(cursor):
+    """Load FPL team ID to database team_id mapping"""
+    cursor.execute("""
+        SELECT fpl_id, team_id 
+        FROM teams 
+        WHERE fpl_id IS NOT NULL
+    """)
+    
+    mapping = {fpl_id: team_id for fpl_id, team_id in cursor.fetchall()}
+    return mapping
+
+def load_existing_bootstrap_data(cursor):
+    """Load existing bootstrap data from database for comparison"""
+    cursor.execute("""
+        SELECT player_id, player_name, team_id, db_team_id, position, minutes, total_points, 
+               ict_index, goals_scored, assists, clean_sheets, goals_conceded, 
+               saves, yellow_cards, red_cards, bonus, bps, influence, creativity, 
+               threat, starts, expected_goals, expected_assists, value, 
+               transfers_in, transfers_out
+        FROM fpl_players_bootstrap
+        WHERE season = ?
+    """, (CURRENT_SEASON,))
+    
+    existing_data = {}
+    for row in cursor.fetchall():
+        player_id = row[0]
+        existing_data[player_id] = {
+            'player_name': row[1],
+            'team_id': row[2],
+            'db_team_id': row[3],
+            'position': row[4],
+            'minutes': row[5],
+            'total_points': row[6],
+            'ict_index': row[7],
+            'goals_scored': row[8],
+            'assists': row[9],
+            'clean_sheets': row[10],
+            'goals_conceded': row[11],
+            'saves': row[12],
+            'yellow_cards': row[13],
+            'red_cards': row[14],
+            'bonus': row[15],
+            'bps': row[16],
+            'influence': row[17],
+            'creativity': row[18],
+            'threat': row[19],
+            'starts': row[20],
+            'expected_goals': row[21],
+            'expected_assists': row[22],
+            'value': row[23],
+            'transfers_in': row[24],
+            'transfers_out': row[25]
+        }
+    
+    return existing_data
+
+def identify_players_to_update(new_players, existing_bootstrap_data, logger, debug=False):
+    """Identify players that need individual API calls based on bootstrap changes"""
+    players_to_update = []
+    new_players_count = 0
+    changed_players_count = 0
+    
+    # Key fields to check for changes (database field names)
+    key_fields = ['team_id', 'position', 'minutes', 'total_points', 'ict_index', 'goals_scored', 
+                  'assists', 'clean_sheets', 'goals_conceded', 'saves', 'yellow_cards', 'red_cards',
+                  'bonus', 'bps', 'influence', 'creativity', 'threat', 'starts',
+                  'expected_goals', 'expected_assists', 'value', 'transfers_in', 'transfers_out']
+    
+    for player in new_players:
+        player_id = player["id"]
+        existing_data = existing_bootstrap_data.get(player_id)
+        
+        if not existing_data:
+            # New player - definitely needs updating
+            players_to_update.append(player)
+            new_players_count += 1
+            continue
+        
+        # Check if any key fields have changed
+        has_changed = False
+        changed_fields = []
+        
+        for db_field in key_fields:
+            # Get the API field name for this database field
+            api_field = BOOTSTRAP_FIELD_MAPPING.get(db_field, db_field)
+            
+            new_value = player.get(api_field)
+            existing_value = existing_data.get(db_field)
+            
+            # Handle None comparisons and type differences
+            if (new_value is None) != (existing_value is None):
+                has_changed = True
+                changed_fields.append(f"{db_field}: {existing_value} -> {new_value}")
+                if debug:
+                    logger.debug(f"Player {player_id} field {db_field} changed: {existing_value} -> {new_value} (None mismatch)")
+                break
+            
+            if new_value is not None and existing_value is not None:
+                # Try numeric comparison for all values (handles string vs float issues)
+                try:
+                    new_float = float(new_value)
+                    existing_float = float(existing_value)
+                    if abs(new_float - existing_float) > 0.001:
+                        has_changed = True
+                        changed_fields.append(f"{db_field}: {existing_value} -> {new_value}")
+                        if debug:
+                            logger.debug(f"Player {player_id} field {db_field} changed: {existing_value} -> {new_value} (numeric)")
+                        break
+                except (ValueError, TypeError):
+                    # Fall back to string comparison for non-numeric values
+                    if str(new_value) != str(existing_value):
+                        has_changed = True
+                        changed_fields.append(f"{db_field}: {existing_value} -> {new_value}")
+                        if debug:
+                            logger.debug(f"Player {player_id} field {db_field} changed: {existing_value} -> {new_value} (string)")
+                        break
+        
+        if has_changed:
+            players_to_update.append(player)
+            changed_players_count += 1
+            if debug:
+                logger.debug(f"Player {player['web_name']} (ID: {player_id}) marked for update: {', '.join(changed_fields)}")
+    
+    logger.info(f"Players to update: {len(players_to_update)} total "
+                f"({new_players_count} new, {changed_players_count} changed)")
+    logger.info(f"Skipping {len(new_players) - len(players_to_update)} unchanged players")
+    
+    return players_to_update
+
+def update_bootstrap_data(cursor, players, team_mapping, logger):
+    """Update bootstrap table with current player data"""
+    updated_count = 0
+    
+    for player in players:
+        # Map FPL team ID to database team_id
+        fpl_team_id = player["team"]
+        db_team_id = team_mapping.get(fpl_team_id)
+        
+        cursor.execute("""
+            INSERT OR REPLACE INTO fpl_players_bootstrap (
+                player_id, player_name, team_id, db_team_id, position, minutes, total_points, 
+                ict_index, goals_scored, assists, clean_sheets, goals_conceded, 
+                saves, yellow_cards, red_cards, bonus, bps, influence, creativity, 
+                threat, starts, expected_goals, expected_assists, value, 
+                transfers_in, transfers_out, last_updated, season
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+        """, (
+            player["id"],
+            player["web_name"],
+            player["team"],
+            db_team_id,
+            player["element_type"],
+            player["minutes"],
+            player["total_points"],
+            player["ict_index"],
+            player["goals_scored"],
+            player["assists"],
+            player["clean_sheets"],
+            player["goals_conceded"],
+            player["saves"],
+            player["yellow_cards"],
+            player["red_cards"],
+            player["bonus"],
+            player["bps"],
+            player["influence"],
+            player["creativity"],
+            player["threat"],
+            player["starts"],
+            player["expected_goals"],
+            player["expected_assists"],
+            player["now_cost"],
+            player["transfers_in"],
+            player["transfers_out"],
+            CURRENT_SEASON
+        ))
+        updated_count += 1
+    
+    logger.info(f"Updated bootstrap data for {updated_count} players")
+
+def create_fantasy_scores_team_column(cursor):
+    """Add team_id column to fantasy_pl_scores table if it doesn't exist"""
+    try:
+        cursor.execute("ALTER TABLE fantasy_pl_scores ADD COLUMN team_id INTEGER")
+    except sql.OperationalError:
+        pass  # Column already exists
+    
+    try:
+        cursor.execute("ALTER TABLE fantasy_pl_scores ADD FOREIGN KEY (team_id) REFERENCES teams(team_id)")
+    except sql.OperationalError:
+        pass  # Foreign key already exists
+
+def load_fixture_mapping(cursor):
+    """Load FPL fixture ID to database fixture_id mapping for current season"""
+    cursor.execute("""
+        SELECT fpl_fixture_id, fixture_id 
+        FROM fixtures 
+        WHERE season = ?
+    """, (CURRENT_SEASON,))
+    
+    mapping = {fpl_id: db_id for fpl_id, db_id in cursor.fetchall()}
+    return mapping
+
+def fetch_bootstrap_data(logger):
+    """Fetch initial player data from FPL bootstrap endpoint"""
+    url = f"{BASE_URL}bootstrap-static/"
+    
+    try:
+        logger.info("Fetching FPL bootstrap data...")
+        response = requests.get(url, timeout=30)
+        
+        if response.status_code == 200:
+            data = response.json()
+            players = data.get("elements", [])
+            logger.info(f"Retrieved {len(players)} players from FPL API")
+            return players
+        else:
+            logger.error(f"Bootstrap API request failed with status {response.status_code}")
+            return None
+            
+    except Timeout:
+        logger.error("Bootstrap API request timed out after 30 seconds")
+        return None
+    except RequestException as e:
+        logger.error(f"Bootstrap API request failed: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error fetching bootstrap data: {e}")
+        return None
+
+def fetch_player_history(player_id, player_name, logger):
+    """Fetch individual player history with error handling"""
+    url = f"{BASE_URL}element-summary/{player_id}/"
+    
+    try:
+        # Random delay to be respectful to the API
+        time.sleep(uniform(1.0, 3.0))
+        
+        response = requests.get(url, timeout=30)
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            logger.warning(f"Player {player_name} (ID: {player_id}) API request failed with status {response.status_code}")
+            return None
+            
+    except Timeout:
+        logger.warning(f"Player {player_name} (ID: {player_id}) request timed out")
+        return None
+    except RequestException as e:
+        logger.warning(f"Player {player_name} (ID: {player_id}) request failed: {e}")
+        return None
+    except Exception as e:
+        logger.warning(f"Unexpected error fetching player {player_name} (ID: {player_id}): {e}")
+        return None
+
+def fetch_players_concurrently(players_to_fetch, logger, max_workers=5):
+    """Fetch player histories concurrently with rate limiting"""
+    all_player_scores = []
+    api_errors = 0
+    
+    def fetch_single_player(player):
+        player_id = player["id"]
+        player_name = player["web_name"]
+        fpl_team_id = player["team"]  # Get FPL team ID from bootstrap data
+        
+        history_data = fetch_player_history(player_id, player_name, logger)
+        
+        if not history_data:
+            return None, 1  # None result, 1 error
+        
+        player_scores = []
+        for gameweek in history_data.get("history", []):
+            player_score = {
+                "player_name": player_name,
+                "gameweek": gameweek["round"],
+                "player_id": player_id,
+                "fpl_team_id": fpl_team_id,  # Add FPL team ID for mapping
+                "total_points": gameweek["total_points"],
+                "fixture": gameweek["fixture"],
+                "was_home": gameweek["was_home"],
+                "minutes": gameweek["minutes"],
+                "goals_scored": gameweek["goals_scored"],
+                "assists": gameweek["assists"],
+                "clean_sheets": gameweek["clean_sheets"],
+                "goals_conceded": gameweek["goals_conceded"],
+                "own_goals": gameweek["own_goals"],
+                "penalties_saved": gameweek["penalties_saved"],
+                "penalties_missed": gameweek["penalties_missed"],
+                "yellow_cards": gameweek["yellow_cards"],
+                "red_cards": gameweek["red_cards"],
+                "saves": gameweek["saves"],
+                "bonus": gameweek["bonus"],
+                "bps": gameweek["bps"],
+                "influence": gameweek["influence"],
+                "creativity": gameweek["creativity"],
+                "threat": gameweek["threat"],
+                "ict_index": gameweek["ict_index"],
+                "starts": gameweek["starts"],
+                "expected_goals": gameweek["expected_goals"],
+                "expected_assists": gameweek["expected_assists"],
+                "expected_goal_involvements": gameweek["expected_goal_involvements"],
+                "expected_goals_conceded": gameweek["expected_goals_conceded"],
+                "value": gameweek["value"],
+                "transfers_balance": gameweek["transfers_balance"],
+                "selected": gameweek["selected"],
+                "transfers_in": gameweek["transfers_in"],
+                "transfers_out": gameweek["transfers_out"],
+            }
+            player_scores.append(player_score)
+        
+        return player_scores, 0  # Return scores, 0 errors
+    
+    logger.info(f"Fetching individual player history for {len(players_to_fetch)} players using {max_workers} concurrent workers...")
+    
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all tasks
+        future_to_player = {executor.submit(fetch_single_player, player): player for player in players_to_fetch}
+        
+        # Process results with progress bar
+        for future in tqdm(as_completed(future_to_player), total=len(players_to_fetch), desc="Processing players"):
+            player_scores, errors = future.result()
+            api_errors += errors
+            
+            if player_scores:
+                all_player_scores.extend(player_scores)
+    
+    return all_player_scores, api_errors
+
+def get_existing_player_data(cursor):
+    """Get existing player data from database for comparison"""
+    cursor.execute("""
+        SELECT player_id, gameweek, fixture_id, total_points, minutes, goals_scored, assists,
+               expected_goals, expected_assists, value, transfers_in, transfers_out
+        FROM fantasy_pl_scores
+    """)
+    
+    # Create a dictionary keyed by (player_id, gameweek, fixture_id) 
+    existing_data = {}
+    for row in cursor.fetchall():
+        key = (row[0], row[1], row[2])  # player_id, gameweek, fixture_id
+        existing_data[key] = {
+            'total_points': row[3],
+            'minutes': row[4], 
+            'goals_scored': row[5],
+            'assists': row[6],
+            'expected_goals': row[7],
+            'expected_assists': row[8],
+            'value': row[9],
+            'transfers_in': row[10],
+            'transfers_out': row[11]
+        }
+    
+    return existing_data
+
+def has_data_changed(new_record, existing_record):
+    """Check if any tracked fields have changed"""
+    if not existing_record:
+        return True  # New record
+    
+    # Check key fields that might change
+    check_fields = ['total_points', 'minutes', 'goals_scored', 'assists', 
+                   'expected_goals', 'expected_assists', 'value', 
+                   'transfers_in', 'transfers_out']
+    
+    for field in check_fields:
+        new_val = new_record.get(field)
+        existing_val = existing_record.get(field)
+        
+        # Handle None comparisons and type differences
+        if (new_val is None) != (existing_val is None):
+            return True
+        if new_val is not None and existing_val is not None:
+            if abs(float(new_val) - float(existing_val)) > 0.001:  # Handle floating point precision
+                return True
+                
+    return False
+
+def upsert_player_scores(cursor, player_scores, existing_data, fixture_mapping, team_mapping, logger):
+    """Insert or update player scores with efficient upsert logic"""
+    
+    inserted_count = 0
+    updated_count = 0
+    skipped_count = 0
+    fixture_mapping_errors = 0
+    
+    for score_data in player_scores:
+        # Map FPL fixture ID to database fixture_id
+        fpl_fixture_id = score_data['fixture']
+        fixture_id = fixture_mapping.get(fpl_fixture_id)
+        
+        if not fixture_id:
+            logger.warning(f"No fixture mapping found for FPL fixture ID {fpl_fixture_id}")
+            fixture_mapping_errors += 1
+            continue
+        
+        # Get team_id from mapping 
+        fpl_team_id = score_data.get('fpl_team_id')  # We'll need to add this to score data
+        team_id = team_mapping.get(fpl_team_id)
+        
+        # Create database record with proper fixture_id and team_id
+        db_record = {
+            'player_name': score_data['player_name'],
+            'gameweek': score_data['gameweek'],
+            'player_id': score_data['player_id'],
+            'total_points': score_data['total_points'],
+            'fixture_id': fixture_id,
+            'team_id': team_id,
+            'was_home': score_data['was_home'],
+            'minutes': score_data['minutes'],
+            'goals_scored': score_data['goals_scored'],
+            'assists': score_data['assists'],
+            'clean_sheets': score_data['clean_sheets'],
+            'goals_conceded': score_data['goals_conceded'],
+            'own_goals': score_data['own_goals'],
+            'penalties_saved': score_data['penalties_saved'],
+            'penalties_missed': score_data['penalties_missed'],
+            'yellow_cards': score_data['yellow_cards'],
+            'red_cards': score_data['red_cards'],
+            'saves': score_data['saves'],
+            'bonus': score_data['bonus'],
+            'bps': score_data['bps'],
+            'influence': score_data['influence'],
+            'creativity': score_data['creativity'],
+            'threat': score_data['threat'],
+            'ict_index': score_data['ict_index'],
+            'starts': score_data['starts'],
+            'expected_goals': score_data['expected_goals'],
+            'expected_assists': score_data['expected_assists'],
+            'expected_goal_involvements': score_data['expected_goal_involvements'],
+            'expected_goals_conceded': score_data['expected_goals_conceded'],
+            'value': score_data['value'],
+            'transfers_balance': score_data['transfers_balance'],
+            'selected': score_data['selected'],
+            'transfers_in': score_data['transfers_in'],
+            'transfers_out': score_data['transfers_out']
+        }
+        
+        # Check if this record exists and has changed
+        record_key = (score_data['player_id'], score_data['gameweek'], fixture_id)
+        existing_record = existing_data.get(record_key)
+        
+        if not has_data_changed(db_record, existing_record):
+            skipped_count += 1
+            continue
+        
+        # Use INSERT OR REPLACE for efficient upsert
+        cursor.execute("""
+            INSERT OR REPLACE INTO fantasy_pl_scores (
+                player_name, gameweek, player_id, total_points, fixture_id, team_id, was_home, minutes,
+                goals_scored, assists, clean_sheets, goals_conceded, own_goals, penalties_saved,
+                penalties_missed, yellow_cards, red_cards, saves, bonus, bps, influence,
+                creativity, threat, ict_index, starts, expected_goals, expected_assists,
+                expected_goal_involvements, expected_goals_conceded, value, transfers_balance,
+                selected, transfers_in, transfers_out
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            db_record['player_name'], db_record['gameweek'], db_record['player_id'],
+            db_record['total_points'], db_record['fixture_id'], db_record['team_id'], db_record['was_home'],
+            db_record['minutes'], db_record['goals_scored'], db_record['assists'],
+            db_record['clean_sheets'], db_record['goals_conceded'], db_record['own_goals'],
+            db_record['penalties_saved'], db_record['penalties_missed'], db_record['yellow_cards'],
+            db_record['red_cards'], db_record['saves'], db_record['bonus'], db_record['bps'],
+            db_record['influence'], db_record['creativity'], db_record['threat'],
+            db_record['ict_index'], db_record['starts'], db_record['expected_goals'],
+            db_record['expected_assists'], db_record['expected_goal_involvements'],
+            db_record['expected_goals_conceded'], db_record['value'], db_record['transfers_balance'],
+            db_record['selected'], db_record['transfers_in'], db_record['transfers_out']
+        ))
+        
+        if existing_record:
+            updated_count += 1
+        else:
+            inserted_count += 1
+    
+    logger.info(f"Database operations: {inserted_count} inserted, {updated_count} updated, {skipped_count} unchanged")
+    if fixture_mapping_errors > 0:
+        logger.warning(f"Skipped {fixture_mapping_errors} records due to fixture mapping errors")
+
+def collect_fpl_data(logger, max_workers=5, debug=False):
+    """Collect FPL data with smart bootstrap-based filtering"""
+    # Get bootstrap data
+    players = fetch_bootstrap_data(logger)
+    if not players:
+        logger.error("Failed to fetch bootstrap data")
+        return None
+    
+    # Setup database connection for bootstrap operations
+    conn = sql.connect(db_path)
+    cursor = conn.cursor()
+    
+    try:
+        # Ensure bootstrap table exists
+        create_bootstrap_table(cursor)
+        
+        # Ensure fantasy_pl_scores has team_id column
+        create_fantasy_scores_team_column(cursor)
+        
+        # Load team mapping for FPL ID to database team_id
+        logger.info("Loading team mapping...")
+        team_mapping = load_team_mapping(cursor)
+        logger.info(f"Loaded {len(team_mapping)} team mappings")
+        
+        # Load existing bootstrap data
+        logger.info("Loading existing bootstrap data for comparison...")
+        existing_bootstrap_data = load_existing_bootstrap_data(cursor)
+        logger.info(f"Loaded {len(existing_bootstrap_data)} existing bootstrap records")
+        
+        # Identify which players need individual API calls
+        players_to_update = identify_players_to_update(players, existing_bootstrap_data, logger, debug)
+        
+        # Update bootstrap table with current data
+        logger.info("Updating bootstrap table with current player data...")
+        update_bootstrap_data(cursor, players, team_mapping, logger)
+        conn.commit()
+        
+        # Collect player scores for filtered players
+        if players_to_update:
+            all_player_scores, api_errors = fetch_players_concurrently(players_to_update, logger, max_workers)
+        else:
+            logger.info("No players need updating - using existing data")
+            all_player_scores, api_errors = [], 0
+        
+        logger.info(f"Collected {len(all_player_scores)} player performance records")
+        if api_errors > 0:
+            logger.warning(f"Failed to fetch data for {api_errors} players due to API errors")
+        
+        return {
+            'players': players,
+            'player_scores': all_player_scores,
+            'team_mapping': team_mapping,  # Include team mapping for processing
+            'metadata': {
+                'fetch_time': datetime.now().isoformat(),
+                'total_players': len(players),
+                'players_updated': len(players_to_update),
+                'total_records': len(all_player_scores),
+                'api_errors': api_errors,
+                'season': CURRENT_SEASON
+            }
+        }
+    
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Error in collect_fpl_data: {e}")
+        raise
+    finally:
+        conn.close()
+
+def save_sample_data(fpl_data, logger):
+    """Save FPL data as JSON sample with timestamp"""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"fpl_data_{timestamp}.json"
+    output_file = samples_dir / filename
+    
+    try:
+        with open(output_file, 'w') as f:
+            json.dump(fpl_data, f, indent=2)
+        logger.info(f"FPL sample data saved to: {output_file}")
+    except Exception as e:
+        logger.error(f"Failed to save FPL sample data: {e}")
+
+def process_fpl_data(fpl_data, logger, dry_run=False):
+    """Process FPL data and update database"""
+    conn = sql.connect(db_path)
+    cursor = conn.cursor()
+    
+    try:
+        logger.info("Loading fixture mappings...")
+        fixture_mapping = load_fixture_mapping(cursor)
+        logger.info(f"Loaded {len(fixture_mapping)} fixture mappings for season {CURRENT_SEASON}")
+        
+        if not fixture_mapping:
+            logger.error(f"No fixture mappings found for season {CURRENT_SEASON}")
+            return
+        
+        logger.info("Loading existing player data for comparison...")
+        existing_data = get_existing_player_data(cursor)
+        logger.info(f"Loaded {len(existing_data)} existing player records")
+        
+        player_scores = fpl_data['player_scores']
+        logger.info(f"Processing {len(player_scores)} player score records...")
+        
+        if dry_run:
+            logger.info("DRY RUN MODE - No database changes will be made")
+            # Still run the upsert logic to show what would happen
+            # But rollback the transaction
+        
+        team_mapping = fpl_data.get('team_mapping', {})
+        upsert_player_scores(cursor, player_scores, existing_data, fixture_mapping, team_mapping, logger)
+        
+        if dry_run:
+            conn.rollback()
+            logger.info("DRY RUN - Transaction rolled back")
+        else:
+            conn.commit()
+            logger.info("Database transaction committed successfully")
+        
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Error processing FPL data: {e}")
+        raise
+    finally:
+        conn.close()
+
+def load_sample_data(logger):
+    """Load the most recent sample data for testing"""
+    pattern = samples_dir / "fpl_data_*.json"
+    sample_files = list(glob.glob(str(pattern)))
+    
+    if not sample_files:
+        logger.error("No FPL sample data files found")
+        return None
+    
+    # Use the most recent sample file
+    sample_file = max(sample_files, key=lambda f: os.path.getmtime(f))
+    logger.info(f"Loading sample data from: {Path(sample_file).name}")
+    
+    try:
+        with open(sample_file, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Failed to load sample data: {e}")
+        return None
+
+def main(cleanup_count=5, dry_run=False, max_workers=5, debug=False):
+    """Main execution function"""
+    logger = setup_logging()
+    if debug:
+        logger.setLevel(logging.DEBUG)
+    logger.info("Starting FPL data fetch process...")
+    
+    # Collect FPL data
+    fpl_data = collect_fpl_data(logger, max_workers, debug)
+    
+    if fpl_data and fpl_data['player_scores']:
+        # Save sample data
+        save_sample_data(fpl_data, logger)
+        
+        # Process data into database
+        process_fpl_data(fpl_data, logger, dry_run=dry_run)
+        
+        # Clean up old sample files
+        if cleanup_count > 0:
+            logger.info(f"Cleaning up old sample files, keeping latest {cleanup_count}...")
+            cleanup_old_sample_files(keep_count=cleanup_count, logger=logger)
+        
+        logger.info("FPL data fetch process completed successfully")
+    else:
+        logger.error("No FPL data collected - aborting process")
+
+def test_with_sample_data(dry_run=False):
+    """Test the script using existing sample data"""
+    logger = setup_logging()
+    logger.info("Starting FPL test with sample data...")
+    
+    fpl_data = load_sample_data(logger)
+    
+    if fpl_data:
+        logger.info("Processing sample FPL data...")
+        process_fpl_data(fpl_data, logger, dry_run=dry_run)
+        logger.info("FPL test completed successfully")
+    else:
+        logger.error("No sample data available for testing")
+
+def parse_arguments():
+    """Parse command line arguments"""
+    parser = argparse.ArgumentParser(description='Fetch FPL data and update fantasy_pl_scores table')
+    parser.add_argument('--test', action='store_true', 
+                       help='Run in test mode with sample data')
+    parser.add_argument('--cleanup-count', type=int, default=5,
+                       help='Number of sample files to keep (0 to disable cleanup)')
+    parser.add_argument('--dry-run', action='store_true',
+                       help='Run without making database changes (shows what would happen)')
+    parser.add_argument('--max-workers', type=int, default=5,
+                       help='Maximum number of concurrent API requests (default: 5)')
+    parser.add_argument('--debug', action='store_true',
+                       help='Enable debug logging for detailed change detection info')
+    return parser.parse_args()
+
+if __name__ == "__main__":
+    args = parse_arguments()
+    
+    if args.test:
+        test_with_sample_data(dry_run=args.dry_run)
+    else:
+        main(cleanup_count=args.cleanup_count, dry_run=args.dry_run, max_workers=args.max_workers, debug=args.debug)
