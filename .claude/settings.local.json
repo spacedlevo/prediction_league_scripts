@@ -13,7 +13,9 @@
       "Bash(./scripts/scheduler/install_scheduler.sh:*)",
       "Bash(./scripts/scheduler/master_scheduler.sh:*)",
       "Bash(./scripts/scheduler/scheduler_status.sh:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": []

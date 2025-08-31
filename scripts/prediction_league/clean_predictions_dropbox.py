@@ -12,6 +12,17 @@ FUNCTIONALITY:
 - Cleans team names and extracts scores using existing logic
 - Saves cleaned predictions to data/predictions/2025_26/ as CSV files
 - Updates database tracking tables
+
+DUPLICATE PREVENTION:
+- Fixed fixture matching logic to handle team order mismatches (Aug 2025)
+- Added unique constraint on (player_id, fixture_id) to prevent duplicate predictions
+- Uses INSERT OR REPLACE to handle conflicts gracefully
+- Processes 260 predictions per gameweek (26 players × 10 fixtures)
+
+FIXTURE MATCHING:
+- get_fixture_id() tries both team orders to handle CSV vs database differences
+- Example: CSV "burnley,man utd" matches DB fixture "man utd vs burnley"
+- This prevents predictions being skipped due to team order mismatches
 """
 
 import json
@@ -513,10 +524,17 @@ def get_player_id(player_name, cursor):
         return None
 
 def get_fixture_id(home_team, away_team, gameweek, cursor):
-    """Get fixture_id by matching teams and gameweek"""
+    """
+    Get fixture_id by matching teams and gameweek (tries both team orders)
+    
+    FIXED Aug 2025: Previously only tried exact team order, causing prediction
+    mismatches when CSV had different team order than database fixtures.
+    Now tries both orders to ensure all fixtures are properly matched.
+    """
     try:
+        # Try exact order first
         cursor.execute("""
-            SELECT f.fixture_id, f.fpl_fixture_id
+            SELECT f.fixture_id, f.fpl_fixture_id, ht.team_name, at.team_name
             FROM fixtures f
             JOIN teams ht ON f.home_teamid = ht.team_id
             JOIN teams at ON f.away_teamid = at.team_id
@@ -526,7 +544,22 @@ def get_fixture_id(home_team, away_team, gameweek, cursor):
             AND f.season = ?
         """, (home_team, away_team, gameweek, CURRENT_SEASON_DB))
         result = cursor.fetchone()
-        return result if result else (None, None)
+        if result:
+            return result[0], result[1]  # Return fixture_id, fpl_fixture_id
+        
+        # Try reverse order if exact order didn't work
+        cursor.execute("""
+            SELECT f.fixture_id, f.fpl_fixture_id, ht.team_name, at.team_name
+            FROM fixtures f
+            JOIN teams ht ON f.home_teamid = ht.team_id
+            JOIN teams at ON f.away_teamid = at.team_id
+            WHERE LOWER(ht.team_name) = LOWER(?)
+            AND LOWER(at.team_name) = LOWER(?)
+            AND f.gameweek = ?
+            AND f.season = ?
+        """, (away_team, home_team, gameweek, CURRENT_SEASON_DB))
+        result = cursor.fetchone()
+        return result[:2] if result else (None, None)  # Return fixture_id, fpl_fixture_id
     except Exception:
         return (None, None)
 
