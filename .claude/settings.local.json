@@ -15,7 +15,11 @@
       "Bash(./scripts/scheduler/scheduler_status.sh:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(current_minute=15)",
+      "Bash(current_minute=30)",
+      "Bash(current_minute=0)",
+      "Bash(echo:*)"
     ],
     "deny": [],
     "ask": []

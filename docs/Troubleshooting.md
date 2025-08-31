@@ -183,7 +183,7 @@
 ### Scheduler/Automation Issues
 
 #### Scheduler Not Running Scripts
-**Symptom**: Only `fetch_results` appears in logs, other scripts never execute
+**Symptom**: Expected scripts not appearing in logs
 
 **Diagnosis**:
 1. Check scheduler status: `./scripts/scheduler/scheduler_status.sh --detailed`
@@ -192,9 +192,9 @@
 
 **Common Causes & Solutions**:
 - **Cron Not Set Up**: Add cron entry `* * * * * /path/to/project/scripts/scheduler/master_scheduler.sh`
-- **Wrong Timing Windows**: Scripts have specific timing requirements (see debug logs)
 - **Configuration Disabled**: Check `ENABLE_*` flags in `scheduler_config.conf`
 - **Emergency Stop**: Check `SCHEDULER_ENABLED=true` in config
+- **Wrong Timing**: Check debug logs for timing analysis (e.g., `minute % 15 = 5` when script needs `= 0`)
 
 #### Scripts Failing to Execute
 **Symptom**: "Script already running" or lock file errors
@@ -222,10 +222,10 @@ tail -f logs/scheduler/master_scheduler_$(date +%Y%m%d).log
 ./scripts/scheduler/master_scheduler.sh
 ```
 
-**Timing Requirements**:
-- **Every minute tasks**: Different second windows to prevent overlap
-- **Periodic tasks**: Based on minute intervals (% 15, % 30, etc.)  
-- **Daily tasks**: Only at specific hour (7 AM for data refreshes)
+**Simplified Timing Requirements**:
+- **Core scripts**: Run every minute unconditionally (`fetch_results` + 10s delay + `monitor_and_upload`)
+- **Periodic tasks**: Simple minute checks (`minute % 15 = 0`, `minute % 30 = 0`, etc.)  
+- **Daily tasks**: Simple hour/minute checks (`hour = 7, minute = 0`)
 
 #### Configuration Troubleshooting
 **Check current settings**:

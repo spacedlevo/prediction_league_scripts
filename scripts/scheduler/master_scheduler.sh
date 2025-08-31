@@ -52,7 +52,6 @@ ENABLE_FETCH_FIXTURES=${ENABLE_FETCH_FIXTURES:-true}
 ENABLE_AUTOMATED_PREDICTIONS=${ENABLE_AUTOMATED_PREDICTIONS:-true}
 ENABLE_FETCH_FPL_DATA=${ENABLE_FETCH_FPL_DATA:-true}
 ENABLE_FETCH_ODDS=${ENABLE_FETCH_ODDS:-true}
-DELAY_BETWEEN_RESULTS_UPLOAD=${DELAY_BETWEEN_RESULTS_UPLOAD:-30}
 
 # Logging function
 log() {
@@ -124,49 +123,59 @@ run_script() {
     fi
 }
 
-# Get current time components
+# Get current time components (simplified - only need minute and hour)
 current_minute=$(date +%M | sed 's/^0//')
 current_hour=$(date +%H | sed 's/^0//')
-current_second=$(date +%S | sed 's/^0//')
 
-# Handle empty values (when minute/hour/second is 00)
+# Handle empty values (when minute/hour is 00)
 current_minute=${current_minute:-0}
 current_hour=${current_hour:-0}
-current_second=${current_second:-0}
 
-log "DEBUG" "Scheduler tick: $(date '+%H:%M:%S') - second: $current_second, minute: $current_minute, hour: $current_hour"
+log "DEBUG" "Scheduler tick: $(date '+%H:%M:%S') - minute: $current_minute, hour: $current_hour"
 
-# Every minute tasks (with delays) - widened windows for better reliability
-if [[ "$ENABLE_FETCH_RESULTS" == "true" ]] && [[ $current_second -ge 0 ]] && [[ $current_second -lt 30 ]]; then
+# ============================================================================
+# CORE SCRIPTS - Run Every Minute (Simplified)
+# ============================================================================
+
+# fetch_results.py - runs every minute
+if [[ "$ENABLE_FETCH_RESULTS" == "true" ]]; then
     run_script "scripts/fpl/fetch_results.py" "fetch_results" &
-    log "DEBUG" "Triggered fetch_results (second: $current_second)"
+    log "DEBUG" "Triggered fetch_results"
+    
+    # Wait for DB writes to complete before checking uploads
+    sleep 10
 fi
 
-if [[ "$ENABLE_MONITOR_UPLOAD" == "true" ]] && [[ $current_second -ge $DELAY_BETWEEN_RESULTS_UPLOAD ]] && [[ $current_second -lt 60 ]]; then
+# monitor_and_upload.py - runs every minute after 10s delay
+if [[ "$ENABLE_MONITOR_UPLOAD" == "true" ]]; then
     run_script "scripts/database/monitor_and_upload.py" "monitor_and_upload" &
-    log "DEBUG" "Triggered monitor_and_upload (second: $current_second)"
+    log "DEBUG" "Triggered monitor_and_upload (after 10s delay)"
 fi
 
-# Every 15 minutes (at :00, :15, :30, :45) - simplified timing
-if [[ "$ENABLE_CLEAN_PREDICTIONS" == "true" ]] && [[ $((current_minute % 15)) -eq 0 ]] && [[ $current_second -lt 30 ]]; then
+# ============================================================================
+# PERIODIC SCRIPTS - Simplified Timing (No Second Conditions)
+# ============================================================================
+
+# Every 15 minutes (at :00, :15, :30, :45)
+if [[ "$ENABLE_CLEAN_PREDICTIONS" == "true" ]] && [[ $((current_minute % 15)) -eq 0 ]]; then
     run_script "scripts/prediction_league/clean_predictions_dropbox.py" "clean_predictions" &
-    log "DEBUG" "Triggered clean_predictions (minute: $current_minute, second: $current_second)"
+    log "DEBUG" "Triggered clean_predictions (minute: $current_minute)"
 fi
 
-# Every 30 minutes (at :00, :30) - simplified timing
-if [[ "$ENABLE_FETCH_FIXTURES" == "true" ]] && [[ $((current_minute % 30)) -eq 0 ]] && [[ $current_second -ge 10 ]] && [[ $current_second -lt 50 ]]; then
+# Every 30 minutes (at :00, :30)
+if [[ "$ENABLE_FETCH_FIXTURES" == "true" ]] && [[ $((current_minute % 30)) -eq 0 ]]; then
     run_script "scripts/fpl/fetch_fixtures_gameweeks.py" "fetch_fixtures" &
-    log "DEBUG" "Triggered fetch_fixtures (minute: $current_minute, second: $current_second)"
+    log "DEBUG" "Triggered fetch_fixtures (minute: $current_minute)"
 fi
 
-# Every hour (at :00) - simplified timing
-if [[ "$ENABLE_AUTOMATED_PREDICTIONS" == "true" ]] && [[ $current_minute -eq 0 ]] && [[ $current_second -ge 20 ]] && [[ $current_second -lt 60 ]]; then
+# Every hour (at :00)
+if [[ "$ENABLE_AUTOMATED_PREDICTIONS" == "true" ]] && [[ $current_minute -eq 0 ]]; then
     run_script "scripts/prediction_league/automated_predictions.py" "automated_predictions" &
-    log "DEBUG" "Triggered automated_predictions (hour: $current_hour, minute: $current_minute, second: $current_second)"
+    log "DEBUG" "Triggered automated_predictions (hour: $current_hour)"
 fi
 
-# Daily at 7 AM - simplified timing
-if [[ $current_hour -eq 7 ]] && [[ $current_minute -eq 0 ]] && [[ $current_second -lt 30 ]]; then
+# Daily at 7 AM
+if [[ $current_hour -eq 7 ]] && [[ $current_minute -eq 0 ]]; then
     if [[ "$ENABLE_FETCH_FPL_DATA" == "true" ]]; then
         run_script "scripts/fpl/fetch_fpl_data.py" "fetch_fpl_data" &
         log "DEBUG" "Triggered fetch_fpl_data (daily 7 AM)"
@@ -182,7 +191,7 @@ fi
 wait
 
 # Cleanup old locks and logs (daily at 2 AM)
-if [[ $current_hour -eq 2 ]] && [[ $current_minute -eq 0 ]] && [[ $current_second -ge 0 ]] && [[ $current_second -lt 15 ]]; then
+if [[ $current_hour -eq 2 ]] && [[ $current_minute -eq 0 ]]; then
     log "INFO" "Starting daily cleanup"
     
     # Remove old logs (older than 30 days)
@@ -204,7 +213,6 @@ if [[ "${DEBUG_MODE:-false}" == "true" ]]; then
     log "DEBUG" "  ENABLE_AUTOMATED_PREDICTIONS: $ENABLE_AUTOMATED_PREDICTIONS"
     log "DEBUG" "  ENABLE_FETCH_FPL_DATA: $ENABLE_FETCH_FPL_DATA"
     log "DEBUG" "  ENABLE_FETCH_ODDS: $ENABLE_FETCH_ODDS"
-    log "DEBUG" "  DELAY_BETWEEN_RESULTS_UPLOAD: $DELAY_BETWEEN_RESULTS_UPLOAD"
     
     # Log timing conditions that might prevent execution
     log "DEBUG" "Timing analysis:"

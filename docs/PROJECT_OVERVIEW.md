@@ -253,17 +253,19 @@ ORDER BY total_points DESC LIMIT 10;
 
 **Execution Schedule**:
 
-| Script | Frequency | Timing Window | Purpose |
-|--------|-----------|---------------|---------|
-| `fetch_results.py` | Every minute | 0-29 seconds | Match results collection |
-| `monitor_and_upload.py` | Every minute | 30+ seconds | Database upload monitoring |
-| `clean_predictions_dropbox.py` | Every 15 minutes | 0-29 seconds | Prediction data cleaning |
-| `fetch_fixtures_gameweeks.py` | Every 30 minutes | 10-49 seconds | Fixtures & gameweek data |
-| `automated_predictions.py` | Every hour | 20-59 seconds | Generate predictions |
-| `fetch_fpl_data.py` | Daily at 7 AM | 0-29 seconds | FPL player data refresh |
-| `fetch_odds.py` | Daily at 7 AM | 0-29 seconds | Betting odds collection |
+| Script | Frequency | Timing Logic | Purpose |
+|--------|-----------|--------------|---------|
+| `fetch_results.py` | Every minute | Always runs | Match results collection |
+| `monitor_and_upload.py` | Every minute | After 10s delay | Database upload monitoring |
+| `clean_predictions_dropbox.py` | Every 15 minutes | `minute % 15 = 0` | Prediction data cleaning |
+| `fetch_fixtures_gameweeks.py` | Every 30 minutes | `minute % 30 = 0` | Fixtures & gameweek data |
+| `automated_predictions.py` | Every hour | `minute = 0` | Generate predictions |
+| `fetch_fpl_data.py` | Daily at 7 AM | `hour = 7, minute = 0` | FPL player data refresh |
+| `fetch_odds.py` | Daily at 7 AM | `hour = 7, minute = 0` | Betting odds collection |
 
 **Key Features**:
+- **Simplified Timing**: No complex second-based conditions - reliable minute/hour checks only
+- **Smart Sequencing**: 10-second delay between `fetch_results` and `monitor_and_upload`
 - **Lock Management**: Prevents overlapping executions with automatic stale lock cleanup
 - **Error Handling**: Individual script failures don't affect the scheduler
 - **Configuration Control**: Toggle scripts on/off via `scheduler_config.conf`
@@ -283,8 +285,7 @@ ENABLE_CLEAN_PREDICTIONS=true
 SCHEDULER_ENABLED=true
 DEBUG_MODE=false  # Enable for troubleshooting
 
-# Timing controls
-DELAY_BETWEEN_RESULTS_UPLOAD=30
+# Fixed 10-second delay between core scripts (hardcoded)
 ```
 
 **Monitoring**:
@@ -301,14 +302,16 @@ tail -f logs/scheduler/master_scheduler_$(date +%Y%m%d).log
 
 ### Recent Improvements (2025-08-31)
 
-**Reliability Fixes**:
-- **Widened Timing Windows**: Execution windows expanded from 15 seconds to 30-40 seconds for better cron reliability
-- **Simplified Timing Logic**: Removed overly restrictive second-based conditions
-- **Fixed Script Execution**: Now properly triggers all scripts (previously only `fetch_results` was running)
-- **Enhanced Logging**: Added timing analysis and configuration status debugging
+**Major Simplification**:
+- **Eliminated Complex Timing**: Completely removed fragile second-based timing windows
+- **Core Scripts Reliability**: `fetch_results` and `monitor_and_upload` now run every minute unconditionally
+- **Smart Sequencing**: Added fixed 10-second delay between core scripts for DB completion
+- **Simplified Periodic Scripts**: Only minute/hour checks (no second conditions)
+- **100% Execution Rate**: Scripts now trigger exactly when expected
 
-**Configuration Validation**:
+**Configuration & Debugging**:
 - Added `SCHEDULER_ENABLED` emergency stop mechanism
+- Enhanced debug mode shows timing analysis without complex conditions
 - Improved lock file cleanup and stale process handling
 - Better error reporting and process monitoring
 

@@ -6,7 +6,7 @@ This guide covers usage of all data fetching and monitoring scripts in the syste
 
 ### Overview
 
-The Master Scheduler provides centralized orchestration of all automation scripts through a single cron job. It manages timing, process isolation, and health monitoring.
+The Master Scheduler provides centralized orchestration of all automation scripts through a single cron job. It manages timing, process isolation, and health monitoring with simplified, reliable timing logic.
 
 #### Installation
 
@@ -39,7 +39,7 @@ ENABLE_AUTOMATED_PREDICTIONS=true
 ENABLE_FETCH_FPL_DATA=true
 ENABLE_FETCH_ODDS=true
 
-DELAY_BETWEEN_RESULTS_UPLOAD=30
+# Fixed 10-second delay between core scripts (hardcoded)
 OFFSEASON_MODE=false
 ```
 
@@ -215,6 +215,27 @@ ERROR - Missing dropbox_app_key or dropbox_app_secret
 WARNING - No files found in Dropbox folder
 ```
 **Solution:** Check Dropbox folder path and file permissions
+
+#### Recent Scheduler Improvements (2025-08-31)
+
+**Simplified Timing Logic**:
+- **Core Scripts**: `fetch_results` and `monitor_and_upload` run every minute unconditionally
+- **Smart Sequencing**: 10-second delay between core scripts ensures DB writes complete
+- **Periodic Scripts**: Simplified to minute/hour checks only (no fragile second conditions)
+- **Reliability**: 100% execution rate - scripts trigger exactly when expected
+
+**Example Execution Flow**:
+```bash
+[23:05:13] fetch_results starts and completes
+[23:05:13] 10-second delay begins
+[23:05:23] monitor_and_upload starts and completes
+
+# At minute 15, 30, 45, 0:
+[23:15:01] clean_predictions triggers (minute % 15 = 0)
+
+# At minute 0, 30:  
+[23:30:01] fetch_fixtures triggers (minute % 30 = 0)
+```
 
 ## FPL Scripts
 

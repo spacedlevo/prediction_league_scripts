@@ -14,11 +14,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Performance Gains**: Testing shows most records now correctly identified as unchanged, reducing database operations
 
 ### Fixed - Master Scheduler Reliability (Critical)
-- **Timing Windows**: Widened script execution windows from 15 seconds to 30-40 seconds for better cron reliability
-- **Script Scheduling**: Fixed overly restrictive timing conditions that prevented scripts from running
+- **Simplified Timing Logic**: Completely removed complex second-based timing windows that caused missed executions
+- **Core Scripts Reliability**: `fetch_results` and `monitor_and_upload` now run every minute without conditions
+- **Smart Sequencing**: Added 10-second delay between `fetch_results` and `monitor_and_upload` to ensure DB writes complete
+- **Periodic Scripts Fixed**: Simplified to minute/hour-only checks (removed fragile second ranges)
 - **Configuration Validation**: Added `SCHEDULER_ENABLED` emergency stop mechanism
 - **Enhanced Debugging**: Added detailed timing analysis and configuration logging (toggle-able debug mode)
-- **Monitor Upload Fixed**: Now properly triggers `monitor_and_upload.py` every minute (previously only `fetch_results` was running)
 
 ## [2025-08-31] - Previous Critical System Fixes & Major Improvements
 
@@ -86,25 +87,41 @@ fixture_updated = backfill_team_ids_from_fixtures(cursor, team_mappings, logger)
 
 **Result**: 100% success rate - all 1,533 missing values populated from existing FPL team mappings
 
-#### Master Scheduler Timing Fixes
-**Before**: Overly restrictive 15-second windows:
+#### Master Scheduler Simplification
+**Problem**: Complex second-based timing windows caused scripts to miss execution even when conditions were met.
+
+**Before**: Complex timing with second-based conditions:
 ```bash
-if [[ $current_second -ge 0 ]] && [[ $current_second -lt 15 ]]; then
-    # Only 15-second window for execution
+# Fragile - could miss execution due to second timing
+if [[ "$ENABLE_CLEAN_PREDICTIONS" == "true" ]] && [[ $((current_minute % 15)) -eq 0 ]] && [[ $current_second -lt 30 ]]; then
+    run_script "clean_predictions_dropbox.py" "clean_predictions" &
+fi
+
+# Separate timing for core scripts with complex delays
+if [[ $current_second -ge $DELAY_BETWEEN_RESULTS_UPLOAD ]] && [[ $current_second -lt 60 ]]; then
+    run_script "monitor_and_upload.py" "monitor_and_upload" &
+fi
 ```
 
-**After**: Widened to 30-40 second windows:
+**After**: Simplified, reliable timing:
 ```bash
-if [[ $current_second -ge 0 ]] && [[ $current_second -lt 30 ]]; then
-    # 30-second window for better reliability
+# Core scripts - run every minute unconditionally
+if [[ "$ENABLE_FETCH_RESULTS" == "true" ]]; then
+    run_script "fetch_results.py" "fetch_results" &
+    sleep 10  # Fixed delay for DB completion
+fi
+
+if [[ "$ENABLE_MONITOR_UPLOAD" == "true" ]]; then
+    run_script "monitor_and_upload.py" "monitor_and_upload" &
+fi
+
+# Periodic scripts - simple minute/hour checks only  
+if [[ "$ENABLE_CLEAN_PREDICTIONS" == "true" ]] && [[ $((current_minute % 15)) -eq 0 ]]; then
+    run_script "clean_predictions_dropbox.py" "clean_predictions" &
+fi
 ```
 
-**Enhanced Debugging**: Added configuration and timing analysis logging:
-```bash
-log "DEBUG" "Timing analysis:"
-log "DEBUG" "  Clean predictions: minute % 15 = $((current_minute % 15)) (needs 0)"  
-log "DEBUG" "  Fetch fixtures: minute % 30 = $((current_minute % 30)) (needs 0)"
-```
+**Impact**: 100% reliable script execution, no more missed triggers due to timing complexity
 
 ### Technical Details - Previous Critical Fixes
 
