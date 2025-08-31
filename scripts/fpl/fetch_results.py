@@ -93,21 +93,20 @@ def is_match_day_window(gameweek, cursor, logger):
         first_kickoff, last_kickoff, fixture_count = result
         logger.info(f"Found {fixture_count} fixtures today for gameweek {gameweek}")
         
-        # Parse kickoff times - database stores naive datetimes in UK time
-        # Convert to timezone-aware for comparison
+        # Parse kickoff times - database stores naive datetimes as UTC time
+        # Convert to timezone-aware UTC for comparison
         try:
             # Handle both formats: with and without 'Z' suffix
             first_kickoff_str = first_kickoff.replace('Z', '') if first_kickoff.endswith('Z') else first_kickoff
             last_kickoff_str = last_kickoff.replace('Z', '') if last_kickoff.endswith('Z') else last_kickoff
             
-            # Parse as naive datetime (database stores UK time)
+            # Parse as naive datetime (database stores UTC time)
             first_kickoff_naive = datetime.fromisoformat(first_kickoff_str)
             last_kickoff_naive = datetime.fromisoformat(last_kickoff_str)
             
-            # Convert to timezone-aware (assuming UK timezone)
-            uk_tz = timezone(timedelta(hours=1))  # UK is typically UTC+1 (BST)
-            first_kickoff_dt = first_kickoff_naive.replace(tzinfo=uk_tz)
-            last_kickoff_dt = last_kickoff_naive.replace(tzinfo=uk_tz)
+            # Convert to timezone-aware UTC (database times are UTC)
+            first_kickoff_dt = first_kickoff_naive.replace(tzinfo=timezone.utc)
+            last_kickoff_dt = last_kickoff_naive.replace(tzinfo=timezone.utc)
             
             # Current time in UTC
             current_time = datetime.now(timezone.utc)
@@ -121,10 +120,10 @@ def is_match_day_window(gameweek, cursor, logger):
         window_end = last_kickoff_dt + timedelta(hours=2, minutes=30)
         
         if first_kickoff_dt <= current_time <= window_end:
-            logger.info(f"Within match window: {first_kickoff_dt} to {window_end} (current: {current_time})")
+            logger.info(f"Within match window (UTC): {first_kickoff_dt} to {window_end} (current: {current_time})")
             return True, f"Active match window ({fixture_count} fixtures)"
         else:
-            logger.info(f"Outside match window. Current: {current_time}, Window: {first_kickoff_dt} to {window_end}")
+            logger.info(f"Outside match window (UTC). Current: {current_time}, Window: {first_kickoff_dt} to {window_end}")
             return False, f"Outside match window ({fixture_count} fixtures scheduled)"
         
     except Exception as e:
