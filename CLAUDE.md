@@ -356,9 +356,21 @@ tail -f logs/script_$(date +%Y%m%d).log
 # Dry run to check logic  
 ./venv/bin/python scripts/database/monitor_and_upload.py --dry-run
 
-# Set up cron for automated uploads (every minute)
-* * * * * cd /path/to/project && ./venv/bin/python scripts/database/monitor_and_upload.py >/dev/null 2>&1
+# Force upload regardless of changes
+./venv/bin/python scripts/database/monitor_and_upload.py --force
+
+# Set up cron for automated uploads (every minute) - DEPRECATED
+# * * * * * cd /path/to/project && ./venv/bin/python scripts/database/monitor_and_upload.py >/dev/null 2>&1
+
+# Use Master Scheduler instead (recommended)
+* * * * * /path/to/project/scripts/scheduler/master_scheduler.sh
 ```
+
+**Upload System Features:**
+- **Change Detection** - Monitors last_update table for database modifications
+- **Automatic Uploads** - Triggers on any table changes since last upload  
+- **Health Check** - Fallback uploads every 30 minutes if no changes detected
+- **Transaction Integrity** - Fixed Aug 2025: Scripts now properly update timestamps after database changes
 
 ### Dropbox OAuth2 System
 ```bash
@@ -378,6 +390,53 @@ tail -f logs/script_$(date +%Y%m%d).log
 - **Interactive setup** - Browser-based authorization flow
 - **Secure storage** - Tokens safely stored in keys.json
 
+## Critical System Fixes (August 2025)
+
+### Database Upload System Issues Resolved
+
+**Problem**: Remote scheduler wasn't triggering database uploads despite database changes, and upload timestamps weren't being updated properly.
+
+**Root Causes Identified & Fixed:**
+
+1. **Transaction Ordering Bug in fetch_results.py**
+   - **Issue**: `update_last_update_table()` called AFTER `conn.commit()`
+   - **Result**: Timestamp updates executed but never committed to database
+   - **Fix**: Moved timestamp update BEFORE commit for transaction integrity
+   - **Impact**: Results changes now properly trigger upload monitoring
+
+2. **Missing Fixtures Timestamp Updates**
+   - **Issue**: `fetch_fixtures_gameweeks.py` only updated "fixtures_gameweeks" timestamp
+   - **Result**: "fixtures" table changes undetected (9-day timestamp gap)
+   - **Fix**: Now updates both "fixtures" and "fixtures_gameweeks" timestamps
+   - **Impact**: Fixture changes now trigger automated uploads
+
+3. **Timezone Conversion Bug in Match Window Detection**
+   - **Issue**: Database stores UTC times but code added +1 hour offset
+   - **Result**: Match window detection failed, preventing results fetching
+   - **Fix**: Database times now correctly treated as UTC without conversion
+   - **Impact**: Results fetching works during match windows
+
+4. **Duplicate Predictions Data**
+   - **Issue**: Fixture matching failed due to team order mismatches
+   - **Result**: Multiple duplicate predictions, some fixtures unmatched
+   - **Fix**: Enhanced fixture matching to try both team orders
+   - **Impact**: Clean prediction data, no duplicates, all fixtures matched
+
+### Verification Steps
+```bash
+# Check last_update table shows recent timestamps
+sqlite3 data/database.db "SELECT * FROM last_update ORDER BY timestamp DESC LIMIT 5;"
+
+# Test upload detection works
+./venv/bin/python scripts/database/monitor_and_upload.py --dry-run
+
+# Test match window detection
+./venv/bin/python scripts/fpl/fetch_results.py --override --dry-run
+
+# Check for prediction duplicates
+sqlite3 data/database.db "SELECT COUNT(*) FROM predictions p JOIN fixtures f ON p.fixture_id = f.fixture_id WHERE f.season = '2025/2026' GROUP BY f.gameweek;"
+```
+
 ## Summary
 
 For this hobby project:
@@ -388,5 +447,6 @@ For this hobby project:
 5. **Test with sample data** - Don't waste API calls during development
 6. **Use meaningful names** - Variables and functions should explain themselves
 7. **Fail fast and clearly** - Better to stop with a clear error than continue with bad data
+8. **Maintain transaction integrity** - Always update timestamps within the same transaction as data changes
 
 Remember: This is a hobby project. Perfect is the enemy of done. Focus on code that works reliably and can be easily understood and modified months later.

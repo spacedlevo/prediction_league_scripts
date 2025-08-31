@@ -194,6 +194,17 @@ tail -f logs/scheduler/fetch_results_$(date +%Y%m%d).log
 2. Force refresh: `./scripts/fpl/fetch_fixtures_gameweeks.py --force-refresh`
 3. Check database connectivity
 
+**Database Uploads Not Triggering** (Fixed Aug 2025)
+1. Check last_update table: `SELECT * FROM last_update ORDER BY timestamp DESC;`
+2. Verify scripts update timestamps after changes
+3. Common cause was transaction bugs preventing timestamp updates
+4. Test upload detection: `./scripts/database/monitor_and_upload.py --dry-run`
+
+**Match Window Detection Issues** (Fixed Aug 2025)
+1. Database stores kickoff times as UTC (not UK local time)
+2. Previous timezone conversion bugs prevented results fetching
+3. Test timing: `./scripts/fpl/fetch_results.py --override --dry-run`
+
 ### Manual Operations
 
 ```bash

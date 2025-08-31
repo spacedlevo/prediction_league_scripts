@@ -6,6 +6,22 @@ This script monitors the database for changes and uploads to PythonAnywhere when
 1. Any database changes are detected (immediate upload)
 2. No upload has occurred in the last 30 minutes (health check upload)
 
+CHANGE DETECTION:
+- Monitors last_update table for timestamp changes from various scripts
+- Scripts must update their timestamps after making database changes
+- Fixed Aug 2025: Several scripts had transaction bugs preventing timestamp updates
+
+UPLOAD BEHAVIOR:
+- Triggers on any database table modification since last upload
+- Uploads entire database.db file via SFTP to PythonAnywhere
+- Updates "uploaded" timestamp after successful uploads
+- Includes fallback health check uploads every 30 minutes
+
+SCHEDULER INTEGRATION:
+- Designed to run every minute via remote cron (master_scheduler.sh)
+- Uses file locking to prevent multiple concurrent executions
+- Logs all activity for debugging upload issues
+
 Designed to run every minute via cron for responsive uploads and system monitoring.
 """
 

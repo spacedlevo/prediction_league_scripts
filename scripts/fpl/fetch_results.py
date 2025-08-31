@@ -13,6 +13,17 @@ FUNCTIONALITY:
 - Dual updates: Updates both fixtures status and results data
 - API efficiency: No unnecessary calls outside match windows
 - Sample data support: Test mode for development
+
+TIMEZONE HANDLING:
+- Fixed Aug 2025: Database kickoff times are stored as UTC
+- Match window detection now correctly handles UTC timestamps
+- Eliminates timezone conversion bugs that prevented results fetching
+
+TIMESTAMP UPDATES:
+- Fixed Aug 2025: Critical transaction bug in last_update table updates
+- Now correctly updates "results" timestamp after database changes
+- Ensures upload monitoring can detect when results are updated
+- Maintains transaction integrity for all database operations
 """
 
 import json
@@ -520,8 +531,8 @@ def main(test_mode=False, override_timing=False, dry_run=False, cleanup_count=5)
         # Commit changes and update tracking
         if not dry_run:
             if status_changes['total_updated'] > 0 or results_changes['total_processed'] > 0:
-                conn.commit()
                 update_last_update_table("results", cursor, logger)
+                conn.commit()
                 logger.info("Database changes committed successfully")
             else:
                 logger.info("No changes to commit")

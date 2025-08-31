@@ -18,6 +18,12 @@ DATABASE OPERATIONS:
 - Uses efficient batch operations for database updates
 - Maintains transaction integrity with rollback on errors
 
+TIMESTAMP UPDATES:
+- Fixed Aug 2025: Now updates both "fixtures" and "fixtures_gameweeks" timestamps
+- Previous version only updated "fixtures_gameweeks" despite modifying both tables
+- Ensures upload monitoring can detect when fixtures are updated
+- Critical for automated database synchronization
+
 COMMAND LINE OPTIONS:
 - --test: Use cached sample data for development
 - --dry-run: Preview changes without database updates
@@ -622,20 +628,26 @@ def load_sample_data(logger):
         return None
 
 def update_last_update_timestamp(cursor, logger):
-    """Update the last_update table with current timestamp"""
+    """Update the last_update table with current timestamp for both tables modified"""
     dt = datetime.now()
     now = dt.strftime("%d-%m-%Y %H:%M:%S")
     timestamp = dt.timestamp()
     
     try:
+        # Update both fixtures_gameweeks and fixtures tables since both are modified
         cursor.execute("""
             INSERT OR REPLACE INTO last_update (table_name, updated, timestamp) 
             VALUES ('fixtures_gameweeks', ?, ?)
         """, (now, timestamp))
         
-        logger.info(f"Updated last_update timestamp: {now}")
+        cursor.execute("""
+            INSERT OR REPLACE INTO last_update (table_name, updated, timestamp) 
+            VALUES ('fixtures', ?, ?)
+        """, (now, timestamp))
+        
+        logger.info(f"Updated last_update timestamps for fixtures_gameweeks and fixtures: {now}")
     except Exception as e:
-        logger.error(f"Error updating last_update timestamp: {e}")
+        logger.error(f"Error updating last_update timestamps: {e}")
 
 def collect_fixtures_gameweeks_data(logger):
     """Collect all fixtures and gameweeks data from FPL APIs"""

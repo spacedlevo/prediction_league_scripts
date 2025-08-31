@@ -4,7 +4,77 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [2025-08-31] - Master Scheduler System & Major Improvements
+## [2025-08-31] - Critical System Fixes & Major Improvements
+
+### Fixed - Database Upload System (Critical)
+- **Transaction Bug in fetch_results.py**: Fixed `update_last_update_table()` being called AFTER `conn.commit()`, causing timestamp updates to never be committed to database
+- **Missing Fixtures Timestamps**: Fixed `fetch_fixtures_gameweeks.py` only updating "fixtures_gameweeks" timestamp despite modifying both "fixtures" and "fixtures_gameweeks" tables
+- **Upload Detection**: Database changes now properly trigger automated uploads after fixing timestamp update bugs
+- **Transaction Integrity**: All scripts now update timestamps within the same transaction as data changes
+
+### Fixed - Match Window Detection (Critical)
+- **Timezone Conversion Bug**: Fixed incorrect timezone handling where UTC database times were treated as UK local time
+- **Database Schema**: Clarified that `kickoff_dttm` is stored as UTC time (not UK local time)
+- **Match Window Logic**: Now correctly compares UTC times without adding timezone offsets
+- **Results Fetching**: Fixed "outside match window" errors preventing results from being fetched during active matches
+
+### Fixed - Prediction Data Integrity (Critical)  
+- **Duplicate Predictions**: Cleaned up 390 duplicate prediction records from gameweeks 1 and 2
+- **Fixture Matching**: Enhanced `get_fixture_id()` to try both team orders (e.g., "burnley vs man utd" matches "man utd vs burnley")
+- **Database Constraints**: Added unique constraint on `(player_id, fixture_id)` to prevent future duplicates
+- **Clean Data**: Now maintains exactly 260 predictions per gameweek (26 players × 10 fixtures) with no duplicates
+
+### Enhanced - System Reliability
+- **Upload Monitoring**: Fixed change detection logic that prevented automated database uploads
+- **Error Diagnostics**: Added comprehensive troubleshooting documentation for common issues
+- **Verification Commands**: Added diagnostic commands to verify fixes are working correctly
+- **Documentation Updates**: Updated all relevant documentation with fix details and verification steps
+
+### Technical Details - Critical Fixes
+
+#### Database Upload Transaction Bug
+**Root Cause**: In `scripts/fpl/fetch_results.py`, the sequence was:
+```python
+conn.commit()
+update_last_update_table("results", cursor, logger)  # Never committed!
+```
+
+**Fix**: Moved timestamp update before commit:
+```python
+update_last_update_table("results", cursor, logger)
+conn.commit()  # Now commits both data changes AND timestamp
+```
+
+**Impact**: Results processing now correctly triggers database uploads via change detection
+
+#### Timezone Handling Bug  
+**Root Cause**: Code incorrectly added +1 hour to UTC database times:
+```python
+uk_tz = timezone(timedelta(hours=1))  # Wrong!
+first_kickoff_dt = first_kickoff_naive.replace(tzinfo=uk_tz)
+```
+
+**Fix**: Database times are UTC, no conversion needed:
+```python
+first_kickoff_dt = first_kickoff_naive.replace(tzinfo=timezone.utc)
+```
+
+**Impact**: Match window detection works correctly, results fetch during match periods
+
+#### Verification Commands
+```bash
+# Verify timestamp updates work
+sqlite3 data/database.db "SELECT * FROM last_update ORDER BY timestamp DESC LIMIT 5;"
+
+# Test upload detection  
+./venv/bin/python scripts/database/monitor_and_upload.py --dry-run
+
+# Test match window detection
+./venv/bin/python scripts/fpl/fetch_results.py --override --dry-run
+
+# Verify prediction data integrity
+sqlite3 data/database.db "SELECT f.gameweek, COUNT(*) FROM predictions p JOIN fixtures f ON p.fixture_id = f.fixture_id WHERE f.season = '2025/2026' GROUP BY f.gameweek;"
+```
 
 ### Added - Master Scheduler System
 - **Centralized Orchestration**: `scripts/scheduler/master_scheduler.sh` - Single cron job manages all automation
