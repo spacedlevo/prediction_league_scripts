@@ -159,7 +159,7 @@ sudo su - predictionleague
 
 **Create project directory structure:**
 ```bash
-mkdir -p ~/projects
+mkdir -p ~/ projects
 cd ~/projects
 ```
 
