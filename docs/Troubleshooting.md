@@ -180,6 +180,89 @@
 3. Restart script regularly if running frequently
 4. Check for large sample files accumulating
 
+### Scheduler/Automation Issues
+
+#### Scheduler Not Running Scripts
+**Symptom**: Only `fetch_results` appears in logs, other scripts never execute
+
+**Diagnosis**:
+1. Check scheduler status: `./scripts/scheduler/scheduler_status.sh --detailed`
+2. Enable debug mode: Set `DEBUG_MODE=true` in `scheduler_config.conf`
+3. Monitor timing: `tail -f logs/scheduler/master_scheduler_$(date +%Y%m%d).log`
+
+**Common Causes & Solutions**:
+- **Cron Not Set Up**: Add cron entry `* * * * * /path/to/project/scripts/scheduler/master_scheduler.sh`
+- **Wrong Timing Windows**: Scripts have specific timing requirements (see debug logs)
+- **Configuration Disabled**: Check `ENABLE_*` flags in `scheduler_config.conf`
+- **Emergency Stop**: Check `SCHEDULER_ENABLED=true` in config
+
+#### Scripts Failing to Execute
+**Symptom**: "Script already running" or lock file errors
+
+**Solutions**:
+1. Check for stale locks: `ls -la logs/scheduler/locks/`
+2. Clean stale locks: `./scripts/scheduler/scheduler_status.sh --clean` 
+3. Kill hung processes: `pkill -f "script_name.py"`
+4. Remove specific lock: `rm logs/scheduler/locks/script_name.lock`
+
+**Prevention**:
+- Locks auto-expire after 60 minutes
+- Check process health before assuming stale locks
+
+#### Debug Scheduler Timing
+**Enable detailed timing analysis**:
+```bash
+# Enable debug mode
+echo "DEBUG_MODE=true" >> scripts/scheduler/scheduler_config.conf
+
+# Watch timing decisions  
+tail -f logs/scheduler/master_scheduler_$(date +%Y%m%d).log
+
+# Manual test execution
+./scripts/scheduler/master_scheduler.sh
+```
+
+**Timing Requirements**:
+- **Every minute tasks**: Different second windows to prevent overlap
+- **Periodic tasks**: Based on minute intervals (% 15, % 30, etc.)  
+- **Daily tasks**: Only at specific hour (7 AM for data refreshes)
+
+#### Configuration Troubleshooting
+**Check current settings**:
+```bash
+# View all scheduler settings
+cat scripts/scheduler/scheduler_config.conf
+
+# Test configuration loading
+source scripts/scheduler/scheduler_config.conf && echo "ENABLE_FETCH_RESULTS: $ENABLE_FETCH_RESULTS"
+```
+
+**Common Config Issues**:
+- **Typos in variable names**: Must match exact variable names in script
+- **Wrong boolean values**: Use `true`/`false` (lowercase)
+- **Missing permissions**: Ensure config file is readable
+
+#### Emergency Controls
+**Disable all automation**:
+```bash
+echo "SCHEDULER_ENABLED=false" >> scripts/scheduler/scheduler_config.conf
+```
+
+**Selective script disabling**:
+```bash
+# Disable problematic script
+echo "ENABLE_AUTOMATED_PREDICTIONS=false" >> scripts/scheduler/scheduler_config.conf
+```
+
+**Force manual execution**:
+```bash
+# Run specific script manually
+./venv/bin/python scripts/fpl/fetch_results.py
+
+# Run without scheduler timing restrictions
+./venv/bin/python scripts/fpl/automated_predictions.py --force
+```
+
 ## Debugging Techniques
 
 ### Log Analysis

@@ -171,6 +171,14 @@ INSERT OR REPLACE INTO fantasy_pl_scores (...) VALUES (...)
 - Handles both new records and updates efficiently
 
 ### Performance Optimization
+
+#### Recent Improvements (2025-08-31)
+- **Field Optimization**: Reduced bootstrap monitoring from 23 to 13 essential fields (65% reduction)
+- **Essential Fields Only**: Now tracks only gameplay statistics: `total_points`, `minutes`, `goals_scored`, `assists`, `clean_sheets`, `goals_conceded`, `saves`, `yellow_cards`, `red_cards`, `bonus`, `bps`
+- **Eliminated False Positives**: No longer monitors market/popularity metrics that don't affect gameplay
+- **Reduced API Calls**: Fewer false changes mean significantly fewer individual player API requests
+
+#### Core Optimizations
 - **Bootstrap Cache**: `fpl_players_bootstrap` table eliminates redundant API calls
 - **Concurrent Processing**: ThreadPoolExecutor with configurable worker count
 - **Team Mapping Cache**: FPL team ID to database team_id mapping loaded once

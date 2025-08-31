@@ -221,11 +221,10 @@ def identify_players_to_update(new_players, existing_bootstrap_data, logger, deb
     new_players_count = 0
     changed_players_count = 0
     
-    # Key fields to check for changes (database field names)
-    key_fields = ['team_id', 'position', 'minutes', 'total_points', 'ict_index', 'goals_scored', 
+    # Key fields to check for changes (database field names) - optimized for essential gameplay stats
+    key_fields = ['team_id', 'position', 'total_points', 'minutes', 'goals_scored', 
                   'assists', 'clean_sheets', 'goals_conceded', 'saves', 'yellow_cards', 'red_cards',
-                  'bonus', 'bps', 'influence', 'creativity', 'threat', 'starts',
-                  'expected_goals', 'expected_assists', 'value', 'transfers_in', 'transfers_out']
+                  'bonus', 'bps']
     
     for player in new_players:
         player_id = player["id"]
@@ -491,7 +490,7 @@ def get_existing_player_data(cursor):
     """Get existing player data from database for comparison"""
     cursor.execute("""
         SELECT player_id, gameweek, fixture_id, total_points, minutes, goals_scored, assists,
-               expected_goals, expected_assists, value, transfers_in, transfers_out
+               clean_sheets, goals_conceded, saves, yellow_cards, red_cards, bonus, bps
         FROM fantasy_pl_scores
     """)
     
@@ -504,11 +503,13 @@ def get_existing_player_data(cursor):
             'minutes': row[4], 
             'goals_scored': row[5],
             'assists': row[6],
-            'expected_goals': row[7],
-            'expected_assists': row[8],
-            'value': row[9],
-            'transfers_in': row[10],
-            'transfers_out': row[11]
+            'clean_sheets': row[7],
+            'goals_conceded': row[8],
+            'saves': row[9],
+            'yellow_cards': row[10],
+            'red_cards': row[11],
+            'bonus': row[12],
+            'bps': row[13]
         }
     
     return existing_data
@@ -518,10 +519,10 @@ def has_data_changed(new_record, existing_record):
     if not existing_record:
         return True  # New record
     
-    # Check key fields that might change
+    # Check key fields that might change - optimized for essential gameplay stats
     check_fields = ['total_points', 'minutes', 'goals_scored', 'assists', 
-                   'expected_goals', 'expected_assists', 'value', 
-                   'transfers_in', 'transfers_out']
+                   'clean_sheets', 'goals_conceded', 'saves', 'yellow_cards', 
+                   'red_cards', 'bonus', 'bps']
     
     for field in check_fields:
         new_val = new_record.get(field)
@@ -752,6 +753,11 @@ def process_fpl_data(fpl_data, logger, dry_run=False):
             conn.rollback()
             logger.info("DRY RUN - Transaction rolled back")
         else:
+            # Update last_update table to trigger database upload
+            cursor.execute("""
+                INSERT OR REPLACE INTO last_update (table_name, timestamp) 
+                VALUES ('fantasy_pl_scores', CURRENT_TIMESTAMP)
+            """)
             conn.commit()
             logger.info("Database transaction committed successfully")
         

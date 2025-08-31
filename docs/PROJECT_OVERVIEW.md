@@ -30,11 +30,22 @@ prediction_league_script/
 │   ├── odds_api/          # Odds API response samples  
 │   └── fantasypl/         # FPL API response samples
 ├── scripts/                # Main application scripts
+│   ├── database/          # Database management tools
+│   │   └── monitor_and_upload.py # Database upload monitoring
 │   ├── fpl/              # Fantasy Premier League tools
-│   │   └── fetch_fpl_data.py # Modern FPL data fetcher
+│   │   ├── fetch_fpl_data.py # Modern FPL data fetcher
+│   │   ├── fetch_results.py  # Match results fetcher
+│   │   ├── fetch_fixtures_gameweeks.py # Fixtures fetcher
+│   │   └── backfill_team_ids.py # Team ID backfill utility
 │   ├── odds-api/         # Modern odds collection
 │   │   └── fetch_odds.py # Main odds fetcher
-│   └── prediction_league/ # Prediction systems
+│   ├── prediction_league/ # Prediction systems
+│   │   ├── automated_predictions.py # Automated predictions
+│   │   └── clean_predictions_dropbox.py # Prediction cleaning
+│   └── scheduler/        # Automation & scheduling
+│       ├── master_scheduler.sh # Main scheduler orchestrator
+│       ├── scheduler_config.conf # Scheduler configuration
+│       └── scheduler_status.sh # Status monitoring
 ├── Utility/               # Database migration utilities
 ├── keys.json             # API configuration (not in repo)
 └── venv/                 # Python virtual environment
@@ -229,13 +240,85 @@ ORDER BY total_points DESC LIMIT 10;
 - Processing statistics (records processed/skipped)
 - Sample data backup for debugging
 
+## Automation & Scheduling System
+
+### Master Scheduler (`scripts/scheduler/master_scheduler.sh`)
+
+**Purpose**: Centralized orchestrator that manages all script execution with proper timing, delays, error handling, and process management.
+
+**Setup**: Single cron entry runs every minute:
+```bash
+* * * * * /path/to/project/scripts/scheduler/master_scheduler.sh
+```
+
+**Execution Schedule**:
+
+| Script | Frequency | Timing Window | Purpose |
+|--------|-----------|---------------|---------|
+| `fetch_results.py` | Every minute | 0-29 seconds | Match results collection |
+| `monitor_and_upload.py` | Every minute | 30+ seconds | Database upload monitoring |
+| `clean_predictions_dropbox.py` | Every 15 minutes | 0-29 seconds | Prediction data cleaning |
+| `fetch_fixtures_gameweeks.py` | Every 30 minutes | 10-49 seconds | Fixtures & gameweek data |
+| `automated_predictions.py` | Every hour | 20-59 seconds | Generate predictions |
+| `fetch_fpl_data.py` | Daily at 7 AM | 0-29 seconds | FPL player data refresh |
+| `fetch_odds.py` | Daily at 7 AM | 0-29 seconds | Betting odds collection |
+
+**Key Features**:
+- **Lock Management**: Prevents overlapping executions with automatic stale lock cleanup
+- **Error Handling**: Individual script failures don't affect the scheduler
+- **Configuration Control**: Toggle scripts on/off via `scheduler_config.conf`
+- **Emergency Stop**: `SCHEDULER_ENABLED=false` disables all automation
+- **Enhanced Debugging**: Toggle-able debug logging shows timing analysis
+- **Process Monitoring**: Background process management with timeout protection
+
+**Configuration (`scheduler_config.conf`)**:
+```bash
+# Enable/disable individual scripts
+ENABLE_FETCH_RESULTS=true
+ENABLE_MONITOR_UPLOAD=true
+ENABLE_CLEAN_PREDICTIONS=true
+# ... other toggles
+
+# Emergency controls
+SCHEDULER_ENABLED=true
+DEBUG_MODE=false  # Enable for troubleshooting
+
+# Timing controls
+DELAY_BETWEEN_RESULTS_UPLOAD=30
+```
+
+**Monitoring**:
+```bash
+# Check scheduler status
+./scripts/scheduler/scheduler_status.sh
+
+# Detailed status with recent activity
+./scripts/scheduler/scheduler_status.sh --detailed
+
+# Monitor logs
+tail -f logs/scheduler/master_scheduler_$(date +%Y%m%d).log
+```
+
+### Recent Improvements (2025-08-31)
+
+**Reliability Fixes**:
+- **Widened Timing Windows**: Execution windows expanded from 15 seconds to 30-40 seconds for better cron reliability
+- **Simplified Timing Logic**: Removed overly restrictive second-based conditions
+- **Fixed Script Execution**: Now properly triggers all scripts (previously only `fetch_results` was running)
+- **Enhanced Logging**: Added timing analysis and configuration status debugging
+
+**Configuration Validation**:
+- Added `SCHEDULER_ENABLED` emergency stop mechanism
+- Improved lock file cleanup and stale process handling
+- Better error reporting and process monitoring
+
 ## Future Development
 
 ### Planned Enhancements
 - Additional sports/leagues support
-- Enhanced prediction algorithms
+- Enhanced prediction algorithms  
 - Web interface for data visualization
-- Automated daily execution scheduling
+- Real-time match data streaming
 
 ### Architectural Improvements
 - Database optimization for larger datasets

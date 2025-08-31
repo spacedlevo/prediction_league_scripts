@@ -299,6 +299,65 @@ python scripts/fpl/fetch_fixtures_gameweeks.py --test --dry-run --cleanup-count 
 
 For comprehensive player performance data, see the dedicated [FPL_DATA_GUIDE.md](FPL_DATA_GUIDE.md).
 
+### FPL Team ID Backfill Utility
+
+The `backfill_team_ids.py` script populates missing team_id values in the fantasy_pl_scores table using existing FPL team mappings.
+
+#### Purpose
+
+Fixes historical data where team relationships were not properly recorded, enabling team-based analysis and reporting.
+
+#### Basic Usage
+
+```bash
+# Check what would be fixed (recommended first step)
+./venv/bin/python scripts/fpl/backfill_team_ids.py --dry-run
+
+# Perform the actual backfill
+./venv/bin/python scripts/fpl/backfill_team_ids.py
+```
+
+#### Features
+
+- **Two-Phase Approach**: 
+  - Phase 1: Uses bootstrap data (most reliable)
+  - Phase 2: Uses fixture analysis for remaining records
+- **Progress Tracking**: Shows detailed statistics and success rates
+- **Safe Operation**: Dry-run mode shows what would be changed
+- **Comprehensive Analysis**: Reports missing team_id counts by gameweek
+- **Database Integration**: Updates last_update table to trigger uploads
+
+#### Example Output
+
+```bash
+2025-08-31 21:45:54 - INFO - Fantasy PL Scores Analysis:
+2025-08-31 21:45:54 - INFO -   Total records: 2,364
+2025-08-31 21:45:54 - INFO -   Records with team_id: 831  
+2025-08-31 21:45:54 - INFO -   Records missing team_id: 1,533 (64.8%)
+2025-08-31 21:45:54 - INFO -   Available FPL team mappings: 20
+
+=== Phase 1: Backfill using bootstrap data ===
+2025-08-31 21:45:54 - INFO - Updated 1533 records using bootstrap team data
+
+=== Backfill Summary ===
+2025-08-31 21:45:54 - INFO - Records updated: 1,533
+2025-08-31 21:45:54 - INFO - Success rate: 100.0%
+2025-08-31 21:45:54 - INFO - After backfill: 0 records still missing team_id (0.0%)
+```
+
+#### When to Use
+
+- **After initial setup**: Populate team relationships for historical data
+- **After data imports**: Fix team mappings for bulk imported data  
+- **Database maintenance**: Ensure data integrity for team-based queries
+- **Before analysis**: Ensure complete team relationship data
+
+#### Requirements
+
+- FPL team mappings must exist in teams table (fpl_id column)
+- Bootstrap data should be current for best results
+- Database write access required (unless using --dry-run)
+
 ## Prediction League Scripts
 
 ### Automated Predictions Script

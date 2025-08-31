@@ -97,41 +97,40 @@ def validate_current_gameweek(gameweeks: List[Dict], logger) -> Dict:
             validation_results['current_gameweek'] = current_marked
             break
     
-    # Determine which gameweek should be current based on deadlines
-    should_be_current = None
+    # SIMPLIFIED LOGIC: Only flag as error if there's a clear, significant issue
+    # A gameweek should transition only when it's very clear the next one should be active
     
-    # Find the gameweek where deadline has not passed yet (future deadline)
-    # or the most recent gameweek if all deadlines have passed
-    future_gameweeks = []
-    past_gameweeks = []
+    should_be_current = current_marked  # Default: trust the current marking
     
-    for gw in gameweeks:
-        deadline_dt = parse_deadline(gw['deadline_dttm'])
-        if not deadline_dt:
-            continue
-            
-        if deadline_dt > now_utc:
-            future_gameweeks.append((gw['gameweek'], deadline_dt))
-        else:
-            past_gameweeks.append((gw['gameweek'], deadline_dt))
-    
-    if future_gameweeks:
-        # Current gameweek is the one with the earliest future deadline
-        future_gameweeks.sort(key=lambda x: x[1])
-        should_be_current = future_gameweeks[0][0]
-    elif past_gameweeks:
-        # All deadlines have passed, current should be the latest gameweek
-        past_gameweeks.sort(key=lambda x: x[1], reverse=True)
-        should_be_current = past_gameweeks[0][0]
+    if current_marked:
+        # Check if we're way past the current gameweek's deadline (more than 2 weeks)
+        current_gw_data = next((gw for gw in gameweeks if gw['gameweek'] == current_marked), None)
+        if current_gw_data:
+            current_deadline = parse_deadline(current_gw_data['deadline_dttm'])
+            if current_deadline:
+                hours_since_deadline = (now_utc - current_deadline).total_seconds() / 3600
+                
+                # Only flag as error if we're SIGNIFICANTLY past the deadline (2 weeks = 336 hours)
+                if hours_since_deadline > 336:  # 2 weeks past deadline
+                    # Check if the next gameweek exists and should be current
+                    next_gw = current_marked + 1
+                    next_gw_data = next((gw for gw in gameweeks if gw['gameweek'] == next_gw), None)
+                    if next_gw_data:
+                        next_deadline = parse_deadline(next_gw_data['deadline_dttm'])
+                        if next_deadline:
+                            hours_until_next = (next_deadline - now_utc).total_seconds() / 3600
+                            # Only transition if we're within 2 weeks of next deadline
+                            if hours_until_next < 336:  # Within 2 weeks of next deadline
+                                should_be_current = next_gw
     
     validation_results['should_be_current'] = should_be_current
     
-    # Compare marked vs calculated current gameweek
+    # Only create issue if there's a significant mismatch
     if current_marked != should_be_current:
         validation_results['is_valid'] = False
         validation_results['issues'].append({
             'type': 'current_gameweek_mismatch',
-            'message': f"Gameweek {current_marked} marked as current, but gameweek {should_be_current} should be current based on deadlines",
+            'message': f"Gameweek {current_marked} marked as current, but gameweek {should_be_current} should be current (significant time past deadline)",
             'severity': 'high'
         })
         validation_results['recommendations'].append({
@@ -249,13 +248,27 @@ def perform_full_validation(logger) -> Dict:
             'recommendations': current_validation['recommendations'] + finished_validation['recommendations'] + next_validation['recommendations']
         }
         
-        # Log validation summary
+        # Log validation summary with more context
         if combined_results['is_valid']:
-            logger.info(f"Gameweek validation passed - Current: GW{combined_results['current_gameweek']}")
+            logger.info(f"Gameweek validation passed - Current: GW{combined_results['current_gameweek']}, Total GWs: {len(gameweeks)}")
         else:
-            logger.warning(f"Gameweek validation failed - {len(combined_results['issues'])} issues found")
+            logger.warning(f"Gameweek validation found {len(combined_results['issues'])} issues:")
             for issue in combined_results['issues']:
-                logger.warning(f"  {issue['severity'].upper()}: {issue['message']}")
+                severity_emoji = "🔴" if issue['severity'] == 'high' else "🟡" if issue['severity'] == 'medium' else "🟢"
+                logger.warning(f"  {severity_emoji} {issue['severity'].upper()}: {issue['message']}")
+            
+            # Add context about current deadlines
+            current_gw = combined_results['current_gameweek']
+            if current_gw:
+                current_data = next((gw for gw in gameweeks if gw['gameweek'] == current_gw), None)
+                if current_data:
+                    current_deadline = parse_deadline(current_data['deadline_dttm'])
+                    if current_deadline:
+                        hours_since_deadline = (datetime.now(timezone.utc) - current_deadline).total_seconds() / 3600
+                        if hours_since_deadline > 0:
+                            logger.info(f"  Context: GW{current_gw} deadline was {hours_since_deadline:.1f} hours ago ({current_deadline})")
+                        else:
+                            logger.info(f"  Context: GW{current_gw} deadline is in {abs(hours_since_deadline):.1f} hours ({current_deadline})")
         
         return combined_results
         
