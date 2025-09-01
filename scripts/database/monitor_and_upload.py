@@ -118,6 +118,30 @@ def load_config() -> dict:
         raise ValueError(f"Invalid JSON in configuration file: {e}")
 
 
+def parse_timestamp(timestamp_value) -> float:
+    """Convert timestamp to Unix timestamp, handling both string and numeric formats"""
+    if isinstance(timestamp_value, (int, float)):
+        return float(timestamp_value)
+    
+    if isinstance(timestamp_value, str):
+        # Try to parse various string formats
+        try:
+            # Try common formats used in the database
+            for fmt in ['%Y-%m-%d %H:%M:%S', '%d-%m-%Y. %H:%M:%S', '%d-%m-%Y %H:%M:%S']:
+                try:
+                    dt = datetime.strptime(timestamp_value, fmt)
+                    return dt.timestamp()
+                except ValueError:
+                    continue
+            # If no format works, try direct float conversion
+            return float(timestamp_value)
+        except ValueError:
+            # If all else fails, return 0 (epoch) so comparison works
+            return 0.0
+    
+    return 0.0
+
+
 def has_database_changes(cursor: sql.Cursor, logger: logging.Logger) -> bool:
     """Check if any database changes occurred since last upload"""
     try:
@@ -133,17 +157,24 @@ def has_database_changes(cursor: sql.Cursor, logger: logging.Logger) -> bool:
             logger.info("No previous upload found - upload needed")
             return True
         
-        last_upload_timestamp = last_upload[0]
+        last_upload_timestamp = parse_timestamp(last_upload[0])
         logger.debug(f"Last upload timestamp: {last_upload_timestamp}")
         
-        # Check if any table was updated after last upload
+        # Get all non-uploaded table updates
         cursor.execute("""
             SELECT table_name, timestamp FROM last_update 
-            WHERE table_name != 'uploaded' AND timestamp > ?
+            WHERE table_name != 'uploaded'
             ORDER BY timestamp DESC
-        """, (last_upload_timestamp,))
+        """)
         
-        changes = cursor.fetchall()
+        all_changes = cursor.fetchall()
+        changes = []
+        
+        for table_name, timestamp_value in all_changes:
+            parsed_timestamp = parse_timestamp(timestamp_value)
+            if parsed_timestamp > last_upload_timestamp:
+                changes.append((table_name, parsed_timestamp))
+        
         if changes:
             change_list = [f"{change[0]} ({datetime.fromtimestamp(change[1]).strftime('%H:%M:%S')})" for change in changes]
             logger.info(f"Database changes detected: {', '.join(change_list)}")
@@ -171,7 +202,7 @@ def last_upload_older_than_30_minutes(cursor: sql.Cursor, logger: logging.Logger
             logger.info("No previous upload found - health check upload needed")
             return True
         
-        last_upload_timestamp = last_upload[0]
+        last_upload_timestamp = parse_timestamp(last_upload[0])
         current_timestamp = datetime.now().timestamp()
         time_diff_minutes = (current_timestamp - last_upload_timestamp) / 60
         

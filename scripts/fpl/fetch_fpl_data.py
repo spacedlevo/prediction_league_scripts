@@ -754,10 +754,13 @@ def process_fpl_data(fpl_data, logger, dry_run=False):
             logger.info("DRY RUN - Transaction rolled back")
         else:
             # Update last_update table to trigger database upload
+            now = datetime.now()
+            timestamp = now.timestamp()
+            formatted_time = now.strftime("%d-%m-%Y. %H:%M:%S")
             cursor.execute("""
-                INSERT OR REPLACE INTO last_update (table_name, timestamp) 
-                VALUES ('fantasy_pl_scores', CURRENT_TIMESTAMP)
-            """)
+                INSERT OR REPLACE INTO last_update (table_name, updated, timestamp) 
+                VALUES (?, ?, ?)
+            """, ("fantasy_pl_scores", formatted_time, timestamp))
             conn.commit()
             logger.info("Database transaction committed successfully")
         
