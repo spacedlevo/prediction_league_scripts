@@ -390,6 +390,97 @@ tail -f logs/script_$(date +%Y%m%d).log
 - **Interactive setup** - Browser-based authorization flow
 - **Secure storage** - Tokens safely stored in keys.json
 
+### Pulse API System (Match Data Collection)
+```bash
+# Test pulse API data collection with sample data
+./venv/bin/python scripts/pulse_api/fetch_pulse_data.py --test
+
+# Dry run to preview changes without database updates
+./venv/bin/python scripts/pulse_api/fetch_pulse_data.py --dry-run
+
+# Normal operation - collect missing pulse data
+./venv/bin/python scripts/pulse_api/fetch_pulse_data.py
+
+# Sequential processing for gentle API usage
+./venv/bin/python scripts/pulse_api/fetch_pulse_data.py --max-workers 1 --delay 3.0
+
+# Force fetch all fixtures regardless of existing data
+./venv/bin/python scripts/pulse_api/fetch_pulse_data.py --force-all
+
+# Process specific season
+./venv/bin/python scripts/pulse_api/fetch_pulse_data.py --season "2024/2025"
+```
+
+**Pulse API Features:**
+- **Change Detection** - Only fetches data for finished fixtures missing pulse data
+- **Rate Limiting** - Respectful API usage with configurable delays between requests
+- **Error Recovery** - Robust handling of API failures with exponential backoff retry logic
+- **Concurrent Processing** - Optional threading for faster data collection (default: 3 workers)
+- **Smart Caching** - Saves successful responses to avoid re-fetching during development
+- **Database Integration** - Uses existing tables: match_officials, team_list, match_events
+- **Team Mapping** - Maps pulse team IDs to database team_id for proper relationships
+- **Sample Management** - Automatic cleanup of old sample files with configurable retention
+
+**Data Collected:**
+- **Match Officials** - Referees and linesmen for each match
+- **Team Lists** - Starting lineups and substitutes with positions, shirt numbers, captain status
+- **Match Events** - Goals, cards, substitutions with precise timestamps and player/team details
+
+**Scheduler Integration:**
+- **Daily Collection** - Runs automatically at 8 AM via master scheduler
+- **Change Triggering** - Updates last_update table to trigger automated database uploads
+- **Lock Management** - Prevents multiple concurrent executions
+
+### Master Scheduler System
+```bash
+# Set up automated execution (single cron entry manages everything)
+* * * * * /path/to/project/scripts/scheduler/master_scheduler.sh
+
+# Check scheduler status and configuration
+./venv/bin/python scripts/scheduler/scheduler_status.sh
+
+# Monitor scheduler activity
+tail -f logs/scheduler/master_scheduler_$(date +%Y%m%d).log
+
+# Enable debug mode for detailed timing analysis
+echo "DEBUG_MODE=true" >> scripts/scheduler/scheduler_config.conf
+```
+
+**Scheduler Features (September 2025 Update):**
+- **Centralized Orchestration** - Single cron entry manages all script execution
+- **Intelligent Timing** - Scripts run at optimal intervals based on data requirements
+- **Process Management** - Lock files prevent overlapping executions
+- **Error Handling** - Individual script failures don't affect other scripts
+- **Configurable Control** - Enable/disable individual scripts via configuration
+
+**Execution Schedule:**
+- **Every Minute**: fetch_results.py, monitor_and_upload.py (with 10s sequencing)
+- **Every 15 Minutes**: clean_predictions_dropbox.py
+- **Every 30 Minutes**: fetch_fixtures_gameweeks.py
+- **Every Hour**: automated_predictions.py
+- **Daily 7 AM**: fetch_fpl_data.py, fetch_odds.py
+- **Daily 8 AM**: fetch_pulse_data.py (NEW - September 2025)
+- **Daily 2 AM**: Cleanup old logs and locks
+
+**Configuration Override (scripts/scheduler/scheduler_config.conf):**
+```bash
+# Emergency disable (stops all scripts)
+SCHEDULER_ENABLED=false
+
+# Individual script control
+ENABLE_FETCH_RESULTS=true
+ENABLE_MONITOR_UPLOAD=true
+ENABLE_CLEAN_PREDICTIONS=true
+ENABLE_FETCH_FIXTURES=true
+ENABLE_AUTOMATED_PREDICTIONS=true
+ENABLE_FETCH_FPL_DATA=true
+ENABLE_FETCH_ODDS=true
+ENABLE_FETCH_PULSE_DATA=true
+
+# Debug output for timing analysis
+DEBUG_MODE=false
+```
+
 ## Critical System Fixes (August 2025)
 
 ### Database Upload System Issues Resolved

@@ -13,6 +13,7 @@
 # - automated_predictions.py: Every hour (minute = 0)
 # - fetch_fpl_data.py: Daily at 7 AM (hour = 7, minute = 0)
 # - fetch_odds.py: Daily at 7 AM (hour = 7, minute = 0)
+# - fetch_pulse_data.py: Daily at 8 AM (hour = 8, minute = 0)
 #
 # KEY IMPROVEMENTS:
 # - Eliminated complex second-based timing windows that caused missed executions
@@ -59,6 +60,7 @@ ENABLE_FETCH_FIXTURES=${ENABLE_FETCH_FIXTURES:-true}
 ENABLE_AUTOMATED_PREDICTIONS=${ENABLE_AUTOMATED_PREDICTIONS:-true}
 ENABLE_FETCH_FPL_DATA=${ENABLE_FETCH_FPL_DATA:-true}
 ENABLE_FETCH_ODDS=${ENABLE_FETCH_ODDS:-true}
+ENABLE_FETCH_PULSE_DATA=${ENABLE_FETCH_PULSE_DATA:-true}
 
 # Logging function
 log() {
@@ -194,6 +196,14 @@ if [[ $current_hour -eq 7 ]] && [[ $current_minute -eq 0 ]]; then
     fi
 fi
 
+# Daily at 8 AM (Pulse API data collection)
+if [[ $current_hour -eq 8 ]] && [[ $current_minute -eq 0 ]]; then
+    if [[ "$ENABLE_FETCH_PULSE_DATA" == "true" ]]; then
+        run_script "scripts/pulse_api/fetch_pulse_data.py" "fetch_pulse_data" &
+        log "DEBUG" "Triggered fetch_pulse_data (daily 8 AM)"
+    fi
+fi
+
 # Wait for background processes to complete
 wait
 
@@ -220,13 +230,15 @@ if [[ "${DEBUG_MODE:-false}" == "true" ]]; then
     log "DEBUG" "  ENABLE_AUTOMATED_PREDICTIONS: $ENABLE_AUTOMATED_PREDICTIONS"
     log "DEBUG" "  ENABLE_FETCH_FPL_DATA: $ENABLE_FETCH_FPL_DATA"
     log "DEBUG" "  ENABLE_FETCH_ODDS: $ENABLE_FETCH_ODDS"
+    log "DEBUG" "  ENABLE_FETCH_PULSE_DATA: $ENABLE_FETCH_PULSE_DATA"
     
     # Log timing conditions that might prevent execution
     log "DEBUG" "Timing analysis:"
     log "DEBUG" "  Clean predictions: minute % 15 = $((current_minute % 15)) (needs 0)"
     log "DEBUG" "  Fetch fixtures: minute % 30 = $((current_minute % 30)) (needs 0)"  
     log "DEBUG" "  Automated predictions: minute = $current_minute (needs 0)"
-    log "DEBUG" "  Daily scripts: hour = $current_hour (needs 7)"
+    log "DEBUG" "  Daily scripts (7 AM): hour = $current_hour (needs 7)"
+    log "DEBUG" "  Pulse data (8 AM): hour = $current_hour (needs 8)"
 fi
 
 log "DEBUG" "Scheduler tick completed"

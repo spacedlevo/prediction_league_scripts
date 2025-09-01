@@ -19,7 +19,8 @@
       "Bash(current_minute=15)",
       "Bash(current_minute=30)",
       "Bash(current_minute=0)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(DEBUG_MODE=true scripts/scheduler/master_scheduler.sh)"
     ],
     "deny": [],
     "ask": []
