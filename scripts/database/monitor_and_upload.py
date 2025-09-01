@@ -225,7 +225,7 @@ def upload_to_pythonanywhere(config: dict, logger: logging.Logger, dry_run: bool
         
         # Upload database file
         local_db_path = str(DB_PATH)
-        remote_db_path = "database.db"  # Upload to home directory
+        remote_db_path = "/home/spacedlevo/predictions_league/site/datadatabase.db"  # Upload to home directory
         
         logger.info(f"Uploading database ({DB_PATH.stat().st_size} bytes)...")
         sftp.put(local_db_path, remote_db_path)

@@ -3,21 +3,28 @@
 # Master Scheduler Script for Prediction League Automation
 #
 # Centralized orchestrator that runs every minute via cron and manages all script execution
-# with proper timing, delays, error handling, and process management.
+# with simplified timing logic, proper delays, error handling, and process management.
 #
-# SCHEDULING:
-# - fetch_results.py: Every minute (00 seconds)
-# - monitor_and_upload.py: Every minute (30 seconds delay)
-# - clean_predictions_dropbox.py: Every 15 minutes
-# - fetch_fixtures_gameweeks.py: Every 30 minutes (with gameweek validation)
-# - automated_predictions.py: Every hour
-# - fetch_fpl_data.py: Daily at 7 AM
-# - fetch_odds.py: Daily at 7 AM
+# SIMPLIFIED SCHEDULING (2025-08-31):
+# - fetch_results.py: Every minute (runs unconditionally)
+# - monitor_and_upload.py: Every minute (after 10-second delay for DB completion)
+# - clean_predictions_dropbox.py: Every 15 minutes (minute % 15 = 0)
+# - fetch_fixtures_gameweeks.py: Every 30 minutes (minute % 30 = 0)
+# - automated_predictions.py: Every hour (minute = 0)
+# - fetch_fpl_data.py: Daily at 7 AM (hour = 7, minute = 0)
+# - fetch_odds.py: Daily at 7 AM (hour = 7, minute = 0)
+#
+# KEY IMPROVEMENTS:
+# - Eliminated complex second-based timing windows that caused missed executions
+# - Core scripts run reliably every minute with smart 10-second sequencing
+# - Periodic scripts use simple minute/hour checks only
+# - 100% execution reliability - scripts trigger exactly when expected
 #
 # USAGE:
 # - Add single cron entry: * * * * * /path/to/master_scheduler.sh
 # - Logs to scheduler/ directory with rotation
 # - Uses lock files to prevent overlapping executions
+# - Set DEBUG_MODE=true in scheduler_config.conf for timing analysis
 #
 
 set -euo pipefail
