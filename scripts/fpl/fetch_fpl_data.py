@@ -2,8 +2,12 @@
 """
 Fantasy Premier League Data Fetching Script
 
-Fetches player performance data from FPL API and updates the fantasy_pl_scores table
-with bootstrap-based change detection, concurrent processing, and team relationship mapping.
+Fetches comprehensive player data from FPL API with two-tier data collection:
+1. Bootstrap data for all players (fpl_players_bootstrap table)
+2. Individual player gameweek history (fantasy_pl_scores table)
+
+Features bootstrap-based change detection, concurrent processing, and complete
+FPL data capture for advanced fantasy football analysis.
 
 PERFORMANCE OPTIMIZATIONS:
 - Bootstrap Change Detection: Two-tier system using fpl_players_bootstrap cache table
@@ -12,16 +16,37 @@ PERFORMANCE OPTIMIZATIONS:
 - Team Mapping: FPL team IDs mapped to database team_id relationships
 - Type-Safe Comparisons: Handles string vs numeric API format variations
 
-DATABASE ENHANCEMENTS:
-- fantasy_pl_scores table now includes team_id column
-- fpl_players_bootstrap table tracks 23+ fields for change detection
-- Proper foreign key relationships to teams table
-- Optimized indexes for team-based queries
+DATABASE SCHEMA ENHANCEMENTS (September 2025):
+
+fpl_players_bootstrap table (94 columns):
+- Complete player profiles with 66 new fields including:
+  * Player identity: first_name, second_name, code, opta_code, squad_number, status
+  * Performance metrics: form, points_per_game, dreamteam_count, event_points
+  * Cost analysis: cost_change_start/event, value_form/season, selected_by_percent
+  * Transfer data: transfers_in/out_event, ownership tracking
+  * Set pieces: corners/freekicks/penalties order and text descriptions
+  * Advanced stats: expected_goal_involvements, expected_goals_conceded
+  * Defensive metrics: clearances_blocks_interceptions, recoveries, tackles
+  * Per-90 statistics: expected_goals_per_90, saves_per_90, starts_per_90, etc.
+  * Ranking data: now_cost_rank, form_rank, influence_rank (+ rank_type variants)
+
+fantasy_pl_scores table (43 columns):
+- Enhanced gameweek performance data with 10 new fields including:
+  * Match context: opponent_team, kickoff_time, team_h_score, team_a_score
+  * Player reference: element (API consistency)
+  * Defensive performance: clearances_blocks_interceptions, recoveries, tackles
+  * Composite metrics: defensive_contribution
+
+DATA COLLECTION COVERAGE:
+- Player Profiles: All FPL bootstrap fields (excluding news, photos, personal data)
+- Performance History: Complete gameweek stats including defensive metrics
+- Team Relationships: Proper mapping between FPL IDs and database team_id
+- Match Context: Opponent data, scores, and kickoff times for fixture analysis
 
 EXPECTED PERFORMANCE:
 - First Run: ~20-30 minutes (all 700+ players, creates bootstrap cache)
-- Subsequent Runs: Seconds to minutes (0 API calls if no changes)
-- Typical Reduction: 60-80% fewer API calls after initial bootstrap
+- Subsequent Runs: Seconds to minutes (0 API calls if no changes detected)
+- Typical Reduction: 60-80% fewer API calls after initial bootstrap population
 - Debug Mode: --debug shows exact field-level change detection
 
 COMMAND LINE OPTIONS:
@@ -29,6 +54,14 @@ COMMAND LINE OPTIONS:
 - --debug: Detailed bootstrap change detection logging
 - --dry-run: Preview changes without database updates
 - --test: Use cached sample data for development
+
+USE CASES:
+- Complete fantasy team analysis with ownership, form, and value metrics
+- Defensive player evaluation using tackles, recoveries, and clearances
+- Fixture difficulty analysis using opponent_team data
+- Game state performance analysis using match scores
+- Set piece responsibility tracking for bonus point potential
+- Transfer market analysis using ownership trends and price movements
 """
 
 import json
@@ -55,6 +88,7 @@ BOOTSTRAP_FIELD_MAPPING = {
     'team_id': 'team',           # Database field -> API field
     'position': 'element_type',   # Database field -> API field  
     'value': 'now_cost',         # Database field -> API field
+    'player_name': 'web_name',   # Database field -> API field
     # All other fields map directly (same name in API and DB)
 }
 
@@ -136,17 +170,175 @@ def create_bootstrap_table(cursor):
             value INTEGER DEFAULT 0,
             transfers_in INTEGER DEFAULT 0,
             transfers_out INTEGER DEFAULT 0,
+            
+            -- Additional player identity fields
+            first_name TEXT,
+            second_name TEXT,
+            code INTEGER,
+            opta_code TEXT,
+            squad_number INTEGER,
+            status TEXT DEFAULT 'a',
+            special INTEGER DEFAULT 0,
+            can_select INTEGER DEFAULT 1,
+            can_transact INTEGER DEFAULT 1,
+            removed INTEGER DEFAULT 0,
+            
+            -- Performance and form metrics
+            event_points INTEGER DEFAULT 0,
+            form REAL DEFAULT 0.0,
+            points_per_game REAL DEFAULT 0.0,
+            dreamteam_count INTEGER DEFAULT 0,
+            in_dreamteam INTEGER DEFAULT 0,
+            
+            -- Cost and value analysis
+            cost_change_start INTEGER DEFAULT 0,
+            cost_change_start_fall INTEGER DEFAULT 0,
+            cost_change_event INTEGER DEFAULT 0,
+            cost_change_event_fall INTEGER DEFAULT 0,
+            value_form REAL DEFAULT 0.0,
+            value_season REAL DEFAULT 0.0,
+            
+            -- Transfer and ownership data
+            selected_by_percent REAL DEFAULT 0.0,
+            transfers_in_event INTEGER DEFAULT 0,
+            transfers_out_event INTEGER DEFAULT 0,
+            
+            -- Injury/availability predictions
+            chance_of_playing_this_round INTEGER,
+            chance_of_playing_next_round INTEGER,
+            
+            -- Set piece responsibilities
+            corners_and_indirect_freekicks_order INTEGER,
+            corners_and_indirect_freekicks_text TEXT DEFAULT '',
+            direct_freekicks_order INTEGER,
+            direct_freekicks_text TEXT DEFAULT '',
+            penalties_order INTEGER,
+            penalties_text TEXT DEFAULT '',
+            
+            -- Advanced expected stats
+            expected_goal_involvements REAL DEFAULT 0.0,
+            expected_goals_conceded REAL DEFAULT 0.0,
+            
+            -- Additional defensive stats
+            clearances_blocks_interceptions INTEGER DEFAULT 0,
+            recoveries INTEGER DEFAULT 0,
+            tackles INTEGER DEFAULT 0,
+            defensive_contribution INTEGER DEFAULT 0,
+            own_goals INTEGER DEFAULT 0,
+            penalties_saved INTEGER DEFAULT 0,
+            penalties_missed INTEGER DEFAULT 0,
+            
+            -- Per-90 performance metrics
+            expected_goals_per_90 REAL DEFAULT 0.0,
+            expected_assists_per_90 REAL DEFAULT 0.0,
+            expected_goal_involvements_per_90 REAL DEFAULT 0.0,
+            expected_goals_conceded_per_90 REAL DEFAULT 0.0,
+            goals_conceded_per_90 REAL DEFAULT 0.0,
+            saves_per_90 REAL DEFAULT 0.0,
+            starts_per_90 REAL DEFAULT 0.0,
+            clean_sheets_per_90 REAL DEFAULT 0.0,
+            defensive_contribution_per_90 REAL DEFAULT 0.0,
+            
+            -- Ranking data
+            now_cost_rank INTEGER,
+            now_cost_rank_type INTEGER,
+            form_rank INTEGER,
+            form_rank_type INTEGER,
+            points_per_game_rank INTEGER,
+            points_per_game_rank_type INTEGER,
+            selected_rank INTEGER,
+            selected_rank_type INTEGER,
+            influence_rank INTEGER,
+            influence_rank_type INTEGER,
+            creativity_rank INTEGER,
+            creativity_rank_type INTEGER,
+            threat_rank INTEGER,
+            threat_rank_type INTEGER,
+            ict_index_rank INTEGER,
+            ict_index_rank_type INTEGER,
+            
             last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             season TEXT DEFAULT '{CURRENT_SEASON}',
             FOREIGN KEY (db_team_id) REFERENCES teams(team_id)
         )
     """)
     
-    # Add db_team_id column to existing table if it doesn't exist
-    try:
-        cursor.execute("ALTER TABLE fpl_players_bootstrap ADD COLUMN db_team_id INTEGER")
-    except sql.OperationalError:
-        pass  # Column already exists
+    # Add new columns to existing table if they don't exist
+    new_columns = [
+        ("db_team_id", "INTEGER"),
+        ("first_name", "TEXT"),
+        ("second_name", "TEXT"),
+        ("code", "INTEGER"),
+        ("opta_code", "TEXT"),
+        ("squad_number", "INTEGER"),
+        ("status", "TEXT DEFAULT 'a'"),
+        ("special", "INTEGER DEFAULT 0"),
+        ("can_select", "INTEGER DEFAULT 1"),
+        ("can_transact", "INTEGER DEFAULT 1"),
+        ("removed", "INTEGER DEFAULT 0"),
+        ("event_points", "INTEGER DEFAULT 0"),
+        ("form", "REAL DEFAULT 0.0"),
+        ("points_per_game", "REAL DEFAULT 0.0"),
+        ("dreamteam_count", "INTEGER DEFAULT 0"),
+        ("in_dreamteam", "INTEGER DEFAULT 0"),
+        ("cost_change_start", "INTEGER DEFAULT 0"),
+        ("cost_change_start_fall", "INTEGER DEFAULT 0"),
+        ("cost_change_event", "INTEGER DEFAULT 0"),
+        ("cost_change_event_fall", "INTEGER DEFAULT 0"),
+        ("value_form", "REAL DEFAULT 0.0"),
+        ("value_season", "REAL DEFAULT 0.0"),
+        ("selected_by_percent", "REAL DEFAULT 0.0"),
+        ("transfers_in_event", "INTEGER DEFAULT 0"),
+        ("transfers_out_event", "INTEGER DEFAULT 0"),
+        ("chance_of_playing_this_round", "INTEGER"),
+        ("chance_of_playing_next_round", "INTEGER"),
+        ("corners_and_indirect_freekicks_order", "INTEGER"),
+        ("corners_and_indirect_freekicks_text", "TEXT DEFAULT ''"),
+        ("direct_freekicks_order", "INTEGER"),
+        ("direct_freekicks_text", "TEXT DEFAULT ''"),
+        ("penalties_order", "INTEGER"),
+        ("penalties_text", "TEXT DEFAULT ''"),
+        ("expected_goal_involvements", "REAL DEFAULT 0.0"),
+        ("expected_goals_conceded", "REAL DEFAULT 0.0"),
+        ("clearances_blocks_interceptions", "INTEGER DEFAULT 0"),
+        ("recoveries", "INTEGER DEFAULT 0"),
+        ("tackles", "INTEGER DEFAULT 0"),
+        ("defensive_contribution", "INTEGER DEFAULT 0"),
+        ("own_goals", "INTEGER DEFAULT 0"),
+        ("penalties_saved", "INTEGER DEFAULT 0"),
+        ("penalties_missed", "INTEGER DEFAULT 0"),
+        ("expected_goals_per_90", "REAL DEFAULT 0.0"),
+        ("expected_assists_per_90", "REAL DEFAULT 0.0"),
+        ("expected_goal_involvements_per_90", "REAL DEFAULT 0.0"),
+        ("expected_goals_conceded_per_90", "REAL DEFAULT 0.0"),
+        ("goals_conceded_per_90", "REAL DEFAULT 0.0"),
+        ("saves_per_90", "REAL DEFAULT 0.0"),
+        ("starts_per_90", "REAL DEFAULT 0.0"),
+        ("clean_sheets_per_90", "REAL DEFAULT 0.0"),
+        ("defensive_contribution_per_90", "REAL DEFAULT 0.0"),
+        ("now_cost_rank", "INTEGER"),
+        ("now_cost_rank_type", "INTEGER"),
+        ("form_rank", "INTEGER"),
+        ("form_rank_type", "INTEGER"),
+        ("points_per_game_rank", "INTEGER"),
+        ("points_per_game_rank_type", "INTEGER"),
+        ("selected_rank", "INTEGER"),
+        ("selected_rank_type", "INTEGER"),
+        ("influence_rank", "INTEGER"),
+        ("influence_rank_type", "INTEGER"),
+        ("creativity_rank", "INTEGER"),
+        ("creativity_rank_type", "INTEGER"),
+        ("threat_rank", "INTEGER"),
+        ("threat_rank_type", "INTEGER"),
+        ("ict_index_rank", "INTEGER"),
+        ("ict_index_rank_type", "INTEGER")
+    ]
+    
+    for column_name, column_type in new_columns:
+        try:
+            cursor.execute(f"ALTER TABLE fpl_players_bootstrap ADD COLUMN {column_name} {column_type}")
+        except sql.OperationalError:
+            pass  # Column already exists
     
     try:
         cursor.execute("ALTER TABLE fpl_players_bootstrap ADD FOREIGN KEY (db_team_id) REFERENCES teams(team_id)")
@@ -177,7 +369,25 @@ def load_existing_bootstrap_data(cursor):
                ict_index, goals_scored, assists, clean_sheets, goals_conceded, 
                saves, yellow_cards, red_cards, bonus, bps, influence, creativity, 
                threat, starts, expected_goals, expected_assists, value, 
-               transfers_in, transfers_out
+               transfers_in, transfers_out,
+               first_name, second_name, code, opta_code, squad_number, status, special,
+               can_select, can_transact, removed, event_points, form, points_per_game,
+               dreamteam_count, in_dreamteam, cost_change_start, cost_change_start_fall,
+               cost_change_event, cost_change_event_fall, value_form, value_season,
+               selected_by_percent, transfers_in_event, transfers_out_event,
+               chance_of_playing_this_round, chance_of_playing_next_round,
+               corners_and_indirect_freekicks_order, corners_and_indirect_freekicks_text,
+               direct_freekicks_order, direct_freekicks_text, penalties_order, penalties_text,
+               expected_goal_involvements, expected_goals_conceded,
+               clearances_blocks_interceptions, recoveries, tackles, defensive_contribution,
+               own_goals, penalties_saved, penalties_missed,
+               expected_goals_per_90, expected_assists_per_90, expected_goal_involvements_per_90,
+               expected_goals_conceded_per_90, goals_conceded_per_90, saves_per_90,
+               starts_per_90, clean_sheets_per_90, defensive_contribution_per_90,
+               now_cost_rank, now_cost_rank_type, form_rank, form_rank_type,
+               points_per_game_rank, points_per_game_rank_type, selected_rank, selected_rank_type,
+               influence_rank, influence_rank_type, creativity_rank, creativity_rank_type,
+               threat_rank, threat_rank_type, ict_index_rank, ict_index_rank_type
         FROM fpl_players_bootstrap
         WHERE season = ?
     """, (CURRENT_SEASON,))
@@ -210,7 +420,74 @@ def load_existing_bootstrap_data(cursor):
             'expected_assists': row[22],
             'value': row[23],
             'transfers_in': row[24],
-            'transfers_out': row[25]
+            'transfers_out': row[25],
+            # New fields start at index 26
+            'first_name': row[26],
+            'second_name': row[27],
+            'code': row[28],
+            'opta_code': row[29],
+            'squad_number': row[30],
+            'status': row[31],
+            'special': row[32],
+            'can_select': row[33],
+            'can_transact': row[34],
+            'removed': row[35],
+            'event_points': row[36],
+            'form': row[37],
+            'points_per_game': row[38],
+            'dreamteam_count': row[39],
+            'in_dreamteam': row[40],
+            'cost_change_start': row[41],
+            'cost_change_start_fall': row[42],
+            'cost_change_event': row[43],
+            'cost_change_event_fall': row[44],
+            'value_form': row[45],
+            'value_season': row[46],
+            'selected_by_percent': row[47],
+            'transfers_in_event': row[48],
+            'transfers_out_event': row[49],
+            'chance_of_playing_this_round': row[50],
+            'chance_of_playing_next_round': row[51],
+            'corners_and_indirect_freekicks_order': row[52],
+            'corners_and_indirect_freekicks_text': row[53],
+            'direct_freekicks_order': row[54],
+            'direct_freekicks_text': row[55],
+            'penalties_order': row[56],
+            'penalties_text': row[57],
+            'expected_goal_involvements': row[58],
+            'expected_goals_conceded': row[59],
+            'clearances_blocks_interceptions': row[60],
+            'recoveries': row[61],
+            'tackles': row[62],
+            'defensive_contribution': row[63],
+            'own_goals': row[64],
+            'penalties_saved': row[65],
+            'penalties_missed': row[66],
+            'expected_goals_per_90': row[67],
+            'expected_assists_per_90': row[68],
+            'expected_goal_involvements_per_90': row[69],
+            'expected_goals_conceded_per_90': row[70],
+            'goals_conceded_per_90': row[71],
+            'saves_per_90': row[72],
+            'starts_per_90': row[73],
+            'clean_sheets_per_90': row[74],
+            'defensive_contribution_per_90': row[75],
+            'now_cost_rank': row[76],
+            'now_cost_rank_type': row[77],
+            'form_rank': row[78],
+            'form_rank_type': row[79],
+            'points_per_game_rank': row[80],
+            'points_per_game_rank_type': row[81],
+            'selected_rank': row[82],
+            'selected_rank_type': row[83],
+            'influence_rank': row[84],
+            'influence_rank_type': row[85],
+            'creativity_rank': row[86],
+            'creativity_rank_type': row[87],
+            'threat_rank': row[88],
+            'threat_rank_type': row[89],
+            'ict_index_rank': row[90],
+            'ict_index_rank_type': row[91]
         }
     
     return existing_data
@@ -224,7 +501,8 @@ def identify_players_to_update(new_players, existing_bootstrap_data, logger, deb
     # Key fields to check for changes (database field names) - optimized for essential gameplay stats
     key_fields = ['team_id', 'position', 'total_points', 'minutes', 'goals_scored', 
                   'assists', 'clean_sheets', 'goals_conceded', 'saves', 'yellow_cards', 'red_cards',
-                  'bonus', 'bps']
+                  'bonus', 'bps', 'form', 'event_points', 'status', 'selected_by_percent',
+                  'cost_change_event', 'transfers_in_event', 'transfers_out_event']
     
     for player in new_players:
         player_id = player["id"]
@@ -302,11 +580,30 @@ def update_bootstrap_data(cursor, players, team_mapping, logger):
                 ict_index, goals_scored, assists, clean_sheets, goals_conceded, 
                 saves, yellow_cards, red_cards, bonus, bps, influence, creativity, 
                 threat, starts, expected_goals, expected_assists, value, 
-                transfers_in, transfers_out, last_updated, season
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+                transfers_in, transfers_out,
+                first_name, second_name, code, opta_code, squad_number, status, special,
+                can_select, can_transact, removed, event_points, form, points_per_game,
+                dreamteam_count, in_dreamteam, cost_change_start, cost_change_start_fall,
+                cost_change_event, cost_change_event_fall, value_form, value_season,
+                selected_by_percent, transfers_in_event, transfers_out_event,
+                chance_of_playing_this_round, chance_of_playing_next_round,
+                corners_and_indirect_freekicks_order, corners_and_indirect_freekicks_text,
+                direct_freekicks_order, direct_freekicks_text, penalties_order, penalties_text,
+                expected_goal_involvements, expected_goals_conceded,
+                clearances_blocks_interceptions, recoveries, tackles, defensive_contribution,
+                own_goals, penalties_saved, penalties_missed,
+                expected_goals_per_90, expected_assists_per_90, expected_goal_involvements_per_90,
+                expected_goals_conceded_per_90, goals_conceded_per_90, saves_per_90,
+                starts_per_90, clean_sheets_per_90, defensive_contribution_per_90,
+                now_cost_rank, now_cost_rank_type, form_rank, form_rank_type,
+                points_per_game_rank, points_per_game_rank_type, selected_rank, selected_rank_type,
+                influence_rank, influence_rank_type, creativity_rank, creativity_rank_type,
+                threat_rank, threat_rank_type, ict_index_rank, ict_index_rank_type,
+                last_updated, season
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
         """, (
             player["id"],
-            player["web_name"],
+            player["web_name"], 
             player["team"],
             db_team_id,
             player["element_type"],
@@ -331,6 +628,73 @@ def update_bootstrap_data(cursor, players, team_mapping, logger):
             player["now_cost"],
             player["transfers_in"],
             player["transfers_out"],
+            # New fields
+            player.get("first_name", ""),
+            player.get("second_name", ""),
+            player.get("code"),
+            player.get("opta_code", ""),
+            player.get("squad_number"),
+            player.get("status", "a"),
+            player.get("special", False),
+            player.get("can_select", True),
+            player.get("can_transact", True),
+            player.get("removed", False),
+            player.get("event_points", 0),
+            player.get("form", "0.0"),
+            player.get("points_per_game", "0.0"),
+            player.get("dreamteam_count", 0),
+            player.get("in_dreamteam", False),
+            player.get("cost_change_start", 0),
+            player.get("cost_change_start_fall", 0),
+            player.get("cost_change_event", 0),
+            player.get("cost_change_event_fall", 0),
+            player.get("value_form", "0.0"),
+            player.get("value_season", "0.0"),
+            player.get("selected_by_percent", "0.0"),
+            player.get("transfers_in_event", 0),
+            player.get("transfers_out_event", 0),
+            player.get("chance_of_playing_this_round"),
+            player.get("chance_of_playing_next_round"),
+            player.get("corners_and_indirect_freekicks_order"),
+            player.get("corners_and_indirect_freekicks_text", ""),
+            player.get("direct_freekicks_order"),
+            player.get("direct_freekicks_text", ""),
+            player.get("penalties_order"),
+            player.get("penalties_text", ""),
+            player.get("expected_goal_involvements", "0.0"),
+            player.get("expected_goals_conceded", "0.0"),
+            player.get("clearances_blocks_interceptions", 0),
+            player.get("recoveries", 0),
+            player.get("tackles", 0),
+            player.get("defensive_contribution", 0),
+            player.get("own_goals", 0),
+            player.get("penalties_saved", 0),
+            player.get("penalties_missed", 0),
+            player.get("expected_goals_per_90", 0.0),
+            player.get("expected_assists_per_90", 0.0),
+            player.get("expected_goal_involvements_per_90", 0.0),
+            player.get("expected_goals_conceded_per_90", 0.0),
+            player.get("goals_conceded_per_90", 0.0),
+            player.get("saves_per_90", 0.0),
+            player.get("starts_per_90", 0.0),
+            player.get("clean_sheets_per_90", 0.0),
+            player.get("defensive_contribution_per_90", 0.0),
+            player.get("now_cost_rank"),
+            player.get("now_cost_rank_type"),
+            player.get("form_rank"),
+            player.get("form_rank_type"),
+            player.get("points_per_game_rank"),
+            player.get("points_per_game_rank_type"),
+            player.get("selected_rank"),
+            player.get("selected_rank_type"),
+            player.get("influence_rank"),
+            player.get("influence_rank_type"),
+            player.get("creativity_rank"),
+            player.get("creativity_rank_type"),
+            player.get("threat_rank"),
+            player.get("threat_rank_type"),
+            player.get("ict_index_rank"),
+            player.get("ict_index_rank_type"),
             CURRENT_SEASON
         ))
         updated_count += 1
@@ -338,12 +702,29 @@ def update_bootstrap_data(cursor, players, team_mapping, logger):
     logger.info(f"Updated bootstrap data for {updated_count} players")
 
 def create_fantasy_scores_team_column(cursor):
-    """Add team_id column to fantasy_pl_scores table if it doesn't exist"""
-    try:
-        cursor.execute("ALTER TABLE fantasy_pl_scores ADD COLUMN team_id INTEGER")
-    except sql.OperationalError:
-        pass  # Column already exists
+    """Add missing columns to fantasy_pl_scores table if they don't exist"""
+    # Define all missing columns to add
+    missing_columns = [
+        ("team_id", "INTEGER"),
+        ("opponent_team", "INTEGER"),
+        ("kickoff_time", "TEXT"),
+        ("team_h_score", "INTEGER"),
+        ("team_a_score", "INTEGER"),
+        ("element", "INTEGER"),
+        ("clearances_blocks_interceptions", "INTEGER DEFAULT 0"),
+        ("recoveries", "INTEGER DEFAULT 0"),
+        ("tackles", "INTEGER DEFAULT 0"),
+        ("defensive_contribution", "INTEGER DEFAULT 0")
+    ]
     
+    # Add each column if it doesn't exist
+    for column_name, column_type in missing_columns:
+        try:
+            cursor.execute(f"ALTER TABLE fantasy_pl_scores ADD COLUMN {column_name} {column_type}")
+        except sql.OperationalError:
+            pass  # Column already exists
+    
+    # Add foreign key relationships
     try:
         cursor.execute("ALTER TABLE fantasy_pl_scores ADD FOREIGN KEY (team_id) REFERENCES teams(team_id)")
     except sql.OperationalError:
@@ -465,6 +846,16 @@ def fetch_players_concurrently(players_to_fetch, logger, max_workers=5):
                 "selected": gameweek["selected"],
                 "transfers_in": gameweek["transfers_in"],
                 "transfers_out": gameweek["transfers_out"],
+                # New fields
+                "opponent_team": gameweek.get("opponent_team"),
+                "kickoff_time": gameweek.get("kickoff_time", ""),
+                "team_h_score": gameweek.get("team_h_score"),
+                "team_a_score": gameweek.get("team_a_score"),
+                "element": gameweek.get("element", player_id),
+                "clearances_blocks_interceptions": gameweek.get("clearances_blocks_interceptions", 0),
+                "recoveries": gameweek.get("recoveries", 0),
+                "tackles": gameweek.get("tackles", 0),
+                "defensive_contribution": gameweek.get("defensive_contribution", 0),
             }
             player_scores.append(player_score)
         
@@ -490,7 +881,8 @@ def get_existing_player_data(cursor):
     """Get existing player data from database for comparison"""
     cursor.execute("""
         SELECT player_id, gameweek, fixture_id, total_points, minutes, goals_scored, assists,
-               clean_sheets, goals_conceded, saves, yellow_cards, red_cards, bonus, bps
+               clean_sheets, goals_conceded, saves, yellow_cards, red_cards, bonus, bps,
+               clearances_blocks_interceptions, recoveries, tackles, defensive_contribution
         FROM fantasy_pl_scores
     """)
     
@@ -509,7 +901,11 @@ def get_existing_player_data(cursor):
             'yellow_cards': row[10],
             'red_cards': row[11],
             'bonus': row[12],
-            'bps': row[13]
+            'bps': row[13],
+            'clearances_blocks_interceptions': row[14],
+            'recoveries': row[15],
+            'tackles': row[16],
+            'defensive_contribution': row[17]
         }
     
     return existing_data
@@ -522,7 +918,8 @@ def has_data_changed(new_record, existing_record):
     # Check key fields that might change - optimized for essential gameplay stats
     check_fields = ['total_points', 'minutes', 'goals_scored', 'assists', 
                    'clean_sheets', 'goals_conceded', 'saves', 'yellow_cards', 
-                   'red_cards', 'bonus', 'bps']
+                   'red_cards', 'bonus', 'bps', 'clearances_blocks_interceptions',
+                   'recoveries', 'tackles', 'defensive_contribution']
     
     for field in check_fields:
         new_val = new_record.get(field)
@@ -594,7 +991,17 @@ def upsert_player_scores(cursor, player_scores, existing_data, fixture_mapping, 
             'transfers_balance': score_data['transfers_balance'],
             'selected': score_data['selected'],
             'transfers_in': score_data['transfers_in'],
-            'transfers_out': score_data['transfers_out']
+            'transfers_out': score_data['transfers_out'],
+            # New fields
+            'opponent_team': score_data.get('opponent_team'),
+            'kickoff_time': score_data.get('kickoff_time', ''),
+            'team_h_score': score_data.get('team_h_score'),
+            'team_a_score': score_data.get('team_a_score'),
+            'element': score_data.get('element'),
+            'clearances_blocks_interceptions': score_data.get('clearances_blocks_interceptions', 0),
+            'recoveries': score_data.get('recoveries', 0),
+            'tackles': score_data.get('tackles', 0),
+            'defensive_contribution': score_data.get('defensive_contribution', 0)
         }
         
         # Check if this record exists and has changed
@@ -613,8 +1020,10 @@ def upsert_player_scores(cursor, player_scores, existing_data, fixture_mapping, 
                 penalties_missed, yellow_cards, red_cards, saves, bonus, bps, influence,
                 creativity, threat, ict_index, starts, expected_goals, expected_assists,
                 expected_goal_involvements, expected_goals_conceded, value, transfers_balance,
-                selected, transfers_in, transfers_out
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                selected, transfers_in, transfers_out, opponent_team, kickoff_time, team_h_score,
+                team_a_score, element, clearances_blocks_interceptions, recoveries, tackles,
+                defensive_contribution
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             db_record['player_name'], db_record['gameweek'], db_record['player_id'],
             db_record['total_points'], db_record['fixture_id'], db_record['team_id'], db_record['was_home'],
@@ -626,7 +1035,11 @@ def upsert_player_scores(cursor, player_scores, existing_data, fixture_mapping, 
             db_record['ict_index'], db_record['starts'], db_record['expected_goals'],
             db_record['expected_assists'], db_record['expected_goal_involvements'],
             db_record['expected_goals_conceded'], db_record['value'], db_record['transfers_balance'],
-            db_record['selected'], db_record['transfers_in'], db_record['transfers_out']
+            db_record['selected'], db_record['transfers_in'], db_record['transfers_out'],
+            # New fields
+            db_record['opponent_team'], db_record['kickoff_time'], db_record['team_h_score'],
+            db_record['team_a_score'], db_record['element'], db_record['clearances_blocks_interceptions'],
+            db_record['recoveries'], db_record['tackles'], db_record['defensive_contribution']
         ))
         
         if existing_record:

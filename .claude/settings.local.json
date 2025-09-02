@@ -20,7 +20,8 @@
       "Bash(current_minute=30)",
       "Bash(current_minute=0)",
       "Bash(echo:*)",
-      "Bash(DEBUG_MODE=true scripts/scheduler/master_scheduler.sh)"
+      "Bash(DEBUG_MODE=true scripts/scheduler/master_scheduler.sh)",
+      "WebFetch(domain:fantasy.premierleague.com)"
     ],
     "deny": [],
     "ask": []
