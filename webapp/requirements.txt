@@ -1,0 +1,24 @@
+# Flask Web Application Dependencies
+# Minimal set for hobbyist development
+
+# Core web framework
+Flask>=2.3.0
+
+# Template engine (included with Flask but explicit for clarity)
+Jinja2>=3.1.0
+
+# Form handling and CSRF protection
+Flask-WTF>=1.1.0
+WTForms>=3.0.0
+
+# Session management
+Flask-Session>=0.5.0
+
+# Development server (included with Flask)
+Werkzeug>=2.3.0
+
+# Optional: Better development experience
+python-dotenv>=1.0.0
+
+# Note: No heavy dependencies like SQLAlchemy, Redis, etc.
+# Using built-in sqlite3, sessions, and subprocess for simplicity

@@ -1,0 +1,254 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Page Header -->
+    <div class="bg-white shadow rounded-lg p-6">
+        <div class="flex justify-between items-start">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900 mb-2">👥 Player Management</h1>
+                <p class="text-gray-600">Add new players and manage league participation status.</p>
+            </div>
+            <button onclick="toggleAddForm()" 
+                    class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                ➕ Add Player
+            </button>
+        </div>
+    </div>
+    
+    <!-- Add Player Form (Hidden by default) -->
+    <div id="addPlayerForm" class="bg-white shadow rounded-lg p-6" style="display: none;">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">Add New Player</h3>
+        <form method="POST" action="{{ url_for('add_player') }}" class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="player_name" class="block text-sm font-medium text-gray-700 mb-2">
+                        Player Name <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" 
+                           id="player_name" 
+                           name="player_name" 
+                           required
+                           class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                           placeholder="e.g., Tom Levin">
+                </div>
+                <div>
+                    <label for="web_name" class="block text-sm font-medium text-gray-700 mb-2">
+                        Web Name (Optional)
+                    </label>
+                    <input type="text" 
+                           id="web_name" 
+                           name="web_name"
+                           class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                           placeholder="e.g., TL">
+                </div>
+            </div>
+            <div class="flex justify-end space-x-3">
+                <button type="button" 
+                        onclick="toggleAddForm()"
+                        class="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-md text-sm font-medium">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                    Add Player
+                </button>
+            </div>
+        </form>
+    </div>
+    
+    <!-- Players Table -->
+    <div class="bg-white shadow rounded-lg">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-medium text-gray-900">
+                Current Players ({{ players|length }})
+            </h3>
+        </div>
+        
+        {% if players %}
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Player
+                        </th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Active
+                        </th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Paid
+                        </th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Mini League
+                        </th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Mini Paid
+                        </th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Pundit
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for player in players %}
+                    <tr class="hover:bg-gray-50">
+                        <!-- Player Info -->
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="flex items-center">
+                                <div class="text-sm font-medium text-gray-900">
+                                    {{ player.player_name }}
+                                </div>
+                                {% if player.web_name %}
+                                <div class="ml-2">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                                        {{ player.web_name }}
+                                    </span>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </td>
+                        
+                        <!-- Active Status -->
+                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                            <button onclick="toggleField({{ player.player_id }}, 'active')"
+                                    class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium 
+                                           {% if player.active %}bg-green-100 text-green-800 hover:bg-green-200{% else %}bg-red-100 text-red-800 hover:bg-red-200{% endif %}">
+                                {% if player.active %}✅ Active{% else %}❌ Inactive{% endif %}
+                            </button>
+                        </td>
+                        
+                        <!-- Paid Status -->
+                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                            <button onclick="toggleField({{ player.player_id }}, 'paid')"
+                                    class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
+                                           {% if player.paid %}bg-green-100 text-green-800 hover:bg-green-200{% else %}bg-red-100 text-red-800 hover:bg-red-200{% endif %}">
+                                {% if player.paid %}💰 Paid{% else %}💸 Unpaid{% endif %}
+                            </button>
+                        </td>
+                        
+                        <!-- Mini League -->
+                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                            <button onclick="toggleField({{ player.player_id }}, 'mini_league')"
+                                    class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
+                                           {% if player.mini_league %}bg-blue-100 text-blue-800 hover:bg-blue-200{% else %}bg-gray-100 text-gray-800 hover:bg-gray-200{% endif %}">
+                                {% if player.mini_league %}🏆 Yes{% else %}➖ No{% endif %}
+                            </button>
+                        </td>
+                        
+                        <!-- Mini League Paid -->
+                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                            <button onclick="toggleField({{ player.player_id }}, 'mini_league_paid')"
+                                    class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
+                                           {% if player.mini_league_paid %}bg-green-100 text-green-800 hover:bg-green-200{% else %}bg-red-100 text-red-800 hover:bg-red-200{% endif %}">
+                                {% if player.mini_league_paid %}💰 Paid{% else %}💸 Unpaid{% endif %}
+                            </button>
+                        </td>
+                        
+                        <!-- Pundit Status -->
+                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                            <button onclick="toggleField({{ player.player_id }}, 'pundit')"
+                                    class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
+                                           {% if player.pundit %}bg-purple-100 text-purple-800 hover:bg-purple-200{% else %}bg-gray-100 text-gray-800 hover:bg-gray-200{% endif %}">
+                                {% if player.pundit %}🎤 Yes{% else %}➖ No{% endif %}
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <!-- Empty State -->
+        <div class="text-center py-12">
+            <div class="text-6xl mb-4">👥</div>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">No players found</h3>
+            <p class="text-gray-600 mb-4">Get started by adding your first player to the league.</p>
+            <button onclick="toggleAddForm()" 
+                    class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                ➕ Add First Player
+            </button>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Summary Stats -->
+    {% if players %}
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-white shadow rounded-lg p-6">
+            <div class="text-center">
+                <div class="text-2xl font-bold text-green-600">
+                    {{ players | selectattr('active') | list | length }}
+                </div>
+                <div class="text-sm text-gray-600">Active Players</div>
+            </div>
+        </div>
+        <div class="bg-white shadow rounded-lg p-6">
+            <div class="text-center">
+                <div class="text-2xl font-bold text-blue-600">
+                    {{ players | selectattr('paid') | list | length }}
+                </div>
+                <div class="text-sm text-gray-600">Paid Players</div>
+            </div>
+        </div>
+        <div class="bg-white shadow rounded-lg p-6">
+            <div class="text-center">
+                <div class="text-2xl font-bold text-purple-600">
+                    {{ players | selectattr('mini_league') | list | length }}
+                </div>
+                <div class="text-sm text-gray-600">Mini League</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleAddForm() {
+    const form = document.getElementById('addPlayerForm');
+    const isVisible = form.style.display !== 'none';
+    form.style.display = isVisible ? 'none' : 'block';
+    
+    if (!isVisible) {
+        // Focus on first input when showing form
+        setTimeout(() => {
+            document.getElementById('player_name').focus();
+        }, 100);
+    }
+}
+
+function toggleField(playerId, field) {
+    if (confirmAction(`Are you sure you want to toggle ${field.replace('_', ' ')}?`)) {
+        window.location.href = `/admin/player/${playerId}/toggle/${field}`;
+    }
+}
+
+// Close add form when clicking outside
+document.addEventListener('click', function(event) {
+    const form = document.getElementById('addPlayerForm');
+    const button = event.target.closest('button');
+    
+    if (form.style.display !== 'none' && 
+        !form.contains(event.target) && 
+        (!button || !button.onclick || button.onclick.toString().indexOf('toggleAddForm') === -1)) {
+        form.style.display = 'none';
+    }
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(event) {
+    // Escape key to close add form
+    if (event.key === 'Escape') {
+        document.getElementById('addPlayerForm').style.display = 'none';
+    }
+    
+    // Ctrl+N to open add form
+    if (event.ctrlKey && event.key === 'n') {
+        event.preventDefault();
+        toggleAddForm();
+    }
+});
+</script>
+{% endblock %}

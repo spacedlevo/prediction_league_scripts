@@ -24,7 +24,8 @@
       "WebFetch(domain:fantasy.premierleague.com)",
       "Bash(venv/bin/python:*)",
       "Read(/usr/bin/**)",
-      "Bash(ln:*)"
+      "Bash(ln:*)",
+      "Bash(mkdir:*)"
     ],
     "deny": [],
     "ask": []

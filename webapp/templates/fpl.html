@@ -1,0 +1,444 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Page Header -->
+    <div class="bg-white shadow rounded-lg p-6">
+        <h1 class="text-2xl font-bold text-gray-900 mb-2">⭐ FPL Insights</h1>
+        <p class="text-gray-600">Fantasy Premier League player statistics and analysis tools.</p>
+    </div>
+    
+    <!-- Quick Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <!-- Total Players -->
+        <div class="bg-white overflow-hidden shadow rounded-lg">
+            <div class="p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <div class="text-2xl">👤</div>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-gray-500 truncate">
+                                FPL Players
+                            </dt>
+                            <dd class="text-lg font-medium text-gray-900">
+                                {{ fpl_stats.get('total_fpl_players', 0) }}
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Players by Position -->
+        {% if fpl_stats.get('players_by_position') %}
+            {% for position_data in fpl_stats.players_by_position %}
+                <div class="bg-white overflow-hidden shadow rounded-lg">
+                    <div class="p-5">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0">
+                                <div class="text-2xl">
+                                    {% if position_data.position == '1' %}🥅
+                                    {% elif position_data.position == '2' %}🛡️
+                                    {% elif position_data.position == '3' %}⚽
+                                    {% elif position_data.position == '4' %}🎯
+                                    {% else %}❓{% endif %}
+                                </div>
+                            </div>
+                            <div class="ml-5 w-0 flex-1">
+                                <dl>
+                                    <dt class="text-sm font-medium text-gray-500 truncate">
+                                        {% if position_data.position == '1' %}Goalkeepers
+                                        {% elif position_data.position == '2' %}Defenders
+                                        {% elif position_data.position == '3' %}Midfielders
+                                        {% elif position_data.position == '4' %}Forwards
+                                        {% else %}Position {{ position_data.position }}{% endif %}
+                                    </dt>
+                                    <dd class="text-lg font-medium text-gray-900">
+                                        {{ position_data.count }}
+                                    </dd>
+                                </dl>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        {% endif %}
+    </div>
+    
+    <!-- Top Players Tables -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Top Scorers -->
+        <div class="bg-white shadow rounded-lg">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900">🏆 Top Scorers</h3>
+            </div>
+            <div class="overflow-hidden">
+                {% if top_players.get('top_scorers') %}
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Player
+                                </th>
+                                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Points
+                                </th>
+                                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Value
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            {% for player in top_players.top_scorers %}
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                    {{ player.player_name }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                        {{ player.total_points }}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
+                                    £{{ "%.1f"|format(player.value / 10) }}m
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <div class="text-center py-8 text-gray-500">
+                        <div class="text-4xl mb-2">📊</div>
+                        <p>No FPL data available</p>
+                        <p class="text-sm">Run "Update FPL Data" script to populate data</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Most Transferred -->
+        <div class="bg-white shadow rounded-lg">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900">📈 Most Transferred In</h3>
+            </div>
+            <div class="overflow-hidden">
+                {% if top_players.get('most_transferred') %}
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Player
+                                </th>
+                                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Transfers
+                                </th>
+                                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Points
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            {% for player in top_players.most_transferred %}
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                    {{ player.player_name }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        {{ "{:,}".format(player.transfers_in) }}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
+                                    {{ player.total_points }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <div class="text-center py-8 text-gray-500">
+                        <div class="text-4xl mb-2">📈</div>
+                        <p>No transfer data available</p>
+                        <p class="text-sm">Run "Update FPL Data" script to populate data</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Player Search & Filter -->
+    <div class="bg-white shadow rounded-lg p-6">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">🔍 Player Search & Analysis</h3>
+        
+        <!-- Search Form -->
+        <form id="playerSearchForm" class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <!-- Player Name Search -->
+                <div>
+                    <label for="playerName" class="block text-sm font-medium text-gray-700 mb-2">
+                        Player Name
+                    </label>
+                    <input type="text" 
+                           id="playerName" 
+                           name="playerName"
+                           placeholder="e.g., Salah"
+                           class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                
+                <!-- Position Filter -->
+                <div>
+                    <label for="position" class="block text-sm font-medium text-gray-700 mb-2">
+                        Position
+                    </label>
+                    <select id="position" 
+                            name="position"
+                            class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">All Positions</option>
+                        <option value="1">🥅 Goalkeeper</option>
+                        <option value="2">🛡️ Defender</option>
+                        <option value="3">⚽ Midfielder</option>
+                        <option value="4">🎯 Forward</option>
+                    </select>
+                </div>
+                
+                <!-- Min Points -->
+                <div>
+                    <label for="minPoints" class="block text-sm font-medium text-gray-700 mb-2">
+                        Min Points
+                    </label>
+                    <input type="number" 
+                           id="minPoints" 
+                           name="minPoints"
+                           placeholder="0"
+                           min="0"
+                           class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                
+                <!-- Max Value -->
+                <div>
+                    <label for="maxValue" class="block text-sm font-medium text-gray-700 mb-2">
+                        Max Value (£m)
+                    </label>
+                    <input type="number" 
+                           id="maxValue" 
+                           name="maxValue"
+                           placeholder="15.0"
+                           min="3.9"
+                           max="15.0"
+                           step="0.1"
+                           class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                </div>
+            </div>
+            
+            <div class="flex justify-between items-center">
+                <div class="flex space-x-3">
+                    <button type="submit" 
+                            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                        🔍 Search Players
+                    </button>
+                    <button type="button" 
+                            onclick="clearSearch()"
+                            class="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-md text-sm font-medium">
+                        Clear
+                    </button>
+                </div>
+                
+                <div class="text-sm text-gray-500">
+                    <span id="resultCount">Ready to search</span>
+                </div>
+            </div>
+        </form>
+        
+        <!-- Search Results -->
+        <div id="searchResults" class="mt-6 hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Player
+                            </th>
+                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Pos
+                            </th>
+                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Points
+                            </th>
+                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Value
+                            </th>
+                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                PPG
+                            </th>
+                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Transfers In
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="searchResultsBody" class="bg-white divide-y divide-gray-200">
+                        <!-- Results will be populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="bg-white shadow rounded-lg p-6">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">⚡ Quick Analysis</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <button onclick="showTopValue()" 
+                    class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                💰 Best Value Players
+            </button>
+            <button onclick="showDifferentials()" 
+                    class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                📊 Differentials (Low Ownership)
+            </button>
+            <button onclick="exportData()" 
+                    class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                📥 Export CSV
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Mock data for demonstration - in real implementation this would come from API
+const mockPlayerData = [
+    {
+        player_name: "Mohamed Salah",
+        position: "4",
+        total_points: 45,
+        value: 130,
+        points_per_game: 4.5,
+        transfers_in: 150000
+    },
+    {
+        player_name: "Virgil van Dijk", 
+        position: "2",
+        total_points: 38,
+        value: 65,
+        points_per_game: 3.8,
+        transfers_in: 80000
+    }
+];
+
+document.getElementById('playerSearchForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    performSearch();
+});
+
+function performSearch() {
+    const formData = new FormData(document.getElementById('playerSearchForm'));
+    const filters = Object.fromEntries(formData.entries());
+    
+    // In real implementation, this would be an API call
+    // For now, we'll show a mock search
+    let results = mockPlayerData;
+    
+    // Apply filters
+    if (filters.playerName) {
+        results = results.filter(p => 
+            p.player_name.toLowerCase().includes(filters.playerName.toLowerCase())
+        );
+    }
+    
+    if (filters.position) {
+        results = results.filter(p => p.position === filters.position);
+    }
+    
+    if (filters.minPoints) {
+        results = results.filter(p => p.total_points >= parseInt(filters.minPoints));
+    }
+    
+    if (filters.maxValue) {
+        results = results.filter(p => (p.value / 10) <= parseFloat(filters.maxValue));
+    }
+    
+    displaySearchResults(results);
+}
+
+function displaySearchResults(results) {
+    const resultsDiv = document.getElementById('searchResults');
+    const resultsBody = document.getElementById('searchResultsBody');
+    const countSpan = document.getElementById('resultCount');
+    
+    if (results.length === 0) {
+        resultsDiv.classList.add('hidden');
+        countSpan.textContent = 'No players found';
+        return;
+    }
+    
+    countSpan.textContent = `Found ${results.length} player(s)`;
+    
+    resultsBody.innerHTML = results.map(player => `
+        <tr>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                ${player.player_name}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
+                ${getPositionIcon(player.position)}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">
+                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    ${player.total_points}
+                </span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
+                £${(player.value / 10).toFixed(1)}m
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
+                ${player.points_per_game.toFixed(1)}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
+                ${player.transfers_in.toLocaleString()}
+            </td>
+        </tr>
+    `).join('');
+    
+    resultsDiv.classList.remove('hidden');
+}
+
+function getPositionIcon(position) {
+    switch (position) {
+        case '1': return '🥅';
+        case '2': return '🛡️';
+        case '3': return '⚽';
+        case '4': return '🎯';
+        default: return '❓';
+    }
+}
+
+function clearSearch() {
+    document.getElementById('playerSearchForm').reset();
+    document.getElementById('searchResults').classList.add('hidden');
+    document.getElementById('resultCount').textContent = 'Ready to search';
+}
+
+function showTopValue() {
+    // Mock implementation - would calculate points per million
+    alert('Best Value Players feature coming soon! This would show players with highest points per million ratio.');
+}
+
+function showDifferentials() {
+    // Mock implementation - would show low ownership players
+    alert('Differentials feature coming soon! This would show players with low ownership but good potential.');
+}
+
+function exportData() {
+    // Mock implementation - would export current view to CSV
+    alert('Export feature coming soon! This would download the current player data as a CSV file.');
+}
+
+// Auto-complete for player names (mock implementation)
+document.getElementById('playerName').addEventListener('input', function(e) {
+    // In real implementation, this would query the database for player name suggestions
+    // Could use a datalist element for simple autocomplete
+});
+</script>
+{% endblock %}

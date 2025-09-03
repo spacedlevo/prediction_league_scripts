@@ -1,0 +1,58 @@
+{
+  "secret_key": "change-this-secret-key-in-production",
+  "database_path": "../data/database.db",
+  "scripts_path": "../scripts",
+  "venv_path": "../venv/bin/python",
+  "admin_password": "admin123",
+  "host": "0.0.0.0",
+  "port": 5000,
+  "debug": false,
+  "app_title": "Prediction League Admin",
+  "timezone": "Europe/London",
+  "items_per_page": 25,
+  "script_timeout": 300,
+  "available_scripts": {
+    "fetch_fpl_data": {
+      "path": "fpl/fetch_fpl_data.py",
+      "name": "Update FPL Data",
+      "description": "Fetch latest Fantasy Premier League player data and statistics",
+      "timeout": 180
+    },
+    "fetch_odds": {
+      "path": "odds-api/fetch_odds.py", 
+      "name": "Update Odds Data",
+      "description": "Fetch latest betting odds from The Odds API",
+      "timeout": 120
+    },
+    "fetch_fixtures": {
+      "path": "fpl/fetch_fixtures_gameweeks.py",
+      "name": "Update Fixtures & Gameweeks", 
+      "description": "Sync fixtures and gameweek information from FPL API",
+      "timeout": 60
+    },
+    "fetch_results": {
+      "path": "fpl/fetch_results.py",
+      "name": "Update Match Results",
+      "description": "Fetch completed match results and update database",
+      "timeout": 90
+    },
+    "clean_predictions": {
+      "path": "prediction_league/clean_predictions_dropbox.py",
+      "name": "Process Predictions",
+      "description": "Process prediction files from Dropbox and update database",
+      "timeout": 120
+    },
+    "fetch_pulse_data": {
+      "path": "pulse_api/fetch_pulse_data.py",
+      "name": "Update Match Details",
+      "description": "Fetch detailed match information (officials, lineups, events)",
+      "timeout": 240
+    },
+    "monitor_upload": {
+      "path": "database/monitor_and_upload.py",
+      "name": "Upload Database",
+      "description": "Check for changes and upload database to remote server",
+      "timeout": 60
+    }
+  }
+}

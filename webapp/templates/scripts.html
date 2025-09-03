@@ -1,0 +1,309 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Page Header -->
+    <div class="bg-white shadow rounded-lg p-6">
+        <h1 class="text-2xl font-bold text-gray-900 mb-2">🔧 Scripts Management</h1>
+        <p class="text-gray-600">Execute database maintenance scripts manually and monitor their progress.</p>
+    </div>
+    
+    <!-- Script Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for script_key, script_info in scripts.items() %}
+        <div class="bg-white shadow rounded-lg p-6">
+            <!-- Script Header -->
+            <div class="flex items-start justify-between mb-4">
+                <div>
+                    <h3 class="text-lg font-medium text-gray-900">{{ script_info.name }}</h3>
+                    <p class="text-sm text-gray-600 mt-1">{{ script_info.description }}</p>
+                </div>
+                <div class="ml-2">
+                    {% set status = script_status.get(script_key, {}) %}
+                    {% if status.get('running') %}
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            🔄 Running
+                        </span>
+                    {% elif status.get('success') == True %}
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            ✅ Success
+                        </span>
+                    {% elif status.get('success') == False %}
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            ❌ Failed
+                        </span>
+                    {% else %}
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            ⏸️ Ready
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Script Details -->
+            <div class="text-xs text-gray-500 mb-4 space-y-1">
+                <div>📁 Path: {{ script_info.path }}</div>
+                <div>⏱️ Timeout: {{ script_info.timeout }}s</div>
+                {% if status.get('start_time') %}
+                    <div>🕐 Last Run: {{ status.start_time.split('T')[1].split('.')[0] }}</div>
+                {% endif %}
+            </div>
+            
+            <!-- Action Button -->
+            <div class="flex space-x-2">
+                {% if status.get('running') %}
+                    <button disabled
+                            class="w-full bg-gray-300 text-gray-500 px-4 py-2 rounded-md text-sm font-medium cursor-not-allowed">
+                        🔄 Running...
+                    </button>
+                {% else %}
+                    <a href="{{ url_for('run_script', script_key=script_key) }}"
+                       onclick="return confirmAction('Run {{ script_info.name }}?')"
+                       class="w-full bg-blue-600 hover:bg-blue-700 text-white text-center px-4 py-2 rounded-md text-sm font-medium">
+                        ▶️ Run Script
+                    </a>
+                {% endif %}
+                
+                {% if status.get('output') %}
+                    <button onclick="showOutput('{{ script_key }}')"
+                            class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded-md text-sm font-medium">
+                        📄
+                    </button>
+                {% endif %}
+            </div>
+            
+            <!-- Progress Bar (for running scripts) -->
+            {% if status.get('running') %}
+                <div class="mt-4">
+                    <div class="bg-gray-200 rounded-full h-2">
+                        <div class="bg-blue-600 h-2 rounded-full animate-pulse" style="width: 100%"></div>
+                    </div>
+                    <p class="text-xs text-gray-600 mt-1">Script is running, please wait...</p>
+                </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="bg-white shadow rounded-lg p-6">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">⚡ Quick Actions</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            <button onclick="runMultipleScripts(['fetch_fpl_data', 'fetch_fixtures', 'fetch_results'])"
+                    class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                🔄 Update All FPL Data
+            </button>
+            <button onclick="runMultipleScripts(['clean_predictions', 'monitor_upload'])"
+                    class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                📤 Process & Upload
+            </button>
+            <button onclick="refreshPage()"
+                    class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                🔄 Refresh Status
+            </button>
+            <button onclick="showAllLogs()"
+                    class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                📋 View All Logs
+            </button>
+        </div>
+    </div>
+    
+    <!-- System Info -->
+    <div class="bg-white shadow rounded-lg p-6">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">ℹ️ System Information</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div>
+                <dt class="font-medium text-gray-600">Scripts Path:</dt>
+                <dd class="text-gray-900 font-mono text-xs">{{ scripts_path if scripts_path else '../scripts' }}</dd>
+            </div>
+            <div>
+                <dt class="font-medium text-gray-600">Python Venv:</dt>
+                <dd class="text-gray-900 font-mono text-xs">{{ venv_path if venv_path else '../venv/bin/python' }}</dd>
+            </div>
+            <div>
+                <dt class="font-medium text-gray-600">Running Scripts:</dt>
+                <dd class="text-gray-900">
+                    {{ script_status.values() | selectattr('running') | list | length }} active
+                </dd>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Output Modal -->
+<div id="outputModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden z-50">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="bg-white rounded-lg max-w-4xl w-full max-h-[80vh] flex flex-col">
+            <!-- Modal Header -->
+            <div class="flex justify-between items-center p-6 border-b">
+                <h3 id="modalTitle" class="text-lg font-medium text-gray-900">Script Output</h3>
+                <button onclick="hideOutput()" class="text-gray-400 hover:text-gray-600">
+                    <span class="text-2xl">&times;</span>
+                </button>
+            </div>
+            
+            <!-- Modal Body -->
+            <div class="flex-1 p-6 overflow-auto">
+                <div id="scriptOutput" class="script-output bg-gray-900 text-green-400 p-4 rounded-md h-96 overflow-y-auto whitespace-pre-wrap font-mono text-sm">
+                    <!-- Output will be loaded here -->
+                </div>
+            </div>
+            
+            <!-- Modal Footer -->
+            <div class="flex justify-end space-x-3 p-6 border-t">
+                <button onclick="refreshOutput()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                    🔄 Refresh
+                </button>
+                <button onclick="hideOutput()" class="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-md text-sm font-medium">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentScriptKey = null;
+let outputRefreshInterval = null;
+
+function showOutput(scriptKey) {
+    currentScriptKey = scriptKey;
+    const modal = document.getElementById('outputModal');
+    const title = document.getElementById('modalTitle');
+    
+    // Update modal title
+    const scriptInfo = {{ scripts | tojson }};
+    title.textContent = `${scriptInfo[scriptKey].name} - Output`;
+    
+    // Show modal
+    modal.classList.remove('hidden');
+    
+    // Load and refresh output
+    refreshOutput();
+    
+    // Auto-refresh if script is running
+    const status = {{ script_status | tojson }};
+    if (status[scriptKey] && status[scriptKey].running) {
+        outputRefreshInterval = setInterval(refreshOutput, 2000);
+    }
+}
+
+function hideOutput() {
+    document.getElementById('outputModal').classList.add('hidden');
+    currentScriptKey = null;
+    
+    // Clear refresh interval
+    if (outputRefreshInterval) {
+        clearInterval(outputRefreshInterval);
+        outputRefreshInterval = null;
+    }
+}
+
+function refreshOutput() {
+    if (!currentScriptKey) return;
+    
+    fetchJson(`/scripts/status/${currentScriptKey}`)
+        .then(status => {
+            const outputDiv = document.getElementById('scriptOutput');
+            
+            if (status.output && status.output.length > 0) {
+                outputDiv.textContent = status.output.join('\n');
+                outputDiv.scrollTop = outputDiv.scrollHeight;
+            } else if (status.running) {
+                outputDiv.textContent = 'Script is starting, waiting for output...';
+            } else {
+                outputDiv.textContent = 'No output available.';
+            }
+            
+            // Stop auto-refresh if script finished
+            if (!status.running && outputRefreshInterval) {
+                clearInterval(outputRefreshInterval);
+                outputRefreshInterval = null;
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching script status:', error);
+            document.getElementById('scriptOutput').textContent = 'Error loading output.';
+        });
+}
+
+function runMultipleScripts(scriptKeys) {
+    if (!confirmAction(`Run ${scriptKeys.length} scripts in sequence?`)) {
+        return;
+    }
+    
+    // Run scripts one by one with delay
+    let delay = 0;
+    scriptKeys.forEach((scriptKey, index) => {
+        setTimeout(() => {
+            window.location.href = `/scripts/run/${scriptKey}`;
+        }, delay);
+        delay += 1000; // 1 second delay between scripts
+    });
+}
+
+function refreshPage() {
+    location.reload();
+}
+
+function showAllLogs() {
+    // Collect all available outputs
+    const status = {{ script_status | tojson }};
+    let allLogs = [];
+    
+    Object.keys(status).forEach(scriptKey => {
+        if (status[scriptKey].output) {
+            const scriptInfo = {{ scripts | tojson }};
+            allLogs.push(`\n=== ${scriptInfo[scriptKey].name} ===`);
+            allLogs.push(status[scriptKey].output.join('\n'));
+        }
+    });
+    
+    if (allLogs.length === 0) {
+        alert('No logs available');
+        return;
+    }
+    
+    // Show in modal
+    currentScriptKey = 'all';
+    document.getElementById('modalTitle').textContent = 'All Script Logs';
+    document.getElementById('scriptOutput').textContent = allLogs.join('\n');
+    document.getElementById('outputModal').classList.remove('hidden');
+}
+
+// Auto-refresh page every 30 seconds if any scripts are running
+document.addEventListener('DOMContentLoaded', function() {
+    const status = {{ script_status | tojson }};
+    const hasRunning = Object.values(status).some(s => s.running);
+    
+    if (hasRunning) {
+        setTimeout(() => {
+            location.reload();
+        }, 30000);
+    }
+});
+
+// Close modal when clicking outside
+document.getElementById('outputModal').addEventListener('click', function(event) {
+    if (event.target === this) {
+        hideOutput();
+    }
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(event) {
+    // Escape to close modal
+    if (event.key === 'Escape') {
+        hideOutput();
+    }
+    
+    // F5 or Ctrl+R to refresh
+    if (event.key === 'F5' || (event.ctrlKey && event.key === 'r')) {
+        event.preventDefault();
+        refreshPage();
+    }
+});
+</script>
+{% endblock %}

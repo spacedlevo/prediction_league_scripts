@@ -134,6 +134,12 @@ teams ←→ fixtures (via home_teamid, away_teamid)
 fixtures ←→ odds (via fixture_id)
 bookmakers ←→ odds (via bookmaker_id)
 fixtures ←→ fixture_odds_summary (via fixture_id)
+fixtures ←→ predictions (via fixture_id)
+players ←→ predictions (via player_id)
+fixtures ←→ match_officials (via pulse_id)
+fixtures ←→ team_list (via pulse_id)
+fixtures ←→ match_events (via pulse_id)
+teams ←→ team_list (via team_id)
 ```
 
 ### Mapping Flow
@@ -389,6 +395,50 @@ CREATE TABLE players (
 - `active`: Whether player participates in current season
 - `paid`: Payment status for league participation
 
+### `results`
+Stores actual match results for comparison with predictions:
+
+```sql
+CREATE TABLE results (
+    result_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fpl_fixture_id INTEGER NOT NULL,
+    fixture_id INTEGER,
+    home_goals INTEGER,
+    away_goals INTEGER,
+    result TEXT,
+    FOREIGN KEY (fixture_id) REFERENCES fixtures(fixture_id)
+);
+```
+
+**Key Fields**:
+- `result_id`: Unique identifier for each result
+- `fixture_id`: Links to fixtures table
+- `home_goals`, `away_goals`: Actual match score
+- `result`: Actual result ("H" = Home win, "D" = Draw, "A" = Away win)
+
+### `gameweek_cache`
+Caches current gameweek information for performance:
+
+```sql
+CREATE TABLE gameweek_cache (
+    current_gw INTEGER PRIMARY KEY,
+    next_gw_deadline_time TEXT
+);
+```
+
+### `last_update`
+Tracks database table modifications for automated upload monitoring:
+
+```sql
+CREATE TABLE last_update (
+    table_name TEXT PRIMARY KEY,
+    updated TEXT,
+    timestamp NUMERIC
+);
+```
+
+**Purpose**: Enables change detection for automated database upload system
+
 ### `predictions` (Enhanced)
 Stores individual player predictions with full database integration:
 
@@ -525,12 +575,121 @@ CREATE INDEX idx_fixtures_season ON fixtures(season);
 CREATE INDEX idx_fixtures_gameweek ON fixtures(gameweek);
 CREATE INDEX idx_fixtures_fpl_id ON fixtures(fpl_fixture_id);
 
--- NEW: Prediction-specific indexes
+-- Prediction-specific indexes
 CREATE INDEX idx_predictions_player_fixture ON predictions(player_id, fixture_id);  -- Constraint enforcement
 CREATE INDEX idx_predictions_fixture_id ON predictions(fixture_id);  -- Join performance
 CREATE INDEX idx_predictions_player_id ON predictions(player_id);    -- Player-based queries
 CREATE INDEX idx_file_metadata_filename ON file_metadata(filename);  -- Change detection
+
+-- NEW: Pulse API indexes (September 2025)
+CREATE INDEX idx_match_officials_pulseid ON match_officials(pulseid);  -- Match lookup
+CREATE INDEX idx_team_list_pulseid ON team_list(pulseid);              -- Lineup queries
+CREATE INDEX idx_team_list_team_id ON team_list(team_id);              -- Team-based queries
+CREATE INDEX idx_match_events_pulseid ON match_events(pulseid);        -- Event queries
+CREATE INDEX idx_match_events_event_type ON match_events(event_type);  -- Event type filtering
 ```
+
+## Pulse API Tables (NEW - September 2025)
+
+The system now includes dedicated tables for Pulse API data integration, collecting detailed match information.
+
+### `match_officials`
+Stores match officials (referees and linesmen) for each match:
+
+```sql
+CREATE TABLE match_officials (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    matchOfficialID INTEGER NOT NULL,
+    pulseid INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    role TEXT,
+    FOREIGN KEY (pulseid) REFERENCES fixtures(pulse_id)
+);
+```
+
+**Key Fields**:
+- `matchOfficialID`: Unique ID for the match official from Pulse API
+- `pulseid`: Links to fixtures table via pulse_id
+- `name`: Official's full name (e.g., "Michael Oliver")
+- `role`: Official's role ("Referee", "Assistant Referee")
+
+### `team_list`
+Stores team lineups (starting XI and substitutes) for each match:
+
+```sql
+CREATE TABLE team_list (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pulseid INTEGER NOT NULL,
+    team_id INTEGER,
+    person_id INTEGER,
+    player_name TEXT NOT NULL,
+    match_shirt_number INTEGER,
+    is_captain BOOLEAN,
+    position TEXT NOT NULL,
+    is_starting BOOLEAN,
+    FOREIGN KEY (pulseid) REFERENCES fixtures(pulse_id),
+    FOREIGN KEY (team_id) REFERENCES teams(team_id)
+);
+```
+
+**Key Fields**:
+- `pulseid`: Links to fixtures table via pulse_id
+- `team_id`: Mapped to database team_id for proper relationships
+- `person_id`: Pulse API person identifier
+- `player_name`: Player's full name
+- `match_shirt_number`: Jersey number worn for this specific match
+- `is_captain`: Whether player was team captain
+- `position`: Playing position (GK, DEF, MID, FWD)
+- `is_starting`: True for starting XI, False for substitutes
+
+### `match_events`
+Stores in-match events (goals, cards, substitutions) with precise timestamps:
+
+```sql
+CREATE TABLE match_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pulseid INTEGER NOT NULL,
+    person_id INTEGER,
+    team_id INTEGER,
+    assist_id INTEGER,
+    event_type TEXT NOT NULL,
+    event_time TEXT NOT NULL,
+    FOREIGN KEY (pulseid) REFERENCES fixtures(pulse_id)
+);
+```
+
+**Key Fields**:
+- `pulseid`: Links to fixtures table via pulse_id
+- `person_id`: Player involved in the event
+- `team_id`: Team associated with the event
+- `assist_id`: Player providing assist (for goals)
+- `event_type`: Type of event ("GOAL", "YELLOW CARD", "RED CARD", "SUBSTITUTION")
+- `event_time`: When event occurred (e.g., "45+2", "67")
+
+### Pulse API Data Flow
+
+#### 1. Collection Strategy
+```
+Pulse API → fetch_pulse_data.py → Database
+    ↓
+Process finished fixtures missing pulse data
+    ↓
+Concurrent processing with rate limiting
+```
+
+#### 2. Data Processing Steps
+1. **Change Detection**: Only process finished fixtures without pulse data
+2. **Concurrent Processing**: 3 workers by default with 2-second delays
+3. **Team Mapping**: Map Pulse team IDs to database team_id
+4. **Data Insertion**: Transaction-safe insertion with rollback on errors
+5. **Sample Management**: Save successful responses, cleanup old samples
+6. **Progress Tracking**: Real-time progress bars for long operations
+
+#### 3. Error Handling
+- **Rate Limiting**: Exponential backoff for API failures
+- **Data Validation**: Skip records with missing critical data
+- **Transaction Integrity**: Rollback on any insertion errors
+- **Retry Logic**: Automatic retry for temporary API failures
 
 ### Data Volume (Updated)
 
@@ -543,14 +702,68 @@ CREATE INDEX idx_file_metadata_filename ON file_metadata(filename);  -- Change d
 - **FPL Players**: ~700 Premier League players
 - **FPL Scores**: ~15,000-25,000 performance records per season
 - **FPL Bootstrap**: ~700 cached player summaries per season
-- **Prediction Players**: ~26 active league participants (NEW)
-- **Predictions**: ~9,880 predictions per season (26 players × 380 fixtures) (NEW)
-- **File Metadata**: ~38 tracked files per season (NEW)
+- **Prediction Players**: ~26 active league participants
+- **Predictions**: ~9,880 predictions per season (26 players × 380 fixtures)
+- **File Metadata**: ~38 tracked files per season
+- **Match Officials**: ~760 official records per season (2 per match) (NEW)
+- **Team Lists**: ~7,600 player lineup records per season (20 per team per match) (NEW)
+- **Match Events**: ~3,800-5,700 event records per season (10-15 per match) (NEW)
+
+### Query Examples (Pulse API)
+
+#### Get Match Officials for Specific Fixture
+```sql
+SELECT 
+    mo.name,
+    mo.role,
+    ht.team_name as home_team,
+    at.team_name as away_team
+FROM match_officials mo
+JOIN fixtures f ON mo.pulseid = f.pulse_id
+JOIN teams ht ON f.home_teamid = ht.team_id
+JOIN teams at ON f.away_teamid = at.team_id
+WHERE f.fixture_id = 123;
+```
+
+#### Get Starting XI for Both Teams
+```sql
+SELECT 
+    t.team_name,
+    tl.player_name,
+    tl.position,
+    tl.match_shirt_number,
+    tl.is_captain
+FROM team_list tl
+JOIN teams t ON tl.team_id = t.team_id
+JOIN fixtures f ON tl.pulseid = f.pulse_id
+WHERE f.fixture_id = 123 AND tl.is_starting = 1
+ORDER BY t.team_name, tl.position;
+```
+
+#### Get Match Events Timeline
+```sql
+SELECT 
+    me.event_time,
+    me.event_type,
+    tl.player_name,
+    t.team_name,
+    assist.player_name as assist_player
+FROM match_events me
+JOIN fixtures f ON me.pulseid = f.pulse_id
+JOIN team_list tl ON me.person_id = tl.person_id AND me.pulseid = tl.pulseid
+JOIN teams t ON me.team_id = t.team_id
+LEFT JOIN team_list assist ON me.assist_id = assist.person_id AND me.pulseid = assist.pulseid
+WHERE f.fixture_id = 123
+ORDER BY 
+    CAST(SUBSTR(me.event_time, 1, INSTR(me.event_time, '+') - 1) AS INTEGER),
+    me.event_time;
+```
 
 ### Data Cleanup (Updated)
 - **Old Sample Files**: Automatically managed (configurable retention)
 - **Log Files**: Manual cleanup of old daily logs
 - **Stale Data**: Consider archiving old season data
 - **Bootstrap Cache**: Automatically updated with each fetch
-- **Prediction Files**: Processed incrementally based on file changes (NEW)
-- **Database Integrity**: Foreign key constraints maintain referential integrity (NEW)
+- **Prediction Files**: Processed incrementally based on file changes
+- **Pulse Sample Files**: Automatic cleanup with configurable retention (NEW)
+- **Database Integrity**: Foreign key constraints maintain referential integrity
