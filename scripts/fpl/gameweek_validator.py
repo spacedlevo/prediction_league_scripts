@@ -19,6 +19,8 @@ USAGE:
 
 import sqlite3 as sql
 import logging
+import argparse
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
@@ -294,11 +296,26 @@ def should_trigger_api_refresh(validation_results: Dict) -> bool:
 
 def main():
     """Main execution for standalone usage"""
+    parser = argparse.ArgumentParser(description='Gameweek validation tool')
+    parser.add_argument('--check-refresh', action='store_true',
+                       help='Check if API refresh is needed and exit with appropriate code (0=refresh needed, 1=no refresh)')
+    args = parser.parse_args()
+    
     logger = setup_logging()
     logger.info("Starting gameweek validation...")
     
     validation_results = perform_full_validation(logger)
     
+    if args.check_refresh:
+        # For scheduler integration - exit with code based on refresh recommendation
+        if should_trigger_api_refresh(validation_results):
+            logger.info("API refresh recommended - exiting with code 0")
+            sys.exit(0)  # Refresh needed
+        else:
+            logger.info("No API refresh needed - exiting with code 1")
+            sys.exit(1)  # No refresh needed
+    
+    # Standard interactive output
     print(f"\n=== GAMEWEEK VALIDATION REPORT ===")
     print(f"Validation Status: {'PASSED' if validation_results['is_valid'] else 'FAILED'}")
     print(f"Current Gameweek (marked): {validation_results.get('current_gameweek', 'None')}")

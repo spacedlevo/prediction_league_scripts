@@ -177,6 +177,14 @@ if [[ "$ENABLE_FETCH_FIXTURES" == "true" ]] && [[ $((current_minute % 30)) -eq 0
     log "DEBUG" "Triggered fetch_fixtures (minute: $current_minute)"
 fi
 
+# Gameweek validator check - every 5 minutes for smart triggering
+if [[ $((current_minute % 5)) -eq 0 ]]; then
+    if $VENV_PYTHON scripts/fpl/gameweek_validator.py --check-refresh; then
+        run_script "scripts/fpl/fetch_fixtures_gameweeks.py" "fetch_fixtures_triggered" &
+        log "DEBUG" "Triggered fetch_fixtures via validator recommendation (minute: $current_minute)"
+    fi
+fi
+
 # Every hour (at :00)
 if [[ "$ENABLE_AUTOMATED_PREDICTIONS" == "true" ]] && [[ $current_minute -eq 0 ]]; then
     run_script "scripts/prediction_league/automated_predictions.py" "automated_predictions" &

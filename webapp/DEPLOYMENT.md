@@ -40,15 +40,31 @@
    sudo chown -R predleague:predleague /opt/prediction-league
    ```
 
-3. **Install Python Dependencies**
+3. **Create Virtual Environment and Install Dependencies**
    ```bash
-   sudo -u predleague pip3 install -r /opt/prediction-league/requirements.txt
+   # Install python3-venv if not already installed
+   sudo apt update && sudo apt install python3-venv python3-pip
+   
+   # Create virtual environment as predleague user
+   sudo -u predleague python3 -m venv /opt/prediction-league/venv
+   
+   # Install dependencies in virtual environment
+   sudo -u predleague /opt/prediction-league/venv/bin/pip install -r /opt/prediction-league/requirements.txt
    ```
 
 4. **Configure Settings**
    ```bash
    sudo -u predleague cp /opt/prediction-league/config.json.example /opt/prediction-league/config.json
    sudo -u predleague nano /opt/prediction-league/config.json
+   ```
+
+   **Important**: Update the config.json paths to match your setup:
+   ```json
+   {
+     "database_path": "/path/to/your/data/database.db",
+     "scripts_path": "/path/to/your/scripts",
+     "venv_path": "/path/to/your/venv/bin/python"
+   }
    ```
 
 5. **Create Systemd Service**
@@ -67,7 +83,7 @@
    Group=predleague
    WorkingDirectory=/opt/prediction-league
    Environment=PYTHONPATH=/opt/prediction-league
-   ExecStart=/usr/bin/python3 app.py
+   ExecStart=/opt/prediction-league/venv/bin/python app.py
    Restart=always
    RestartSec=3
 
@@ -291,10 +307,11 @@ sudo -u predleague python3 -c "import sqlite3; print(sqlite3.connect('/path/to/d
 
 ### Example Gunicorn Setup
 ```bash
-pip install gunicorn
+# Install gunicorn in the virtual environment (as predleague user)
+sudo -u predleague /opt/prediction-league/venv/bin/pip install gunicorn
 
 # Update systemd service ExecStart:
-ExecStart=/usr/local/bin/gunicorn -w 4 -b 127.0.0.1:5001 app:app
+ExecStart=/opt/prediction-league/venv/bin/gunicorn -w 4 -b 127.0.0.1:5001 app:app
 ```
 
 This deployment guide covers the essentials for running the prediction league web app on your Proxmox Ubuntu VM with proper security and monitoring.

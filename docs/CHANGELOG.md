@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2025-09-03] - Fixture Fetching System Improvements
+
+### Enhanced - Fixture Status Updates & Smart Scheduling
+- **Real-time Fixture Updates**: `fetch_fixtures_gameweeks.py` now always fetches data and updates fixture status changes
+- **Sample Data Guarantee**: Always downloads sample JSON data on each execution
+- **Smart Scheduler Integration**: `gameweek_validator.py` integrated with master scheduler for intelligent triggering
+- **5-Minute Checks**: Validator runs every 5 minutes, triggers fixture updates only when needed
+- **Removed Conservative Validation**: Eliminated 2-week delay in fixture status updates
+
+### Technical Improvements
+- **Always Fetch Logic**: Main script bypasses validation, always calls FPL API for current data
+- **Exit Code Integration**: Validator returns exit code 0 (refresh needed) or 1 (no refresh)
+- **Scheduler Enhancement**: Added 5-minute validator check in `master_scheduler.sh`
+- **Database Integrity**: Maintains proper `last_update` table updates on all changes
+
+### Benefits
+- **Immediate Updates**: Fixture finished/started status updates in real-time
+- **No More Delays**: Eliminates 2+ week waiting period for status changes
+- **Efficient API Usage**: Only triggers full updates when validator detects issues
+- **Sample Data Reliability**: Guaranteed sample downloads for testing and debugging
+
 ## [2025-08-31] - Critical System Fixes & Major Improvements
 
 ### Added - FPL Data Optimization & Team ID Backfill

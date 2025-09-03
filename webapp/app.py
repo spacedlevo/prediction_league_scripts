@@ -344,7 +344,7 @@ def get_dashboard_stats(cursor) -> Dict:
         stats['completed_fixtures'] = cursor.fetchone()[0]
         
         # Current gameweek
-        cursor.execute("SELECT current_gw FROM gameweek_cache LIMIT 1")
+        cursor.execute("SELECT gameweek FROM gameweeks WHERE current_gameweek = 1 LIMIT 1")
         result = cursor.fetchone()
         stats['current_gameweek'] = result[0] if result else None
         
