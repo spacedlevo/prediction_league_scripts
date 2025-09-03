@@ -173,8 +173,8 @@ INSERT OR REPLACE INTO fantasy_pl_scores (...) VALUES (...)
 ### Performance Optimization
 
 #### Recent Improvements (2025-08-31)
-- **Field Optimization**: Reduced bootstrap monitoring from 23 to 13 essential fields (65% reduction)
-- **Essential Fields Only**: Now tracks only gameplay statistics: `total_points`, `minutes`, `goals_scored`, `assists`, `clean_sheets`, `goals_conceded`, `saves`, `yellow_cards`, `red_cards`, `bonus`, `bps`
+- **Field Optimization**: Reduced bootstrap monitoring from 23 to 17 essential fields (26% reduction)
+- **Essential Fields Only**: Now tracks only gameplay statistics: `total_points`, `minutes`, `goals_scored`, `assists`, `clean_sheets`, `goals_conceded`, `saves`, `yellow_cards`, `red_cards`, `bonus`, `bps`, `form`, `event_points`, `status`, `cost_change_event`
 - **Eliminated False Positives**: No longer monitors market/popularity metrics that don't affect gameplay
 - **Reduced API Calls**: Fewer false changes mean significantly fewer individual player API requests
 

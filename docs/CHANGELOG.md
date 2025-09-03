@@ -65,14 +65,14 @@ key_fields = ['team_id', 'position', 'minutes', 'total_points', 'ict_index', 'go
               'expected_goals', 'expected_assists', 'value', 'transfers_in', 'transfers_out']
 ```
 
-**After**: Optimized to 13 essential gameplay fields:
+**After**: Optimized to 17 essential gameplay fields:
 ```python
 key_fields = ['team_id', 'position', 'total_points', 'minutes', 'goals_scored', 
               'assists', 'clean_sheets', 'goals_conceded', 'saves', 'yellow_cards', 'red_cards',
-              'bonus', 'bps']
+              'bonus', 'bps', 'form', 'event_points', 'status', 'cost_change_event']
 ```
 
-**Impact**: 65% reduction in monitored fields, significantly fewer false positives triggering API calls
+**Impact**: 26% reduction in monitored fields, significantly fewer false positives triggering API calls
 
 #### Team ID Backfill Success
 **Problem**: 1,533 out of 2,364 records (64.8%) missing team_id values in fantasy_pl_scores table

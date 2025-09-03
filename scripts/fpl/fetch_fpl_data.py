@@ -501,8 +501,7 @@ def identify_players_to_update(new_players, existing_bootstrap_data, logger, deb
     # Key fields to check for changes (database field names) - optimized for essential gameplay stats
     key_fields = ['team_id', 'position', 'total_points', 'minutes', 'goals_scored', 
                   'assists', 'clean_sheets', 'goals_conceded', 'saves', 'yellow_cards', 'red_cards',
-                  'bonus', 'bps', 'form', 'event_points', 'status', 'selected_by_percent',
-                  'cost_change_event', 'transfers_in_event', 'transfers_out_event']
+                  'bonus', 'bps', 'form', 'event_points']
     
     for player in new_players:
         player_id = player["id"]
