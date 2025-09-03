@@ -118,6 +118,23 @@ def insert_or_update_odds(cursor, match_id, home_team_id, away_team_id, bet_type
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (match_id, home_team_id, away_team_id, bet_type, fixture_id, bookmaker_id, price))
 
+def update_last_update_table(table_name, cursor, logger):
+    """Update the last_update table with current timestamp"""
+    try:
+        dt = datetime.now()
+        now = dt.strftime("%d-%m-%Y. %H:%M:%S")
+        timestamp = dt.timestamp()
+        
+        cursor.execute("""
+            INSERT OR REPLACE INTO last_update (table_name, updated, timestamp) 
+            VALUES (?, ?, ?)
+        """, (table_name, now, timestamp))
+        
+        logger.info(f"Updated last_update table for '{table_name}'")
+    except Exception as e:
+        logger.error(f"Error updating last_update table: {e}")
+        raise
+
 def process_odds_data(odds_data, logger):
     """Process odds data and insert/update into database"""
     conn = sql.connect(db_path)
@@ -182,6 +199,10 @@ def process_odds_data(odds_data, logger):
                                                 bet_type, fixture_id, bookmaker_id, price)
                             processed_count += 1
         
+        # Update timestamp before committing (critical for upload detection)
+        if processed_count > 0:
+            update_last_update_table("odds", cursor, logger)
+        
         conn.commit()
         logger.info(f"Successfully processed {processed_count} odds records")
         if skipped_count > 0:
@@ -225,6 +246,9 @@ def refresh_fixture_odds_summary(logger):
             WHERE fixture_id IS NOT NULL AND price IS NOT NULL
             GROUP BY fixture_id, home_team_id, away_team_id
         """)
+        
+        # Update timestamp before committing (critical for upload detection)
+        update_last_update_table("fixture_odds_summary", cursor, logger)
         
         conn.commit()
         updated_count = cursor.execute("SELECT COUNT(*) FROM fixture_odds_summary").fetchone()[0]
