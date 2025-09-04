@@ -371,6 +371,7 @@ tail -f logs/script_$(date +%Y%m%d).log
 - **Automatic Uploads** - Triggers on any table changes since last upload  
 - **Health Check** - Fallback uploads every 30 minutes if no changes detected
 - **Transaction Integrity** - Fixed Aug 2025: Scripts now properly update timestamps after database changes
+- **Smart Timestamps** - Fixed Sep 2025: Scripts only update timestamps when actual data changes occur (no more unnecessary uploads)
 
 ### Dropbox OAuth2 System
 ```bash
@@ -481,7 +482,7 @@ ENABLE_FETCH_PULSE_DATA=true
 DEBUG_MODE=false
 ```
 
-## Critical System Fixes (August 2025)
+## Critical System Fixes (August 2025 - September 2025)
 
 ### Database Upload System Issues Resolved
 
@@ -498,7 +499,7 @@ DEBUG_MODE=false
 2. **Missing Fixtures Timestamp Updates**
    - **Issue**: `fetch_fixtures_gameweeks.py` only updated "fixtures_gameweeks" timestamp
    - **Result**: "fixtures" table changes undetected (9-day timestamp gap)
-   - **Fix**: Now updates both "fixtures" and "fixtures_gameweeks" timestamps
+   - **Fix**: Now updates both "fixtures" and "fixtures_gameweeks" timestamps when changes occur
    - **Impact**: Fixture changes now trigger automated uploads
 
 3. **Timezone Conversion Bug in Match Window Detection**
@@ -512,6 +513,12 @@ DEBUG_MODE=false
    - **Result**: Multiple duplicate predictions, some fixtures unmatched
    - **Fix**: Enhanced fixture matching to try both team orders
    - **Impact**: Clean prediction data, no duplicates, all fixtures matched
+
+5. **Unnecessary Timestamp Updates (September 2025)**
+   - **Issue**: Scripts updated timestamps even when no data changed
+   - **Result**: Frequent unnecessary database uploads with no actual changes
+   - **Fix**: Modified scripts to only update timestamps when actual data changes occur
+   - **Impact**: Reduced database upload frequency, more efficient change detection
 
 ### Verification Steps
 ```bash

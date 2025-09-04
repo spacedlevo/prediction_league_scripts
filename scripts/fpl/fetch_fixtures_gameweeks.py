@@ -352,7 +352,7 @@ def process_gameweeks(cursor, events_data, season, logger):
     """Process and upsert gameweeks data with change detection"""
     if not events_data:
         logger.warning("No gameweeks data to process")
-        return
+        return 0, 0, 0  # Return counts for timestamp logic
     
     inserted_count = 0
     updated_count = 0
@@ -448,16 +448,18 @@ def process_gameweeks(cursor, events_data, season, logger):
     
     if inserted_count == 0 and updated_count == 0 and unchanged_count == 0:
         logger.warning("No valid gameweeks data to process")
+    
+    return inserted_count, updated_count, unchanged_count
 
 def process_fixtures(cursor, fixtures_data, team_mapping, season, logger):
     """Process and upsert fixtures data with change detection"""
     if not fixtures_data:
         logger.warning("No fixtures data to process")
-        return
+        return 0, 0, 0, 0  # Return counts for timestamp logic
     
     if not team_mapping:
         logger.error("No team mapping available - cannot process fixtures")
-        return
+        return 0, 0, 0, 0  # Return counts for timestamp logic
     
     inserted_count = 0
     updated_count = 0
@@ -573,6 +575,8 @@ def process_fixtures(cursor, fixtures_data, team_mapping, season, logger):
     
     if skipped_count > 0:
         logger.warning(f"Skipped {skipped_count} fixtures due to missing team mappings")
+    
+    return inserted_count, updated_count, unchanged_count, skipped_count
 
 def save_sample_data(gameweeks_data, fixtures_data, team_mapping, logger):
     """Save API data as JSON sample with timestamp"""
@@ -620,25 +624,34 @@ def load_sample_data(logger):
         logger.error(f"Failed to load sample data: {e}")
         return None
 
-def update_last_update_timestamp(cursor, logger):
-    """Update the last_update table with current timestamp for both tables modified"""
+def update_last_update_timestamp(cursor, logger, gameweeks_changed=False, fixtures_changed=False):
+    """Update the last_update table with current timestamp only when changes occur"""
+    if not gameweeks_changed and not fixtures_changed:
+        logger.info("No changes detected - skipping timestamp updates")
+        return
+    
     dt = datetime.now()
     now = dt.strftime("%d-%m-%Y %H:%M:%S")
     timestamp = dt.timestamp()
     
     try:
-        # Update both fixtures_gameweeks and fixtures tables since both are modified
-        cursor.execute("""
-            INSERT OR REPLACE INTO last_update (table_name, updated, timestamp) 
-            VALUES ('fixtures_gameweeks', ?, ?)
-        """, (now, timestamp))
+        tables_updated = []
         
-        cursor.execute("""
-            INSERT OR REPLACE INTO last_update (table_name, updated, timestamp) 
-            VALUES ('fixtures', ?, ?)
-        """, (now, timestamp))
+        if gameweeks_changed:
+            cursor.execute("""
+                INSERT OR REPLACE INTO last_update (table_name, updated, timestamp) 
+                VALUES ('fixtures_gameweeks', ?, ?)
+            """, (now, timestamp))
+            tables_updated.append('fixtures_gameweeks')
         
-        logger.info(f"Updated last_update timestamps for fixtures_gameweeks and fixtures: {now}")
+        if fixtures_changed:
+            cursor.execute("""
+                INSERT OR REPLACE INTO last_update (table_name, updated, timestamp) 
+                VALUES ('fixtures', ?, ?)
+            """, (now, timestamp))
+            tables_updated.append('fixtures')
+        
+        logger.info(f"Updated last_update timestamps for {', '.join(tables_updated)}: {now}")
     except Exception as e:
         logger.error(f"Error updating last_update timestamps: {e}")
 
@@ -694,14 +707,16 @@ def process_fixtures_gameweeks_data(gameweeks_data, fixtures_data, team_mapping,
         
         # Process gameweeks data
         logger.info(f"Processing {len(gameweeks_data)} gameweeks...")
-        process_gameweeks(cursor, gameweeks_data, season, logger)
+        gw_inserted, gw_updated, gw_unchanged = process_gameweeks(cursor, gameweeks_data, season, logger)
         
         # Process fixtures data
         logger.info(f"Processing {len(fixtures_data)} fixtures...")
-        process_fixtures(cursor, fixtures_data, team_mapping, season, logger)
+        fix_inserted, fix_updated, fix_unchanged, fix_skipped = process_fixtures(cursor, fixtures_data, team_mapping, season, logger)
         
-        # Update timestamp
-        update_last_update_timestamp(cursor, logger)
+        # Update timestamp only if changes were made
+        gameweeks_changed = (gw_inserted > 0 or gw_updated > 0)
+        fixtures_changed = (fix_inserted > 0 or fix_updated > 0)
+        update_last_update_timestamp(cursor, logger, gameweeks_changed, fixtures_changed)
         
         if dry_run:
             conn.rollback()
