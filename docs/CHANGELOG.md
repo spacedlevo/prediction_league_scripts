@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2025-09-04] - Smart Timestamp Updates
+
+### Fixed - Unnecessary Database Uploads
+- **Timestamp Optimization**: Modified `fetch_fixtures_gameweeks.py` to only update timestamps when actual data changes occur
+- **Change Detection Logic**: Now tracks insert/update counts and only updates `last_update` table when `inserted_count > 0` or `updated_count > 0`
+- **Reduced Upload Frequency**: Eliminates frequent unnecessary database uploads when no fixture or gameweek changes detected
+- **Efficient Monitoring**: Upload system now only triggers when genuine database modifications occur
+
+### Technical Implementation
+- **Function Return Values**: Modified `process_gameweeks()` and `process_fixtures()` to return change counts
+- **Conditional Updates**: `update_last_update_timestamp()` now accepts `gameweeks_changed` and `fixtures_changed` parameters
+- **Smart Logic**: Only updates timestamps for tables that actually had data modifications
+- **Database Efficiency**: Prevents unnecessary remote uploads and reduces system load
+
+### Benefits
+- **Reduced API Calls**: Fewer unnecessary database uploads to remote systems
+- **System Efficiency**: More accurate change detection and monitoring
+- **Resource Conservation**: Eliminates upload operations when no real changes occurred
+- **Improved Logging**: Clear indication when timestamp updates are skipped due to no changes
+
 ## [2025-09-03] - Fixture Fetching System Improvements
 
 ### Enhanced - Fixture Status Updates & Smart Scheduling
