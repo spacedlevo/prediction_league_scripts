@@ -37,7 +37,7 @@ script_status = {}  # Track running scripts
 def load_config():
     """Load configuration from config.json file"""
     global config
-    config_path = Path(__file__).parent / "config.json"
+    config_path = Path( "/opt/prediction-league/config.json")
     
     if not config_path.exists():
         # Create default config from example
@@ -124,11 +124,15 @@ def dashboard():
         # Get recent activity
         recent_updates = get_recent_updates(cursor)
         
+        # Get players missing predictions for current and next gameweeks
+        missing_predictions = get_players_missing_predictions(cursor)
+        
         conn.close()
         
         return render_template('dashboard.html', 
                              stats=stats, 
                              recent_updates=recent_updates,
+                             missing_predictions=missing_predictions,
                              page_title='Dashboard')
     
     except Exception as e:
@@ -136,6 +140,7 @@ def dashboard():
         return render_template('dashboard.html', 
                              stats={}, 
                              recent_updates=[],
+                             missing_predictions={'current': {}, 'next': {}},
                              page_title='Dashboard')
 
 
@@ -324,6 +329,118 @@ def fpl_insights():
 
 
 # Helper Functions
+def get_players_missing_predictions(cursor) -> Dict:
+    """Get players missing predictions for current and next gameweeks"""
+    missing_data = {'current': {}, 'next': {}}
+    
+    try:
+        # Get current gameweek
+        cursor.execute("SELECT gameweek FROM gameweeks WHERE current_gameweek = 1")
+        current_gw_result = cursor.fetchone()
+        current_gameweek = current_gw_result[0] if current_gw_result else None
+        
+        # Get next gameweek
+        cursor.execute("SELECT gameweek FROM gameweeks WHERE next_gameweek = 1")
+        next_gw_result = cursor.fetchone()
+        next_gameweek = next_gw_result[0] if next_gw_result else None
+        
+        # Process current gameweek
+        if current_gameweek:
+            missing_data['current']['gameweek'] = current_gameweek
+            
+            # Get total fixtures for current gameweek
+            cursor.execute("SELECT COUNT(*) FROM fixtures WHERE gameweek = ?", (current_gameweek,))
+            total_fixtures = cursor.fetchone()[0]
+            
+            # Get all active players
+            cursor.execute("SELECT player_id, player_name FROM players WHERE active = 1 ORDER BY player_name")
+            active_players = cursor.fetchall()
+            
+            players_missing = []
+            players_with_invalid = []
+            
+            for player_id, player_name in active_players:
+                # Check predictions for this player in current gameweek
+                cursor.execute("""
+                    SELECT COUNT(*) as total_predictions,
+                           SUM(CASE WHEN home_goals = 9 AND away_goals = 9 THEN 1 ELSE 0 END) as invalid_predictions
+                    FROM predictions p
+                    JOIN fixtures f ON p.fixture_id = f.fixture_id
+                    WHERE p.player_id = ? AND f.gameweek = ?
+                """, (player_id, current_gameweek))
+                
+                result = cursor.fetchone()
+                total_predictions = result[0] if result else 0
+                invalid_predictions = result[1] if result else 0
+                
+                if total_predictions < total_fixtures:
+                    players_missing.append({
+                        'player_name': player_name,
+                        'predictions_count': total_predictions,
+                        'total_fixtures': total_fixtures,
+                        'missing_count': total_fixtures - total_predictions
+                    })
+                elif invalid_predictions > 0:
+                    players_with_invalid.append({
+                        'player_name': player_name,
+                        'invalid_count': invalid_predictions
+                    })
+            
+            missing_data['current']['players_missing'] = players_missing
+            missing_data['current']['players_with_invalid'] = players_with_invalid
+        
+        # Process next gameweek
+        if next_gameweek:
+            missing_data['next']['gameweek'] = next_gameweek
+            
+            # Get total fixtures for next gameweek
+            cursor.execute("SELECT COUNT(*) FROM fixtures WHERE gameweek = ?", (next_gameweek,))
+            total_fixtures = cursor.fetchone()[0]
+            
+            # Get all active players
+            cursor.execute("SELECT player_id, player_name FROM players WHERE active = 1 ORDER BY player_name")
+            active_players = cursor.fetchall()
+            
+            players_missing = []
+            players_with_invalid = []
+            
+            for player_id, player_name in active_players:
+                # Check predictions for this player in next gameweek
+                cursor.execute("""
+                    SELECT COUNT(*) as total_predictions,
+                           SUM(CASE WHEN home_goals = 9 AND away_goals = 9 THEN 1 ELSE 0 END) as invalid_predictions
+                    FROM predictions p
+                    JOIN fixtures f ON p.fixture_id = f.fixture_id
+                    WHERE p.player_id = ? AND f.gameweek = ?
+                """, (player_id, next_gameweek))
+                
+                result = cursor.fetchone()
+                total_predictions = result[0] if result else 0
+                invalid_predictions = result[1] if result else 0
+                
+                if total_predictions < total_fixtures:
+                    players_missing.append({
+                        'player_name': player_name,
+                        'predictions_count': total_predictions,
+                        'total_fixtures': total_fixtures,
+                        'missing_count': total_fixtures - total_predictions
+                    })
+                elif invalid_predictions > 0:
+                    players_with_invalid.append({
+                        'player_name': player_name,
+                        'invalid_count': invalid_predictions
+                    })
+            
+            missing_data['next']['players_missing'] = players_missing
+            missing_data['next']['players_with_invalid'] = players_with_invalid
+    
+    except Exception as e:
+        print(f"Error getting missing predictions: {e}")
+        missing_data = {'current': {}, 'next': {}}
+    
+    return missing_data
+
+
 def get_dashboard_stats(cursor) -> Dict:
     """Get dashboard statistics from database"""
     stats = {}
@@ -344,7 +461,7 @@ def get_dashboard_stats(cursor) -> Dict:
         stats['completed_fixtures'] = cursor.fetchone()[0]
         
         # Current gameweek
-        cursor.execute("SELECT gameweek FROM gameweeks WHERE current_gameweek = 1 LIMIT 1")
+        cursor.execute("SELECT gameweek FROM gameweeks WHERE current_gameweek = 1")
         result = cursor.fetchone()
         stats['current_gameweek'] = result[0] if result else None
         
@@ -530,13 +647,17 @@ if __name__ == '__main__':
         host = config.get('host', '127.0.0.1')
         port = config.get('port', 5000)
         debug = config.get('debug', False)
-        
+
         print(f"Starting Prediction League Web App...")
         print(f"Access at: http://{host}:{port}")
         print(f"Admin password: {config['admin_password']}")
-        
+
         app.run(host=host, port=port, debug=debug)
-        
+
     except Exception as e:
         print(f"Failed to start application: {e}")
         print("Make sure config.json exists and database is accessible")
+
+# Ensure config is loaded when running under gunicorn
+if not config:
+    load_config()

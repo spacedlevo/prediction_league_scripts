@@ -54,6 +54,7 @@ COMMAND LINE OPTIONS:
 - --debug: Detailed bootstrap change detection logging
 - --dry-run: Preview changes without database updates
 - --test: Use cached sample data for development
+- --force-refresh: Clear existing FPL data and re-fetch everything
 
 USE CASES:
 - Complete fantasy team analysis with ownership, form, and value metrics
@@ -350,6 +351,45 @@ def create_bootstrap_table(cursor):
         CREATE INDEX IF NOT EXISTS idx_bootstrap_player_season 
         ON fpl_players_bootstrap(player_id, season)
     """)
+
+def clear_existing_fpl_data(cursor, conn, season, logger, dry_run=False):
+    """Clear all existing FPL data for the specified season"""
+    try:
+        if dry_run:
+            logger.info(f"DRY RUN: Would clear existing FPL data for season {season}...")
+        else:
+            logger.info(f"Clearing existing FPL data for season {season}...")
+        
+        # Get count before clearing
+        cursor.execute("SELECT COUNT(*) FROM fantasy_pl_scores")
+        scores_count = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(*) FROM fpl_players_bootstrap WHERE season = ?", (season,))
+        bootstrap_count = cursor.fetchone()[0]
+        
+        if dry_run:
+            logger.info(f"DRY RUN: Would clear FPL data for season {season}: "
+                       f"{bootstrap_count} bootstrap records, {scores_count} performance records")
+            return
+        
+        # Clear fantasy_pl_scores table (no season filter needed - it's all current season data)
+        cursor.execute("DELETE FROM fantasy_pl_scores")
+        scores_deleted = cursor.rowcount
+        
+        # Clear bootstrap data for the specified season
+        cursor.execute("DELETE FROM fpl_players_bootstrap WHERE season = ?", (season,))
+        bootstrap_deleted = cursor.rowcount
+        
+        conn.commit()
+        
+        logger.info(f"Cleared FPL data for season {season}: "
+                   f"{bootstrap_deleted} bootstrap records, {scores_deleted} performance records")
+        
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Error clearing FPL data for season {season}: {e}")
+        raise
+
 
 def load_team_mapping(cursor):
     """Load FPL team ID to database team_id mapping"""
@@ -1050,7 +1090,7 @@ def upsert_player_scores(cursor, player_scores, existing_data, fixture_mapping, 
     if fixture_mapping_errors > 0:
         logger.warning(f"Skipped {fixture_mapping_errors} records due to fixture mapping errors")
 
-def collect_fpl_data(logger, max_workers=5, debug=False):
+def collect_fpl_data(logger, max_workers=5, debug=False, force_refresh=False, dry_run=False):
     """Collect FPL data with smart bootstrap-based filtering"""
     # Get bootstrap data
     players = fetch_bootstrap_data(logger)
@@ -1074,13 +1114,21 @@ def collect_fpl_data(logger, max_workers=5, debug=False):
         team_mapping = load_team_mapping(cursor)
         logger.info(f"Loaded {len(team_mapping)} team mappings")
         
-        # Load existing bootstrap data
-        logger.info("Loading existing bootstrap data for comparison...")
-        existing_bootstrap_data = load_existing_bootstrap_data(cursor)
-        logger.info(f"Loaded {len(existing_bootstrap_data)} existing bootstrap records")
-        
-        # Identify which players need individual API calls
-        players_to_update = identify_players_to_update(players, existing_bootstrap_data, logger, debug)
+        # Handle force refresh option
+        if force_refresh:
+            logger.info("Force refresh enabled - clearing existing FPL data...")
+            clear_existing_fpl_data(cursor, conn, CURRENT_SEASON, logger, dry_run)
+            existing_bootstrap_data = {}  # Empty since we cleared everything
+            players_to_update = players  # Update all players
+            logger.info(f"Force refresh: All {len(players)} players marked for update")
+        else:
+            # Load existing bootstrap data
+            logger.info("Loading existing bootstrap data for comparison...")
+            existing_bootstrap_data = load_existing_bootstrap_data(cursor)
+            logger.info(f"Loaded {len(existing_bootstrap_data)} existing bootstrap records")
+            
+            # Identify which players need individual API calls
+            players_to_update = identify_players_to_update(players, existing_bootstrap_data, logger, debug)
         
         # Update bootstrap table with current data
         logger.info("Updating bootstrap table with current player data...")
@@ -1203,7 +1251,7 @@ def load_sample_data(logger):
         logger.error(f"Failed to load sample data: {e}")
         return None
 
-def main(cleanup_count=5, dry_run=False, max_workers=5, debug=False):
+def main(cleanup_count=5, dry_run=False, max_workers=5, debug=False, force_refresh=False):
     """Main execution function"""
     logger = setup_logging()
     if debug:
@@ -1211,7 +1259,7 @@ def main(cleanup_count=5, dry_run=False, max_workers=5, debug=False):
     logger.info("Starting FPL data fetch process...")
     
     # Collect FPL data
-    fpl_data = collect_fpl_data(logger, max_workers, debug)
+    fpl_data = collect_fpl_data(logger, max_workers, debug, force_refresh, dry_run)
     
     if fpl_data and fpl_data['player_scores']:
         # Save sample data
@@ -1256,6 +1304,8 @@ def parse_arguments():
                        help='Maximum number of concurrent API requests (default: 5)')
     parser.add_argument('--debug', action='store_true',
                        help='Enable debug logging for detailed change detection info')
+    parser.add_argument('--force-refresh', action='store_true',
+                       help='Clear existing FPL data and re-fetch everything')
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -1264,4 +1314,4 @@ if __name__ == "__main__":
     if args.test:
         test_with_sample_data(dry_run=args.dry_run)
     else:
-        main(cleanup_count=args.cleanup_count, dry_run=args.dry_run, max_workers=args.max_workers, debug=args.debug)
+        main(cleanup_count=args.cleanup_count, dry_run=args.dry_run, max_workers=args.max_workers, debug=args.debug, force_refresh=args.force_refresh)

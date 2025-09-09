@@ -26,6 +26,7 @@ COMMAND LINE OPTIONS:
 - --test: Use cached sample data for development
 - --season: Process specific season (default: current season)
 - --cleanup-count: Number of sample files to keep (default: 10)
+- --force-refresh: Delete existing pulse data and re-fetch all fixtures
 """
 
 import json
@@ -199,6 +200,54 @@ def load_team_mapping(cursor: sql.Cursor, logger: logging.Logger) -> Dict[int, i
     except Exception as e:
         logger.error(f"Error loading team mapping: {e}")
         return {}
+
+
+def clear_existing_pulse_data(cursor: sql.Cursor, conn: sql.Connection, season: str, logger: logging.Logger) -> None:
+    """Clear all existing pulse data for the specified season"""
+    try:
+        logger.info(f"Clearing existing pulse data for season {season}...")
+        
+        # Get all pulse_ids for the season first
+        cursor.execute("""
+            SELECT COUNT(DISTINCT f.pulse_id) 
+            FROM fixtures f
+            LEFT JOIN match_events me ON f.pulse_id = me.pulseid
+            WHERE f.season = ? AND me.pulseid IS NOT NULL
+        """, (season,))
+        count_before = cursor.fetchone()[0]
+        
+        # Delete from all pulse API tables for fixtures in this season
+        cursor.execute("""
+            DELETE FROM match_events WHERE pulseid IN (
+                SELECT pulse_id FROM fixtures WHERE season = ? AND pulse_id IS NOT NULL
+            )
+        """, (season,))
+        events_deleted = cursor.rowcount
+        
+        cursor.execute("""
+            DELETE FROM team_list WHERE pulseid IN (
+                SELECT pulse_id FROM fixtures WHERE season = ? AND pulse_id IS NOT NULL
+            )
+        """, (season,))
+        team_list_deleted = cursor.rowcount
+        
+        cursor.execute("""
+            DELETE FROM match_officials WHERE pulseid IN (
+                SELECT pulse_id FROM fixtures WHERE season = ? AND pulse_id IS NOT NULL
+            )
+        """, (season,))
+        officials_deleted = cursor.rowcount
+        
+        conn.commit()
+        
+        logger.info(f"Cleared pulse data for season {season}: "
+                   f"{officials_deleted} officials, {team_list_deleted} team list entries, "
+                   f"{events_deleted} events from {count_before} fixtures")
+        
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Error clearing pulse data for season {season}: {e}")
+        raise
 
 
 def get_fixtures_needing_pulse_data(cursor: sql.Cursor, season: str, force_all: bool = False, logger: Optional[logging.Logger] = None) -> List[Tuple[int, int, str]]:
@@ -716,9 +765,16 @@ def main_process(args: argparse.Namespace, logger: logging.Logger) -> None:
         # Get processing statistics
         get_processing_stats(cursor, args.season, logger)
         
+        # Handle force-refresh: clear existing data first
+        if args.force_refresh:
+            if args.dry_run:
+                logger.info("DRY RUN: Would clear all existing pulse data for season")
+            else:
+                clear_existing_pulse_data(cursor, conn, args.season, logger)
+        
         # Find fixtures needing pulse data
         fixtures_to_process = get_fixtures_needing_pulse_data(
-            cursor, args.season, args.force_all, logger
+            cursor, args.season, args.force_all or args.force_refresh, logger
         )
         
         if not fixtures_to_process:
@@ -778,11 +834,20 @@ def parse_arguments() -> argparse.Namespace:
                        help='Number of sample files to keep (0 to disable cleanup)')
     parser.add_argument('--force-all', action='store_true',
                        help='Force fetch all fixtures regardless of existing data')
+    parser.add_argument('--force-refresh', action='store_true',
+                       help='Delete existing pulse data and re-fetch all fixtures')
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_arguments()
+    
+    # Validate arguments
+    if args.force_refresh and args.force_all:
+        print("Error: Cannot use both --force-refresh and --force-all together")
+        print("Use --force-refresh to clear existing data and re-fetch all fixtures")
+        print("Use --force-all to fetch all fixtures without clearing existing data")
+        exit(1)
     
     logger = setup_logging()
     logger.info("Starting Pulse API data fetch process...")

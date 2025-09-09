@@ -4,6 +4,60 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2025-09-08] - Force Refresh Features for Data Collection Scripts
+
+### Added - Pulse API Force Refresh Option
+- **New --force-refresh Flag**: Added `--force-refresh` option to `fetch_pulse_data.py` for complete data reset
+- **Clear Existing Data**: Removes all existing pulse data (match officials, team lists, events) for specified season
+- **Complete Re-fetch**: Re-fetches all finished fixtures regardless of existing data
+- **Argument Validation**: Prevents concurrent use of `--force-refresh` and `--force-all` flags
+- **Dry Run Support**: Shows what data would be cleared without making changes
+
+### Added - FPL Data Force Refresh Option
+- **New --force-refresh Flag**: Added `--force-refresh` option to `fetch_fpl_data.py` for complete data reset
+- **Clear Bootstrap Data**: Removes all existing `fpl_players_bootstrap` records for specified season
+- **Clear Performance Data**: Removes all existing `fantasy_pl_scores` records
+- **Complete Re-fetch**: Forces re-fetching of all players and their performance history
+- **Bypass Change Detection**: Ignores bootstrap-based optimization and fetches everything
+- **Dry Run Support**: Preview mode shows what would be cleared without making changes
+
+### Technical Implementation - Pulse API
+- **Data Clearing Function**: `clear_existing_pulse_data()` removes all pulse data for season before re-fetching
+- **Smart Logic Integration**: Combines with existing `get_fixtures_needing_pulse_data()` to fetch all fixtures after clearing
+- **Transaction Safety**: Uses proper database transactions with rollback on errors
+- **Comprehensive Logging**: Detailed logging of what data is being cleared and re-fetched
+- **Command Line Validation**: Prevents conflicting argument combinations
+
+### Technical Implementation - FPL Data  
+- **Data Clearing Function**: `clear_existing_fpl_data()` removes all FPL data for season before re-fetching
+- **Bootstrap Override**: Sets `existing_bootstrap_data = {}` to bypass change detection
+- **Complete Player List**: Marks all players for individual API calls (`players_to_update = players`)
+- **Transaction Safety**: Uses proper database transactions with rollback on errors
+- **Comprehensive Logging**: Shows exactly what data is being cleared and how many records
+
+### Usage Examples
+```bash
+# Clear all pulse data and re-fetch everything
+./venv/bin/python scripts/pulse_api/fetch_pulse_data.py --force-refresh
+
+# Clear all FPL data and re-fetch everything
+./venv/bin/python scripts/fpl/fetch_fpl_data.py --force-refresh
+
+# Preview what would be cleared (dry run)
+./venv/bin/python scripts/pulse_api/fetch_pulse_data.py --force-refresh --dry-run
+./venv/bin/python scripts/fpl/fetch_fpl_data.py --force-refresh --dry-run
+
+# Clear and re-fetch for specific season (pulse API only)
+./venv/bin/python scripts/pulse_api/fetch_pulse_data.py --force-refresh --season "2024/2025"
+```
+
+### Benefits
+- **Data Reset Capability**: Complete refresh when data corruption or API changes occur
+- **Development Tool**: Useful for testing and debugging API integrations
+- **Season Flexibility**: Can refresh data for any season independently (pulse API)
+- **Performance Reset**: Bypasses optimization for complete data collection (FPL)
+- **Safe Operation**: Dry run mode prevents accidental data loss
+
 ## [2025-09-04] - Smart Timestamp Updates
 
 ### Fixed - Unnecessary Database Uploads
