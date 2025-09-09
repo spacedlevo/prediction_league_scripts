@@ -493,7 +493,7 @@ def get_dashboard_stats(cursor) -> Dict:
 
 
 def get_recent_updates(cursor) -> List:
-    """Get recent database updates"""
+    """Get recent database updates with formatted timestamps"""
     try:
         cursor.execute("""
             SELECT table_name, updated, timestamp 
@@ -501,7 +501,31 @@ def get_recent_updates(cursor) -> List:
             ORDER BY timestamp DESC 
             LIMIT 10
         """)
-        return cursor.fetchall()
+        raw_updates = cursor.fetchall()
+        
+        # Convert to list of dictionaries with formatted timestamps
+        formatted_updates = []
+        for update in raw_updates:
+            update_dict = {
+                'table_name': update[0],
+                'updated': update[1],
+                'timestamp': update[2],
+                'formatted_timestamp': 'Unknown'
+            }
+            
+            # Format timestamp if available
+            if update[2]:
+                try:
+                    # Convert Unix timestamp to datetime and format
+                    dt = datetime.fromtimestamp(update[2])
+                    update_dict['formatted_timestamp'] = dt.strftime('%d/%m/%Y %H:%M')
+                except (ValueError, OSError):
+                    # Keep 'Unknown' as fallback for invalid timestamps
+                    pass
+            
+            formatted_updates.append(update_dict)
+        
+        return formatted_updates
     except Exception:
         return []
 

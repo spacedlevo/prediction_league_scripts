@@ -294,7 +294,7 @@
                                 </span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {{ moment(update.timestamp).format('DD/MM/YYYY HH:mm') if update.timestamp else 'Unknown' }}
+                                {{ update.formatted_timestamp }}
                             </td>
                         </tr>
                         {% endfor %}
