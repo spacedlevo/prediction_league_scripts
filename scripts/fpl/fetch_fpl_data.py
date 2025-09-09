@@ -604,9 +604,27 @@ def identify_players_to_update(new_players, existing_bootstrap_data, logger, deb
     
     return players_to_update
 
+def update_last_update_table(table_name, cursor, logger):
+    """Update the last_update table with current timestamp"""
+    try:
+        dt = datetime.now()
+        now = dt.strftime("%d-%m-%Y. %H:%M:%S")
+        timestamp = dt.timestamp()
+        
+        cursor.execute("""
+            INSERT OR REPLACE INTO last_update (table_name, updated, timestamp) 
+            VALUES (?, ?, ?)
+        """, (table_name, now, timestamp))
+        
+        logger.info(f"Updated last_update table for '{table_name}'")
+        
+    except Exception as e:
+        logger.error(f"Error updating last_update table for '{table_name}': {e}")
+
 def update_bootstrap_data(cursor, players, team_mapping, logger):
     """Update bootstrap table with current player data"""
     updated_count = 0
+    changes_made = len(players) > 0  # If we have players to update, assume changes
     
     for player in players:
         # Map FPL team ID to database team_id
@@ -739,6 +757,7 @@ def update_bootstrap_data(cursor, players, team_mapping, logger):
         updated_count += 1
     
     logger.info(f"Updated bootstrap data for {updated_count} players")
+    return changes_made
 
 def create_fantasy_scores_team_column(cursor):
     """Add missing columns to fantasy_pl_scores table if they don't exist"""
@@ -1132,7 +1151,13 @@ def collect_fpl_data(logger, max_workers=5, debug=False, force_refresh=False, dr
         
         # Update bootstrap table with current data
         logger.info("Updating bootstrap table with current player data...")
-        update_bootstrap_data(cursor, players, team_mapping, logger)
+        bootstrap_changes_made = update_bootstrap_data(cursor, players, team_mapping, logger)
+        
+        # Log bootstrap updates if changes were detected (indicated by players needing updates)
+        if len(players_to_update) > 0 and not dry_run:
+            logger.info("Bootstrap data changes detected - logging update timestamp")
+            update_last_update_table("fpl_players_bootstrap", cursor, logger)
+        
         conn.commit()
         
         # Collect player scores for filtered players
@@ -1214,13 +1239,7 @@ def process_fpl_data(fpl_data, logger, dry_run=False):
             logger.info("DRY RUN - Transaction rolled back")
         else:
             # Update last_update table to trigger database upload
-            now = datetime.now()
-            timestamp = now.timestamp()
-            formatted_time = now.strftime("%d-%m-%Y. %H:%M:%S")
-            cursor.execute("""
-                INSERT OR REPLACE INTO last_update (table_name, updated, timestamp) 
-                VALUES (?, ?, ?)
-            """, ("fantasy_pl_scores", formatted_time, timestamp))
+            update_last_update_table("fantasy_pl_scores", cursor, logger)
             conn.commit()
             logger.info("Database transaction committed successfully")
         
