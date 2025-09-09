@@ -299,6 +299,154 @@ def script_status_api(script_key):
     return jsonify(status)
 
 
+@app.route('/api/fpl/players')
+@require_auth
+def api_fpl_players():
+    """API endpoint for FPL player search with comprehensive statistics"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get query parameters
+        player_name = request.args.get('playerName', '').strip()
+        position = request.args.get('position', '')
+        min_points = request.args.get('minPoints', '')
+        max_value = request.args.get('maxValue', '')
+        min_minutes = request.args.get('minMinutes', '0')
+        min_form = request.args.get('minForm', '')
+        max_ownership = request.args.get('maxOwnership', '')
+        
+        # Build base query
+        query = """
+            SELECT 
+                player_name, position, total_points, value, minutes, starts,
+                expected_goals, expected_assists, expected_goal_involvements,
+                goals_scored, assists, clean_sheets, saves, bonus, bps,
+                form, points_per_game, selected_by_percent, transfers_in,
+                defensive_contribution, yellow_cards, red_cards, team_id
+            FROM fpl_players_bootstrap 
+            WHERE season = '2025/2026'
+        """
+        
+        params = []
+        
+        # Add filters
+        if player_name:
+            query += " AND LOWER(player_name) LIKE LOWER(?)"
+            params.append(f'%{player_name}%')
+        
+        if position:
+            query += " AND position = ?"
+            params.append(position)
+        
+        if min_points:
+            query += " AND total_points >= ?"
+            params.append(int(min_points))
+        
+        if max_value:
+            query += " AND value <= ?"
+            params.append(int(float(max_value) * 10))  # Convert to internal format
+        
+        if min_minutes:
+            query += " AND minutes >= ?"
+            params.append(int(min_minutes))
+        
+        if min_form:
+            query += " AND form >= ?"
+            params.append(float(min_form))
+        
+        if max_ownership:
+            query += " AND selected_by_percent <= ?"
+            params.append(float(max_ownership))
+        
+        # Default order by total points descending
+        query += " ORDER BY total_points DESC, player_name ASC"
+        
+        # Limit results for performance
+        query += " LIMIT 100"
+        
+        cursor.execute(query, params)
+        raw_results = cursor.fetchall()
+        
+        # Process results to add calculated fields
+        results = []
+        for row in raw_results:
+            player_data = {
+                'player_name': row[0],
+                'position': row[1],
+                'total_points': row[2],
+                'value': row[3],
+                'minutes': row[4],
+                'starts': row[5],
+                'expected_goals': float(row[6] or 0),
+                'expected_assists': float(row[7] or 0),
+                'expected_goal_involvements': float(row[8] or 0),
+                'goals_scored': row[9] or 0,
+                'assists': row[10] or 0,
+                'clean_sheets': row[11] or 0,
+                'saves': row[12] or 0,
+                'bonus': row[13] or 0,
+                'bps': row[14] or 0,
+                'form': float(row[15] or 0),
+                'points_per_game': float(row[16] or 0),
+                'selected_by_percent': float(row[17] or 0),
+                'transfers_in': row[18] or 0,
+                'defensive_contribution': row[19] or 0,
+                'yellow_cards': row[20] or 0,
+                'red_cards': row[21] or 0,
+                'team_id': row[22] or 0,
+                
+                # Calculated fields
+                'value_millions': round(row[3] / 10, 1),
+                'value_per_million': round(row[2] / (row[3] / 10), 2) if row[3] > 0 else 0,
+                'goal_contributions': (row[9] or 0) + (row[10] or 0),
+                'minutes_per_start': round(row[4] / row[5], 1) if row[5] > 0 else 0,
+                'saves_per_90': round((row[12] or 0) * 90 / row[4], 1) if row[4] > 0 else 0,
+                'bps_per_90': round((row[14] or 0) * 90 / row[4], 1) if row[4] > 0 else 0,
+            }
+            
+            # Position-specific enhancements
+            if row[1] == '1':  # Goalkeeper
+                player_data['position_type'] = 'goalkeeper'
+                player_data['clean_sheet_rate'] = round(row[11] / row[5] * 100, 1) if row[5] > 0 else 0
+            elif row[1] == '2':  # Defender
+                player_data['position_type'] = 'defender'
+                player_data['attacking_threat'] = player_data['expected_goals'] + player_data['expected_assists']
+            elif row[1] == '3':  # Midfielder
+                player_data['position_type'] = 'midfielder'
+                player_data['creativity_vs_threat'] = 'creative' if player_data['expected_assists'] > player_data['expected_goals'] else 'goal_threat'
+            elif row[1] == '4':  # Forward
+                player_data['position_type'] = 'forward'
+                player_data['shot_conversion'] = round((row[9] or 0) / max(player_data['expected_goals'], 0.1), 2)
+            
+            results.append(player_data)
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'players': results,
+            'count': len(results),
+            'filters_applied': {
+                'player_name': player_name,
+                'position': position,
+                'min_points': min_points,
+                'max_value': max_value,
+                'min_minutes': min_minutes,
+                'min_form': min_form,
+                'max_ownership': max_ownership
+            }
+        })
+    
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'players': [],
+            'count': 0
+        })
+
+
 @app.route('/fpl')
 @require_auth
 def fpl_insights():

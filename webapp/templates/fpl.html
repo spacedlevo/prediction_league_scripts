@@ -448,6 +448,54 @@
                 </div>
             </div>
             
+            <!-- Advanced Filters -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- Min Minutes (Nailed-on starters) -->
+                <div>
+                    <label for="minMinutes" class="block text-sm font-medium text-gray-700 mb-2">
+                        Min Minutes (Nailed-on)
+                    </label>
+                    <select id="minMinutes" 
+                            name="minMinutes"
+                            class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        <option value="0">All Players</option>
+                        <option value="90">Regular Starters (90+)</option>
+                        <option value="180">Nailed-on (180+)</option>
+                        <option value="240">Guaranteed (240+)</option>
+                    </select>
+                </div>
+                
+                <!-- Form Filter -->
+                <div>
+                    <label for="minForm" class="block text-sm font-medium text-gray-700 mb-2">
+                        Min Form
+                    </label>
+                    <input type="number" 
+                           id="minForm" 
+                           name="minForm"
+                           placeholder="0"
+                           min="0"
+                           max="10"
+                           step="0.1"
+                           class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                
+                <!-- Ownership Filter -->
+                <div>
+                    <label for="maxOwnership" class="block text-sm font-medium text-gray-700 mb-2">
+                        Max Ownership % (Differentials)
+                    </label>
+                    <input type="number" 
+                           id="maxOwnership" 
+                           name="maxOwnership"
+                           placeholder="100"
+                           min="0"
+                           max="100"
+                           step="0.1"
+                           class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                </div>
+            </div>
+            
             <div class="flex justify-between items-center">
                 <div class="flex space-x-3">
                     <button type="submit" 
@@ -470,26 +518,50 @@
         <!-- Search Results -->
         <div id="searchResults" class="mt-6 hidden">
             <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
+                <table class="min-w-full divide-y divide-gray-200 text-sm">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50">
                                 Player
                             </th>
-                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Pos
                             </th>
-                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Points
                             </th>
-                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Value
                             </th>
-                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                VPM
+                            </th>
+                            <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 PPG
                             </th>
-                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Transfers In
+                            <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Mins
+                            </th>
+                            <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Form
+                            </th>
+                            <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                xG
+                            </th>
+                            <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                xA
+                            </th>
+                            <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                G+A
+                            </th>
+                            <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                BPS
+                            </th>
+                            <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Own %
+                            </th>
+                            <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Position Stats
                             </th>
                         </tr>
                     </thead>
@@ -504,18 +576,22 @@
     <!-- Quick Actions -->
     <div class="bg-white shadow rounded-lg p-6">
         <h3 class="text-lg font-medium text-gray-900 mb-4">⚡ Quick Analysis</h3>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <button onclick="showTopValue()" 
                     class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium">
                 💰 Best Value Players
             </button>
             <button onclick="showDifferentials()" 
                     class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md text-sm font-medium">
-                📊 Differentials (Low Ownership)
+                📊 Differentials (<5% owned)
+            </button>
+            <button onclick="showFormPlayers()" 
+                    class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                🔥 Hot Form Players
             </button>
             <button onclick="exportData()" 
                     class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium">
-                📥 Export CSV
+                📥 Export Data
             </button>
         </div>
     </div>
@@ -524,26 +600,6 @@
 
 {% block scripts %}
 <script>
-// Mock data for demonstration - in real implementation this would come from API
-const mockPlayerData = [
-    {
-        player_name: "Mohamed Salah",
-        position: "4",
-        total_points: 45,
-        value: 130,
-        points_per_game: 4.5,
-        transfers_in: 150000
-    },
-    {
-        player_name: "Virgil van Dijk", 
-        position: "2",
-        total_points: 38,
-        value: 65,
-        points_per_game: 3.8,
-        transfers_in: 80000
-    }
-];
-
 document.getElementById('playerSearchForm').addEventListener('submit', function(e) {
     e.preventDefault();
     performSearch();
@@ -551,71 +607,140 @@ document.getElementById('playerSearchForm').addEventListener('submit', function(
 
 function performSearch() {
     const formData = new FormData(document.getElementById('playerSearchForm'));
-    const filters = Object.fromEntries(formData.entries());
+    const params = new URLSearchParams();
     
-    // In real implementation, this would be an API call
-    // For now, we'll show a mock search
-    let results = mockPlayerData;
-    
-    // Apply filters
-    if (filters.playerName) {
-        results = results.filter(p => 
-            p.player_name.toLowerCase().includes(filters.playerName.toLowerCase())
-        );
+    // Add form parameters to API call
+    for (const [key, value] of formData.entries()) {
+        if (value.trim()) {
+            params.append(key, value);
+        }
     }
     
-    if (filters.position) {
-        results = results.filter(p => p.position === filters.position);
-    }
+    // Show loading state
+    const countSpan = document.getElementById('resultCount');
+    countSpan.textContent = 'Searching...';
     
-    if (filters.minPoints) {
-        results = results.filter(p => p.total_points >= parseInt(filters.minPoints));
-    }
-    
-    if (filters.maxValue) {
-        results = results.filter(p => (p.value / 10) <= parseFloat(filters.maxValue));
-    }
-    
-    displaySearchResults(results);
+    // Make API call to our new endpoint
+    fetch(`/api/fpl/players?${params.toString()}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displaySearchResults(data.players);
+                countSpan.textContent = `Found ${data.count} player(s)`;
+            } else {
+                countSpan.textContent = `Error: ${data.error}`;
+                displaySearchResults([]);
+            }
+        })
+        .catch(error => {
+            console.error('Search error:', error);
+            countSpan.textContent = 'Search failed - please try again';
+            displaySearchResults([]);
+        });
 }
 
 function displaySearchResults(results) {
     const resultsDiv = document.getElementById('searchResults');
     const resultsBody = document.getElementById('searchResultsBody');
-    const countSpan = document.getElementById('resultCount');
     
     if (results.length === 0) {
         resultsDiv.classList.add('hidden');
-        countSpan.textContent = 'No players found';
         return;
     }
     
-    countSpan.textContent = `Found ${results.length} player(s)`;
-    
-    resultsBody.innerHTML = results.map(player => `
-        <tr>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                ${player.player_name}
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
-                ${getPositionIcon(player.position)}
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">
-                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                    ${player.total_points}
-                </span>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
-                £${(player.value / 10).toFixed(1)}m
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
-                ${player.points_per_game.toFixed(1)}
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
-                ${player.transfers_in.toLocaleString()}
-            </td>
-        </tr>
-    `).join('');
+    resultsBody.innerHTML = results.map(player => {
+        // Position-specific stats
+        let positionStats = '';
+        if (player.position === '1') { // Goalkeeper
+            positionStats = `
+                <div class="text-xs">
+                    <div>Saves: ${player.saves}</div>
+                    <div>CS Rate: ${player.clean_sheet_rate || 0}%</div>
+                </div>
+            `;
+        } else if (player.position === '2') { // Defender  
+            positionStats = `
+                <div class="text-xs">
+                    <div>CS: ${player.clean_sheets}</div>
+                    <div>Att Threat: ${(player.attacking_threat || 0).toFixed(2)}</div>
+                </div>
+            `;
+        } else if (player.position === '3') { // Midfielder
+            positionStats = `
+                <div class="text-xs">
+                    <div>Type: ${player.creativity_vs_threat || 'balanced'}</div>
+                    <div>xGI: ${player.expected_goal_involvements.toFixed(2)}</div>
+                </div>
+            `;
+        } else if (player.position === '4') { // Forward
+            positionStats = `
+                <div class="text-xs">
+                    <div>Conversion: ${player.shot_conversion || 0}</div>
+                    <div>xGI: ${player.expected_goal_involvements.toFixed(2)}</div>
+                </div>
+            `;
+        }
+        
+        // Form indicator color
+        const formColor = player.form >= 7 ? 'text-green-600' : 
+                         player.form >= 4 ? 'text-yellow-600' : 'text-red-600';
+        
+        // Value per million color coding
+        const vpmColor = player.value_per_million >= 4 ? 'text-green-600' :
+                        player.value_per_million >= 2 ? 'text-yellow-600' : 'text-red-600';
+        
+        return `
+            <tr class="hover:bg-gray-50">
+                <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 sticky left-0 bg-white">
+                    ${player.player_name}
+                    <div class="text-xs text-gray-500">${getPositionName(player.position)}</div>
+                </td>
+                <td class="px-3 py-3 whitespace-nowrap text-center text-sm">
+                    ${getPositionIcon(player.position)}
+                </td>
+                <td class="px-3 py-3 whitespace-nowrap text-center text-sm">
+                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        ${player.total_points}
+                    </span>
+                </td>
+                <td class="px-3 py-3 whitespace-nowrap text-center text-sm text-gray-600">
+                    £${player.value_millions}m
+                </td>
+                <td class="px-3 py-3 whitespace-nowrap text-center text-sm font-medium ${vpmColor}">
+                    ${player.value_per_million}
+                </td>
+                <td class="px-3 py-3 whitespace-nowrap text-center text-sm text-gray-600">
+                    ${player.points_per_game.toFixed(1)}
+                </td>
+                <td class="px-3 py-3 whitespace-nowrap text-center text-sm text-gray-600">
+                    ${player.minutes}'
+                </td>
+                <td class="px-3 py-3 whitespace-nowrap text-center text-sm font-medium ${formColor}">
+                    ${player.form.toFixed(1)}
+                </td>
+                <td class="px-3 py-3 whitespace-nowrap text-center text-sm text-gray-600">
+                    ${player.expected_goals.toFixed(2)}
+                </td>
+                <td class="px-3 py-3 whitespace-nowrap text-center text-sm text-gray-600">
+                    ${player.expected_assists.toFixed(2)}
+                </td>
+                <td class="px-3 py-3 whitespace-nowrap text-center text-sm">
+                    <span class="inline-flex items-center px-1 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                        ${player.goal_contributions}
+                    </span>
+                </td>
+                <td class="px-3 py-3 whitespace-nowrap text-center text-sm text-gray-600">
+                    ${player.bps}
+                </td>
+                <td class="px-3 py-3 whitespace-nowrap text-center text-sm text-gray-600">
+                    ${player.selected_by_percent.toFixed(1)}%
+                </td>
+                <td class="px-3 py-3 whitespace-nowrap text-center text-xs">
+                    ${positionStats}
+                </td>
+            </tr>
+        `;
+    }).join('');
     
     resultsDiv.classList.remove('hidden');
 }
@@ -630,6 +755,16 @@ function getPositionIcon(position) {
     }
 }
 
+function getPositionName(position) {
+    switch (position) {
+        case '1': return 'Goalkeeper';
+        case '2': return 'Defender';
+        case '3': return 'Midfielder';
+        case '4': return 'Forward';
+        default: return 'Unknown';
+    }
+}
+
 function clearSearch() {
     document.getElementById('playerSearchForm').reset();
     document.getElementById('searchResults').classList.add('hidden');
@@ -637,18 +772,88 @@ function clearSearch() {
 }
 
 function showTopValue() {
-    // Mock implementation - would calculate points per million
-    alert('Best Value Players feature coming soon! This would show players with highest points per million ratio.');
+    // Clear existing filters and search for best value players
+    document.getElementById('playerSearchForm').reset();
+    document.getElementById('minPoints').value = '10';  // Minimum viable points
+    document.getElementById('minMinutes').value = '180'; // Nailed-on starters
+    
+    // Update count and perform search
+    document.getElementById('resultCount').textContent = 'Finding best value players...';
+    
+    // API call with value focus
+    fetch('/api/fpl/players?minPoints=10&minMinutes=180')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Sort by value per million and take top performers
+                const valuePlayersSorted = data.players
+                    .filter(p => p.value_per_million > 0)
+                    .sort((a, b) => b.value_per_million - a.value_per_million)
+                    .slice(0, 20);
+                
+                displaySearchResults(valuePlayersSorted);
+                document.getElementById('resultCount').textContent = `Best Value: ${valuePlayersSorted.length} players (sorted by points per million)`;
+            }
+        });
 }
 
 function showDifferentials() {
-    // Mock implementation - would show low ownership players
-    alert('Differentials feature coming soon! This would show players with low ownership but good potential.');
+    // Clear form and search for differentials (low ownership, high potential)
+    document.getElementById('playerSearchForm').reset();
+    document.getElementById('maxOwnership').value = '5';  // < 5% ownership
+    document.getElementById('minPoints').value = '8';    // Decent points
+    document.getElementById('minMinutes').value = '90';  // Some game time
+    
+    document.getElementById('resultCount').textContent = 'Finding differential players...';
+    
+    fetch('/api/fpl/players?maxOwnership=5&minPoints=8&minMinutes=90')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Sort by form and potential
+                const differentials = data.players
+                    .sort((a, b) => (b.form * b.expected_goal_involvements) - (a.form * a.expected_goal_involvements))
+                    .slice(0, 25);
+                
+                displaySearchResults(differentials);
+                document.getElementById('resultCount').textContent = `Differentials: ${differentials.length} players (<5% ownership)`;
+            }
+        });
+}
+
+function showFormPlayers() {
+    // Show players in hot form
+    document.getElementById('playerSearchForm').reset();
+    document.getElementById('minForm').value = '6';      // Hot form
+    document.getElementById('minMinutes').value = '90';  // Regular playing time
+    
+    document.getElementById('resultCount').textContent = 'Finding form players...';
+    
+    fetch('/api/fpl/players?minForm=6&minMinutes=90')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Sort by form
+                const formPlayers = data.players
+                    .sort((a, b) => b.form - a.form)
+                    .slice(0, 20);
+                
+                displaySearchResults(formPlayers);
+                document.getElementById('resultCount').textContent = `Hot Form: ${formPlayers.length} players (form 6.0+)`;
+            }
+        });
 }
 
 function exportData() {
-    // Mock implementation - would export current view to CSV
-    alert('Export feature coming soon! This would download the current player data as a CSV file.');
+    // Get current results and export as CSV
+    const resultsBody = document.getElementById('searchResultsBody');
+    if (!resultsBody.innerHTML) {
+        alert('No data to export. Please perform a search first.');
+        return;
+    }
+    
+    // For now, show a helpful message
+    alert('Export feature: Copy the current table data or use browser print to save. Full CSV export coming soon!');
 }
 
 // Auto-complete for player names (mock implementation)

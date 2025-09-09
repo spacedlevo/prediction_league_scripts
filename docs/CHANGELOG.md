@@ -4,6 +4,104 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2025-09-09] - Comprehensive FPL Player Search & Analysis System
+
+### Added - Advanced FPL Player Analysis Tools
+- **New API Endpoint**: Created `/api/fpl/players` with comprehensive filtering and advanced statistics calculations
+- **Real-Time Search**: Replaced 2-player mock system with full 370+ player database search
+- **14-Column Analysis**: Comprehensive player statistics including goals, assists, xG, xA, value, form, ownership
+- **Position-Specific Filtering**: Separate analysis for goalkeepers, defenders, midfielders, forwards
+- **Advanced Filters**: 7 filter options including position, price range, ownership, form, minutes, nailed-on status
+- **Quick Analysis Features**: Pre-configured searches for Best Value, Differentials, Hot Form players
+- **Value Per Million (VPM) Calculations**: Custom metric for value assessment based on total points per cost
+
+### Technical Implementation - FPL API Endpoint
+- **Comprehensive Query Builder**: Dynamic SQL with multiple filter combinations and position-specific logic
+- **Statistical Calculations**: Server-side VPM, goals+assists, clean sheet percentages, advanced metrics
+- **Efficient Database Queries**: Single optimized query handles all filtering with proper indexing
+- **JSON Response**: Structured API response with player statistics, team info, and calculated metrics
+- **Error Handling**: Graceful handling of missing data and invalid parameters
+
+### Frontend Enhancement - Player Search Interface
+- **Advanced Filter Form**: 7 distinct filter options with responsive design and intuitive controls
+- **Real AJAX Integration**: Live data fetching replacing mock static data
+- **14-Column Results Table**: Comprehensive statistics display with proper formatting and sorting
+- **Quick Analysis Buttons**: One-click access to curated player lists for FPL managers
+- **Responsive Design**: Mobile-friendly layout with proper table scaling and touch interactions
+- **Loading States**: User feedback during API requests with proper error handling
+
+### Filter Options Available
+1. **Position Filter**: GKP, DEF, MID, FWD with position-specific analysis
+2. **Price Range**: Min/max cost filtering for budget planning
+3. **Ownership Filter**: Min/max selected_by_percent for differential identification
+4. **Form Filter**: Minimum form rating for recent performance analysis
+5. **Minutes Filter**: Minimum minutes played for regular starters identification
+6. **Nailed-On Filter**: Players with 4+ starts in last 5 games for reliability
+7. **Team Filter**: Specific team selection for focused analysis
+
+### Quick Analysis Features
+- **Best Value Players**: Top VPM performers across all positions for budget optimization
+- **Differential Players**: Low-owned players (≤15% ownership) with strong recent form for captaincy alternatives
+- **Hot Form Players**: Recent high performers (form ≥7) for short-term transfers
+- **Each Button**: Pre-configured API calls with optimized parameters for FPL strategy
+
+### Statistics Displayed (14 Columns)
+1. **Player**: Name with team affiliation
+2. **Pos**: Position (GKP/DEF/MID/FWD)
+3. **Cost**: Current player price (£m)
+4. **Total Points**: Season total points
+5. **VPM**: Value Per Million (points per £1m cost)
+6. **Goals**: Season goals scored
+7. **Assists**: Season assists provided
+8. **G+A**: Combined goals and assists
+9. **xG**: Expected Goals (attacking threat)
+10. **xA**: Expected Assists (creativity metric)
+11. **CS**: Clean Sheets (defensive contribution)
+12. **Form**: Recent 5-game form rating
+13. **Own%**: Selected by percentage (ownership)
+14. **Min**: Total minutes played
+
+### Database Integration
+- **Active Players Only**: Filters for current season active players (status != 'u')
+- **Team Mapping**: Proper team_name resolution via teams table join
+- **Season Filtering**: 2025/2026 season data only for current analysis
+- **Efficient Indexing**: Optimized queries for sub-second response times
+
+### API Response Format
+```json
+{
+  "players": [
+    {
+      "player_name": "Erling Haaland",
+      "position": "FWD",
+      "team_name": "Manchester City", 
+      "cost": 15.0,
+      "total_points": 125,
+      "vpm": 8.33,
+      "goals_scored": 12,
+      "assists": 1,
+      "goals_assists": 13,
+      "expected_goals": 10.5,
+      "expected_assists": 0.8,
+      "clean_sheets": 0,
+      "form": 8.2,
+      "selected_by_percent": 55.6,
+      "minutes": 832
+    }
+  ]
+}
+```
+
+### Benefits for FPL Managers
+- **Data-Driven Decisions**: Access to comprehensive statistics for informed transfer choices
+- **Value Identification**: VPM calculations highlight undervalued players for budget optimization
+- **Differential Discovery**: Low-owned players with strong underlying stats for rank climbing
+- **Form Analysis**: Recent performance trends for timing transfers effectively
+- **Position Planning**: Position-specific filtering for targeted team construction
+- **Budget Management**: Price filtering enables efficient squad value planning
+
+This transforms the webapp from basic FPL display into a professional analysis tool comparable to commercial FPL platforms, providing comprehensive player analysis and strategic insights for fantasy football success.
+
 ## [2025-09-09] - Webapp Dashboard Enhanced Prediction Monitoring
 
 ### Enhanced - Dashboard Prediction Monitoring System
