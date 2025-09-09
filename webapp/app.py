@@ -348,8 +348,8 @@ def get_players_missing_predictions(cursor) -> Dict:
         if current_gameweek:
             missing_data['current']['gameweek'] = current_gameweek
             
-            # Get total fixtures for current gameweek
-            cursor.execute("SELECT COUNT(*) FROM fixtures WHERE gameweek = ?", (current_gameweek,))
+            # Get total fixtures for current gameweek in current season
+            cursor.execute("SELECT COUNT(*) FROM fixtures WHERE gameweek = ? AND season = '2025/2026'", (current_gameweek,))
             total_fixtures = cursor.fetchone()[0]
             
             # Get all active players
@@ -366,7 +366,7 @@ def get_players_missing_predictions(cursor) -> Dict:
                            SUM(CASE WHEN home_goals = 9 AND away_goals = 9 THEN 1 ELSE 0 END) as invalid_predictions
                     FROM predictions p
                     JOIN fixtures f ON p.fixture_id = f.fixture_id
-                    WHERE p.player_id = ? AND f.gameweek = ?
+                    WHERE p.player_id = ? AND f.gameweek = ? AND f.season = '2025/2026'
                 """, (player_id, current_gameweek))
                 
                 result = cursor.fetchone()
@@ -394,7 +394,7 @@ def get_players_missing_predictions(cursor) -> Dict:
             missing_data['next']['gameweek'] = next_gameweek
             
             # Get total fixtures for next gameweek
-            cursor.execute("SELECT COUNT(*) FROM fixtures WHERE gameweek = ?", (next_gameweek,))
+            cursor.execute("SELECT COUNT(*) FROM fixtures WHERE gameweek = ? AND season = '2025/2026'", (next_gameweek,))
             total_fixtures = cursor.fetchone()[0]
             
             # Get all active players
@@ -411,7 +411,7 @@ def get_players_missing_predictions(cursor) -> Dict:
                            SUM(CASE WHEN home_goals = 9 AND away_goals = 9 THEN 1 ELSE 0 END) as invalid_predictions
                     FROM predictions p
                     JOIN fixtures f ON p.fixture_id = f.fixture_id
-                    WHERE p.player_id = ? AND f.gameweek = ?
+                    WHERE p.player_id = ? AND f.gameweek = ? AND f.season = '2025/2026'
                 """, (player_id, next_gameweek))
                 
                 result = cursor.fetchone()
