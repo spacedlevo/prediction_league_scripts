@@ -111,6 +111,121 @@
         </div>
     </div>
     
+    <!-- Prediction Issues Alerts -->
+    {% if missing_predictions.current.gameweek or missing_predictions.next.gameweek %}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Current Gameweek Issues -->
+        {% if missing_predictions.current.gameweek %}
+        <div class="bg-white shadow rounded-lg">
+            <div class="px-6 py-4 border-b border-gray-200 bg-red-50">
+                <h3 class="text-lg font-medium text-red-900 flex items-center">
+                    <span class="text-xl mr-2">⚠️</span>
+                    Current Gameweek {{ missing_predictions.current.gameweek }} Issues
+                </h3>
+            </div>
+            <div class="p-6">
+                {% set current_missing = missing_predictions.current.players_missing %}
+                {% set current_invalid = missing_predictions.current.players_with_invalid %}
+                
+                {% if current_missing %}
+                <div class="mb-4">
+                    <h4 class="text-sm font-medium text-gray-900 mb-2">Players with Missing Predictions:</h4>
+                    <div class="bg-red-50 rounded-lg p-3 max-h-32 overflow-y-auto">
+                        <ul class="space-y-1 text-sm">
+                            {% for player in current_missing %}
+                            <li class="flex justify-between items-center">
+                                <span class="text-red-800">{{ player.player_name }}</span>
+                                <span class="text-red-600 text-xs">{{ player.missing_count }} missing</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if current_invalid %}
+                <div class="mb-4">
+                    <h4 class="text-sm font-medium text-gray-900 mb-2">Players with Invalid (9-9) Predictions:</h4>
+                    <div class="bg-yellow-50 rounded-lg p-3 max-h-32 overflow-y-auto">
+                        <ul class="space-y-1 text-sm">
+                            {% for player in current_invalid %}
+                            <li class="flex justify-between items-center">
+                                <span class="text-yellow-800">{{ player.player_name }}</span>
+                                <span class="text-yellow-600 text-xs">{{ player.invalid_count }} invalid</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if not current_missing and not current_invalid %}
+                <div class="text-center py-4 text-green-600">
+                    <div class="text-2xl mb-2">✅</div>
+                    <p class="text-sm">All players have complete predictions!</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Next Gameweek Status -->
+        {% if missing_predictions.next.gameweek %}
+        <div class="bg-white shadow rounded-lg">
+            <div class="px-6 py-4 border-b border-gray-200 bg-blue-50">
+                <h3 class="text-lg font-medium text-blue-900 flex items-center">
+                    <span class="text-xl mr-2">📋</span>
+                    Next Gameweek {{ missing_predictions.next.gameweek }} Status
+                </h3>
+            </div>
+            <div class="p-6">
+                {% set next_missing = missing_predictions.next.players_missing %}
+                {% set next_invalid = missing_predictions.next.players_with_invalid %}
+                
+                {% if next_missing %}
+                <div class="mb-4">
+                    <h4 class="text-sm font-medium text-gray-900 mb-2">Players Starting Predictions:</h4>
+                    <div class="bg-blue-50 rounded-lg p-3 max-h-32 overflow-y-auto">
+                        <ul class="space-y-1 text-sm">
+                            {% for player in next_missing %}
+                            <li class="flex justify-between items-center">
+                                <span class="text-blue-800">{{ player.player_name }}</span>
+                                <span class="text-blue-600 text-xs">{{ player.predictions_count }}/{{ player.total_fixtures }}</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if next_invalid %}
+                <div class="mb-4">
+                    <h4 class="text-sm font-medium text-gray-900 mb-2">Players with Invalid Predictions:</h4>
+                    <div class="bg-yellow-50 rounded-lg p-3 max-h-32 overflow-y-auto">
+                        <ul class="space-y-1 text-sm">
+                            {% for player in next_invalid %}
+                            <li class="flex justify-between items-center">
+                                <span class="text-yellow-800">{{ player.player_name }}</span>
+                                <span class="text-yellow-600 text-xs">{{ player.invalid_count }} invalid</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if not next_missing and not next_invalid %}
+                <div class="text-center py-4 text-green-600">
+                    <div class="text-2xl mb-2">🎯</div>
+                    <p class="text-sm">All predictions complete for next gameweek!</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+    
     <!-- Charts Section -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <!-- Prediction Coverage Chart -->

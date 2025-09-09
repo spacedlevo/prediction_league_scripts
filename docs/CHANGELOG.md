@@ -4,6 +4,63 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2025-09-09] - Webapp Dashboard Enhanced Prediction Monitoring
+
+### Enhanced - Dashboard Prediction Monitoring System
+- **Switched to Gameweeks Table**: Updated `get_dashboard_stats()` to use authoritative `gameweeks` table instead of deprecated `gameweek_cache`
+- **Comprehensive Prediction Tracking**: Added `get_players_missing_predictions()` function for both current and next gameweek monitoring
+- **Current Gameweek Issues Panel**: Real-time alerts for players with missing or invalid (9-9) predictions in active gameweek
+- **Next Gameweek Status Panel**: Proactive monitoring of prediction progress for upcoming gameweek
+- **Visual Dashboard Integration**: Two responsive panels with color-coded warnings and progress indicators
+
+### Technical Implementation - Backend (app.py)
+- **Database Query Optimization**: Replaced single `gameweek_cache` query with proper `gameweeks` table lookups
+- **Dual Gameweek Processing**: Simultaneous analysis of current (`current_gameweek = 1`) and next (`next_gameweek = 1`) gameweeks
+- **Smart Change Detection**: Identifies players with incomplete predictions (`< total_fixtures`) and invalid predictions (`home_goals = 9 AND away_goals = 9`)
+- **Structured Data Response**: Returns organized data structure with gameweek numbers, player lists, and prediction counts
+- **Error Handling**: Graceful fallback with empty data structures when database queries fail
+
+### Technical Implementation - Frontend (dashboard.html)
+- **Responsive Design**: Two-column layout on large screens, single column on mobile devices
+- **Conditional Rendering**: Panels only display when relevant gameweek data exists
+- **Color-Coded Alerts**: Red warning styling for current gameweek issues, blue informational styling for next gameweek status
+- **Scrollable Lists**: Max-height containers with overflow handling for large player lists
+- **Empty State Messages**: Success indicators when no prediction issues exist
+
+### Data Structure
+```python
+missing_predictions = {
+    'current': {
+        'gameweek': 3,
+        'players_missing': [
+            {'player_name': 'col turner', 'predictions_count': 10, 'total_fixtures': 60, 'missing_count': 50},
+            {'player_name': 'edward fenna', 'predictions_count': 40, 'total_fixtures': 60, 'missing_count': 20}
+        ],
+        'players_with_invalid': []  # Players with 9-9 predictions
+    },
+    'next': {
+        'gameweek': 4,
+        'players_missing': [...]  # All 26 active players with partial predictions
+    }
+}
+```
+
+### Dashboard Features
+- **Current Gameweek Monitoring**: Immediate visibility into prediction completion issues requiring urgent attention
+- **Next Gameweek Planning**: Proactive monitoring of prediction progress for upcoming gameweeks
+- **Player-Specific Details**: Shows exact prediction counts and missing amounts for each player
+- **Invalid Prediction Detection**: Identifies placeholder 9-9 predictions that need correction
+- **Success Indicators**: Clear visual confirmation when all predictions are complete
+
+### Benefits
+- **Administrative Efficiency**: Quick identification of players needing prediction reminders
+- **Proactive Management**: Early visibility into next gameweek preparation status
+- **Data Reliability**: Uses authoritative gameweeks table for accurate current gameweek detection
+- **User Experience**: Clean, responsive interface integrated with existing dashboard design
+- **Real-time Monitoring**: Updates every 30 seconds with dashboard auto-refresh
+
+This enhancement transforms the webapp dashboard from basic statistics display into a comprehensive prediction league management tool, providing administrators with immediate visibility into prediction completion status across both active and upcoming gameweeks.
+
 ## [2025-09-08] - Force Refresh Features for Data Collection Scripts
 
 ### Added - Pulse API Force Refresh Option
