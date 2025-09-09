@@ -275,13 +275,13 @@
     
     <!-- More Top Players Tables -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Lowest xGA (Best Defensive Expected Performance) -->
+        <!-- Top Expected Goal Involvements -->
         <div class="bg-white shadow rounded-lg">
             <div class="px-6 py-4 border-b border-gray-200">
-                <h3 class="text-lg font-medium text-gray-900">🥅 Lowest Expected Goals Against</h3>
+                <h3 class="text-lg font-medium text-gray-900">🎯 Top Expected Goal Involvements</h3>
             </div>
             <div class="overflow-hidden">
-                {% if top_players.get('lowest_xga') %}
+                {% if top_players.get('top_xgi') %}
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
@@ -289,7 +289,7 @@
                                     Player
                                 </th>
                                 <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    xGA
+                                    xGI
                                 </th>
                                 <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Points
@@ -300,14 +300,14 @@
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
-                            {% for player in top_players.lowest_xga %}
+                            {% for player in top_players.top_xgi %}
                             <tr>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                     {{ player.player_name }}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">
-                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                        {{ "%.2f"|format(player.expected_goals_conceded) }}
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                        {{ "%.2f"|format(player.expected_goal_involvements) }}
                                     </span>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
@@ -322,8 +322,8 @@
                     </table>
                 {% else %}
                     <div class="text-center py-8 text-gray-500">
-                        <div class="text-4xl mb-2">🥅</div>
-                        <p>No xGA data available</p>
+                        <div class="text-4xl mb-2">🎯</div>
+                        <p>No expected goal involvement data available</p>
                     </div>
                 {% endif %}
             </div>

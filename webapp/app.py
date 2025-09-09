@@ -608,15 +608,15 @@ def get_top_fpl_players(cursor) -> Dict:
         """)
         top_players['top_goal_contributions'] = cursor.fetchall()
         
-        # Top xGA (Expected Goals Against) - lower is better for defenders/goalkeepers
+        # Top Expected Goal Involvements - higher is better for attacking players
         cursor.execute("""
-            SELECT player_name, expected_goals_conceded, total_points, position, minutes
+            SELECT player_name, expected_goal_involvements, total_points, position, minutes
             FROM fpl_players_bootstrap 
-            WHERE season = '2025/2026' AND expected_goals_conceded > 0 AND minutes > 0
-            ORDER BY expected_goals_conceded ASC 
+            WHERE season = '2025/2026' AND expected_goal_involvements > 0 AND minutes > 0
+            ORDER BY expected_goal_involvements DESC 
             LIMIT 10
         """)
-        top_players['lowest_xga'] = cursor.fetchall()
+        top_players['top_xgi'] = cursor.fetchall()
         
         # Most selected by percent
         cursor.execute("""
