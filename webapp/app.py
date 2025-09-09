@@ -127,12 +127,16 @@ def dashboard():
         # Get players missing predictions for current and next gameweeks
         missing_predictions = get_players_missing_predictions(cursor)
         
+        # Get players with identical predictions for current and next gameweeks
+        identical_predictions = get_players_with_identical_predictions(cursor)
+        
         conn.close()
         
         return render_template('dashboard.html', 
                              stats=stats, 
                              recent_updates=recent_updates,
                              missing_predictions=missing_predictions,
+                             identical_predictions=identical_predictions,
                              page_title='Dashboard')
     
     except Exception as e:
@@ -141,6 +145,7 @@ def dashboard():
                              stats={}, 
                              recent_updates=[],
                              missing_predictions={'current': {}, 'next': {}},
+                             identical_predictions={'current': {}, 'next': {}},
                              page_title='Dashboard')
 
 
@@ -587,6 +592,138 @@ def get_players_missing_predictions(cursor) -> Dict:
         missing_data = {'current': {}, 'next': {}}
     
     return missing_data
+
+
+def get_players_with_identical_predictions(cursor) -> Dict:
+    """Get players with identical predictions across all fixtures in current and next gameweeks"""
+    identical_data = {'current': {}, 'next': {}}
+    
+    try:
+        # Get current gameweek
+        cursor.execute("SELECT gameweek FROM gameweeks WHERE current_gameweek = 1")
+        current_gw_result = cursor.fetchone()
+        current_gameweek = current_gw_result[0] if current_gw_result else None
+        
+        # Get next gameweek
+        cursor.execute("SELECT gameweek FROM gameweeks WHERE next_gameweek = 1")
+        next_gw_result = cursor.fetchone()
+        next_gameweek = next_gw_result[0] if next_gw_result else None
+        
+        # Process current gameweek
+        if current_gameweek:
+            identical_data['current']['gameweek'] = current_gameweek
+            identical_data['current']['players_with_identical'] = []
+            
+            # Get players with identical predictions (excluding 9-9)
+            cursor.execute("""
+                SELECT 
+                    pl.player_name,
+                    p.home_goals,
+                    p.away_goals,
+                    COUNT(*) as prediction_count,
+                    GROUP_CONCAT(t_home.short_name || ' vs ' || t_away.short_name) as fixtures
+                FROM predictions p
+                JOIN fixtures f ON p.fixture_id = f.fixture_id
+                JOIN players pl ON p.player_id = pl.player_id
+                JOIN teams t_home ON f.home_teamid = t_home.team_id
+                JOIN teams t_away ON f.away_teamid = t_away.team_id
+                WHERE f.gameweek = ? AND f.season = '2025/2026'
+                  AND NOT (p.home_goals = 9 AND p.away_goals = 9)
+                  AND pl.active = 1
+                GROUP BY p.player_id, p.home_goals, p.away_goals
+                HAVING COUNT(*) > 1
+                ORDER BY pl.player_name, COUNT(*) DESC
+            """, (current_gameweek,))
+            
+            current_results = cursor.fetchall()
+            
+            # Group by player to check if ALL their predictions are identical
+            current_player_data = {}
+            for row in current_results:
+                player_name = row[0]
+                if player_name not in current_player_data:
+                    current_player_data[player_name] = []
+                current_player_data[player_name].append({
+                    'home_goals': row[1],
+                    'away_goals': row[2],
+                    'count': row[3],
+                    'fixtures': row[4].split(',') if row[4] else []
+                })
+            
+            # Check total fixtures for current gameweek
+            cursor.execute("SELECT COUNT(*) FROM fixtures WHERE gameweek = ? AND season = '2025/2026'", (current_gameweek,))
+            total_fixtures = cursor.fetchone()[0]
+            
+            for player_name, predictions in current_player_data.items():
+                # Check if player has only one prediction pattern covering all fixtures
+                if len(predictions) == 1 and predictions[0]['count'] == total_fixtures:
+                    identical_data['current']['players_with_identical'].append({
+                        'player_name': player_name,
+                        'prediction': f"{predictions[0]['home_goals']}-{predictions[0]['away_goals']}",
+                        'fixture_count': predictions[0]['count'],
+                        'total_fixtures': total_fixtures
+                    })
+        
+        # Process next gameweek
+        if next_gameweek:
+            identical_data['next']['gameweek'] = next_gameweek
+            identical_data['next']['players_with_identical'] = []
+            
+            # Get players with identical predictions (excluding 9-9)
+            cursor.execute("""
+                SELECT 
+                    pl.player_name,
+                    p.home_goals,
+                    p.away_goals,
+                    COUNT(*) as prediction_count,
+                    GROUP_CONCAT(t_home.short_name || ' vs ' || t_away.short_name) as fixtures
+                FROM predictions p
+                JOIN fixtures f ON p.fixture_id = f.fixture_id
+                JOIN players pl ON p.player_id = pl.player_id
+                JOIN teams t_home ON f.home_teamid = t_home.team_id
+                JOIN teams t_away ON f.away_teamid = t_away.team_id
+                WHERE f.gameweek = ? AND f.season = '2025/2026'
+                  AND NOT (p.home_goals = 9 AND p.away_goals = 9)
+                  AND pl.active = 1
+                GROUP BY p.player_id, p.home_goals, p.away_goals
+                HAVING COUNT(*) > 1
+                ORDER BY pl.player_name, COUNT(*) DESC
+            """, (next_gameweek,))
+            
+            next_results = cursor.fetchall()
+            
+            # Group by player to check if ALL their predictions are identical
+            next_player_data = {}
+            for row in next_results:
+                player_name = row[0]
+                if player_name not in next_player_data:
+                    next_player_data[player_name] = []
+                next_player_data[player_name].append({
+                    'home_goals': row[1],
+                    'away_goals': row[2],
+                    'count': row[3],
+                    'fixtures': row[4].split(',') if row[4] else []
+                })
+            
+            # Check total fixtures for next gameweek
+            cursor.execute("SELECT COUNT(*) FROM fixtures WHERE gameweek = ? AND season = '2025/2026'", (next_gameweek,))
+            total_fixtures = cursor.fetchone()[0]
+            
+            for player_name, predictions in next_player_data.items():
+                # Check if player has only one prediction pattern covering all fixtures
+                if len(predictions) == 1 and predictions[0]['count'] == total_fixtures:
+                    identical_data['next']['players_with_identical'].append({
+                        'player_name': player_name,
+                        'prediction': f"{predictions[0]['home_goals']}-{predictions[0]['away_goals']}",
+                        'fixture_count': predictions[0]['count'],
+                        'total_fixtures': total_fixtures
+                    })
+    
+    except Exception as e:
+        print(f"Error getting identical predictions: {e}")
+        identical_data = {'current': {}, 'next': {}}
+    
+    return identical_data
 
 
 def get_dashboard_stats(cursor) -> Dict:

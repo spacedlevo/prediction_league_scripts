@@ -226,6 +226,65 @@
     </div>
     {% endif %}
     
+    <!-- Identical Predictions Alerts -->
+    {% if identical_predictions.current.gameweek or identical_predictions.next.gameweek %}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Current Gameweek Identical Predictions -->
+        {% if identical_predictions.current.gameweek and identical_predictions.current.players_with_identical %}
+        <div class="bg-white shadow rounded-lg">
+            <div class="px-6 py-4 border-b border-gray-200 bg-orange-50">
+                <h3 class="text-lg font-medium text-orange-900 flex items-center">
+                    <span class="text-xl mr-2">🔄</span>
+                    Current Gameweek {{ identical_predictions.current.gameweek }} - Identical Predictions
+                </h3>
+            </div>
+            <div class="p-6">
+                <div class="mb-4">
+                    <h4 class="text-sm font-medium text-gray-900 mb-2">Players with same prediction for all fixtures:</h4>
+                    <div class="bg-orange-50 rounded-lg p-3 max-h-32 overflow-y-auto">
+                        <ul class="space-y-1 text-sm">
+                            {% for player in identical_predictions.current.players_with_identical %}
+                            <li class="flex justify-between items-center">
+                                <span class="text-orange-800">{{ player.player_name }}</span>
+                                <span class="text-orange-600 text-xs font-mono">{{ player.prediction }} ({{ player.fixture_count }}/{{ player.total_fixtures }})</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Next Gameweek Identical Predictions -->
+        {% if identical_predictions.next.gameweek and identical_predictions.next.players_with_identical %}
+        <div class="bg-white shadow rounded-lg">
+            <div class="px-6 py-4 border-b border-gray-200 bg-blue-50">
+                <h3 class="text-lg font-medium text-blue-900 flex items-center">
+                    <span class="text-xl mr-2">🔄</span>
+                    Next Gameweek {{ identical_predictions.next.gameweek }} - Identical Predictions
+                </h3>
+            </div>
+            <div class="p-6">
+                <div class="mb-4">
+                    <h4 class="text-sm font-medium text-gray-900 mb-2">Players with same prediction for all fixtures:</h4>
+                    <div class="bg-blue-50 rounded-lg p-3 max-h-32 overflow-y-auto">
+                        <ul class="space-y-1 text-sm">
+                            {% for player in identical_predictions.next.players_with_identical %}
+                            <li class="flex justify-between items-center">
+                                <span class="text-blue-800">{{ player.player_name }}</span>
+                                <span class="text-blue-600 text-xs font-mono">{{ player.prediction }} ({{ player.fixture_count }}/{{ player.total_fixtures }})</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+    
     <!-- Charts Section -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <!-- Prediction Coverage Chart -->
