@@ -56,6 +56,12 @@ COMMAND LINE OPTIONS:
 - --test: Use cached sample data for development
 - --force-refresh: Clear existing FPL data and re-fetch everything
 
+DATABASE CHANGE TRACKING:
+- Bootstrap Updates: Logs "fpl_players_bootstrap" in last_update table when bootstrap data is refreshed
+- Fantasy Scores: Logs "fantasy_pl_scores" when player performance data changes
+- Upload Triggering: Enables automated database upload monitoring system
+- Transaction Integrity: All timestamp updates occur within database transactions
+
 USE CASES:
 - Complete fantasy team analysis with ownership, form, and value metrics
 - Defensive player evaluation using tackles, recoveries, and clearances
@@ -605,7 +611,17 @@ def identify_players_to_update(new_players, existing_bootstrap_data, logger, deb
     return players_to_update
 
 def update_last_update_table(table_name, cursor, logger):
-    """Update the last_update table with current timestamp"""
+    """Update the last_update table with current timestamp
+    
+    This function logs database changes to enable automated upload monitoring.
+    The upload system monitors the last_update table to detect when data has
+    changed and needs to be uploaded to the remote database.
+    
+    Args:
+        table_name (str): Name of the table that was updated (e.g., "fpl_players_bootstrap")
+        cursor: Database cursor for executing SQL commands
+        logger: Logger instance for recording the update
+    """
     try:
         dt = datetime.now()
         now = dt.strftime("%d-%m-%Y. %H:%M:%S")
@@ -624,7 +640,6 @@ def update_last_update_table(table_name, cursor, logger):
 def update_bootstrap_data(cursor, players, team_mapping, logger):
     """Update bootstrap table with current player data"""
     updated_count = 0
-    changes_made = len(players) > 0  # If we have players to update, assume changes
     
     for player in players:
         # Map FPL team ID to database team_id
@@ -757,7 +772,6 @@ def update_bootstrap_data(cursor, players, team_mapping, logger):
         updated_count += 1
     
     logger.info(f"Updated bootstrap data for {updated_count} players")
-    return changes_made
 
 def create_fantasy_scores_team_column(cursor):
     """Add missing columns to fantasy_pl_scores table if they don't exist"""
@@ -1151,11 +1165,11 @@ def collect_fpl_data(logger, max_workers=5, debug=False, force_refresh=False, dr
         
         # Update bootstrap table with current data
         logger.info("Updating bootstrap table with current player data...")
-        bootstrap_changes_made = update_bootstrap_data(cursor, players, team_mapping, logger)
+        update_bootstrap_data(cursor, players, team_mapping, logger)
         
-        # Log bootstrap updates if changes were detected (indicated by players needing updates)
-        if len(players_to_update) > 0 and not dry_run:
-            logger.info("Bootstrap data changes detected - logging update timestamp")
+        # Log bootstrap updates whenever we update the table (unless dry-run)
+        if not dry_run:
+            logger.info("Bootstrap data updated - logging update timestamp")
             update_last_update_table("fpl_players_bootstrap", cursor, logger)
         
         conn.commit()

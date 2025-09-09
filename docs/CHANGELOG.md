@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2025-09-09] - Bootstrap Update Logging Enhancement
+
+### Added - FPL Bootstrap Change Tracking
+- **Bootstrap Update Logging**: FPL data fetching script now logs "fpl_players_bootstrap" updates in last_update table
+- **Database Change Detection**: Enables automated upload monitoring system to detect when bootstrap data is refreshed
+- **Transaction Integrity**: All timestamp updates occur within database transactions for consistency
+- **Upload Triggering**: Ensures database uploads are triggered when FPL bootstrap data changes
+
+### Technical Implementation - FPL Data Pipeline
+- **Standardized Logging Function**: Added `update_last_update_table()` function for consistent timestamp management
+- **Bootstrap Update Detection**: Logs bootstrap updates whenever the script refreshes player data from FPL API  
+- **Consistent API**: Uses same logging pattern across both bootstrap and fantasy score updates
+- **Documentation Updates**: Enhanced script documentation with change tracking details
+
+### Benefits for Data Pipeline
+- **Automated Monitoring**: Upload system can now detect bootstrap data changes automatically
+- **Improved Reliability**: Ensures all FPL data changes trigger appropriate database synchronization
+- **Consistent Tracking**: Standardized approach to logging database changes across the system
+- **Better Debugging**: Clear logging when bootstrap data is updated for troubleshooting
+
 ## [2025-09-09] - Comprehensive FPL Player Search & Analysis System
 
 ### Added - Advanced FPL Player Analysis Tools
