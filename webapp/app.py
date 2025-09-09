@@ -587,6 +587,47 @@ def get_top_fpl_players(cursor) -> Dict:
         """)
         top_players['most_transferred'] = cursor.fetchall()
         
+        # Top defensive contributions
+        cursor.execute("""
+            SELECT player_name, defensive_contribution, total_points, position
+            FROM fpl_players_bootstrap 
+            WHERE season = '2025/2026' AND defensive_contribution > 0
+            ORDER BY defensive_contribution DESC 
+            LIMIT 10
+        """)
+        top_players['top_defensive'] = cursor.fetchall()
+        
+        # Top goal contributions (goals + assists)
+        cursor.execute("""
+            SELECT player_name, (goals_scored + assists) as goal_contributions, 
+                   goals_scored, assists, total_points
+            FROM fpl_players_bootstrap 
+            WHERE season = '2025/2026' AND (goals_scored + assists) > 0
+            ORDER BY (goals_scored + assists) DESC 
+            LIMIT 10
+        """)
+        top_players['top_goal_contributions'] = cursor.fetchall()
+        
+        # Top xGA (Expected Goals Against) - lower is better for defenders/goalkeepers
+        cursor.execute("""
+            SELECT player_name, expected_goals_conceded, total_points, position, minutes
+            FROM fpl_players_bootstrap 
+            WHERE season = '2025/2026' AND expected_goals_conceded > 0 AND minutes > 0
+            ORDER BY expected_goals_conceded ASC 
+            LIMIT 10
+        """)
+        top_players['lowest_xga'] = cursor.fetchall()
+        
+        # Most selected by percent
+        cursor.execute("""
+            SELECT player_name, selected_by_percent, total_points, value
+            FROM fpl_players_bootstrap 
+            WHERE season = '2025/2026' AND selected_by_percent > 0
+            ORDER BY selected_by_percent DESC 
+            LIMIT 10
+        """)
+        top_players['most_selected'] = cursor.fetchall()
+        
     except Exception as e:
         print(f"Error getting top FPL players: {e}")
         top_players = {}
