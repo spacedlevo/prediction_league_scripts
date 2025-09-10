@@ -464,33 +464,33 @@ function calculatePrediction(fixture, strategy) {
             
         case 'smart-goals':
             // Combined 1X2 + Over/Under strategy
-            const favouriteOdds = Math.min(homeOdds, awayOdds);
-            const isHomeFav = homeOdds <= awayOdds;
+            const smartFavouriteOdds = Math.min(homeOdds, awayOdds);
+            const smartIsHomeFav = homeOdds <= awayOdds;
             
             // Get Over/Under odds (use fallback if not available)
             const over25Odds = parseFloat(fixture.over_2_5_odds) || 1.90;
             const under25Odds = parseFloat(fixture.under_2_5_odds) || 1.90;
             const goalsMarketFavoursHigh = over25Odds < under25Odds;
             
-            if (favouriteOdds <= 1.67) { // Short favourite
+            if (smartFavouriteOdds <= 1.67) { // Short favourite
                 if (goalsMarketFavoursHigh) {
                     if (over25Odds <= 1.70) {
                         // Very heavy over 2.5 odds
-                        [homeScore, awayScore] = isHomeFav ? [3, 1] : [1, 3];
+                        [homeScore, awayScore] = smartIsHomeFav ? [3, 1] : [1, 3];
                     } else {
                         // Heavy over 2.5 odds
-                        [homeScore, awayScore] = isHomeFav ? [2, 1] : [1, 2];
+                        [homeScore, awayScore] = smartIsHomeFav ? [2, 1] : [1, 2];
                     }
                 } else {
                     // Under 2.5 favoured
-                    [homeScore, awayScore] = isHomeFav ? [1, 0] : [0, 1];
+                    [homeScore, awayScore] = smartIsHomeFav ? [1, 0] : [0, 1];
                 }
             } else {
                 // Not a short favourite, use standard calibrated approach
-                if (favouriteOdds <= 2.00) {
-                    [homeScore, awayScore] = isHomeFav ? [2, 1] : [1, 2];
-                } else if (favouriteOdds <= 2.50) {
-                    [homeScore, awayScore] = isHomeFav ? [1, 0] : [0, 1];
+                if (smartFavouriteOdds <= 2.00) {
+                    [homeScore, awayScore] = smartIsHomeFav ? [2, 1] : [1, 2];
+                } else if (smartFavouriteOdds <= 2.50) {
+                    [homeScore, awayScore] = smartIsHomeFav ? [1, 0] : [0, 1];
                 } else {
                     homeScore = 1; awayScore = 1;
                 }
