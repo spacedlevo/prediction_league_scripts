@@ -604,7 +604,6 @@ def predictions_analysis():
 
 
 @app.route('/api/predictions/gameweek/<int:gameweek>')
-@require_auth
 def get_gameweek_predictions(gameweek):
     """API endpoint to get fixtures and odds for a specific gameweek"""
     try:
