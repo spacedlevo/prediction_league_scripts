@@ -208,6 +208,8 @@ let fixturesData = [];
 // Strategy descriptions
 const strategyDescriptions = {
     fixed: "Favourite team always wins 2-1. Simple and consistent approach using the team with lower odds.",
+    'fixed-2-0': "Favourite team always wins 2-0. Clean sheet strategy backing the favourite with a shutout win.",
+    'fixed-1-0': "Favourite team always wins 1-0. Conservative strategy backing narrow wins by the favourite.",
     calibrated: "Variable scorelines based on favourite strength: ≤1.50 odds = 3-0/2-0, 1.51-2.00 = 2-1, 2.01-2.50 = 1-0, >2.50 = 1-1",
     'home-away': "Considers venue bias: Home favourites predicted 2-0, Away favourites predicted 2-1",
     poisson: "Mathematical model using Poisson distribution to predict most likely scoreline based on expected goals from odds (Coming Soon)",
@@ -252,6 +254,8 @@ function switchStrategy(strategy) {
 function updateStrategyContent() {
     const titleMap = {
         fixed: 'Fixed Strategy Predictions (2-1 Favourite)',
+        'fixed-2-0': 'Fixed Strategy Predictions (2-0 Favourite)',
+        'fixed-1-0': 'Fixed Strategy Predictions (1-0 Favourite)',
         calibrated: 'Calibrated Predictions (Variable Scorelines)',
         'home-away': 'Home/Away Bias Predictions',
         poisson: 'Poisson Model Predictions (Mathematical)',
@@ -351,6 +355,22 @@ function calculatePrediction(fixture, strategy) {
                 homeScore = 2; awayScore = 1;
             } else {
                 homeScore = 1; awayScore = 2;
+            }
+            break;
+            
+        case 'fixed-2-0':
+            if (homeOdds <= awayOdds) {
+                homeScore = 2; awayScore = 0;
+            } else {
+                homeScore = 0; awayScore = 2;
+            }
+            break;
+            
+        case 'fixed-1-0':
+            if (homeOdds <= awayOdds) {
+                homeScore = 1; awayScore = 0;
+            } else {
+                homeScore = 0; awayScore = 1;
             }
             break;
             

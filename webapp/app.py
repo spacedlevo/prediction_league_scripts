@@ -777,7 +777,7 @@ def get_season_performance():
             })
         
         # Calculate performance for each strategy
-        strategies = ['fixed', 'calibrated', 'home-away', 'poisson']
+        strategies = ['fixed', 'fixed-2-0', 'fixed-1-0', 'calibrated', 'home-away', 'poisson']
         strategy_performance = []
         
         logger.info("Calculating performance for each strategy...")
@@ -819,6 +819,8 @@ def get_strategy_display_name(strategy):
     """Get display name for strategy"""
     names = {
         'fixed': 'Fixed (2-1 Favourite)',
+        'fixed-2-0': 'Fixed (2-0 Favourite)', 
+        'fixed-1-0': 'Fixed (1-0 Favourite)',
         'calibrated': 'Calibrated Scorelines',
         'home-away': 'Home/Away Bias',
         'poisson': 'Poisson Model'
@@ -887,6 +889,22 @@ def generate_prediction_for_fixture(fixture, strategy):
         else:
             home_score = 1
             away_score = 2
+            
+    elif strategy == 'fixed-2-0':
+        if home_odds <= away_odds:
+            home_score = 2
+            away_score = 0
+        else:
+            home_score = 0
+            away_score = 2
+            
+    elif strategy == 'fixed-1-0':
+        if home_odds <= away_odds:
+            home_score = 1
+            away_score = 0
+        else:
+            home_score = 0
+            away_score = 1
             
     elif strategy == 'calibrated':
         favourite_odds = min(home_odds, away_odds)
