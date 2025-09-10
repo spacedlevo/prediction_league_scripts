@@ -570,7 +570,7 @@ def get_gameweek_predictions(gameweek):
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Get fixtures with odds for the gameweek
+        # Get fixtures with odds for the gameweek (including Over/Under 2.5 odds)
         cursor.execute("""
             SELECT 
                 f.fixture_id,
@@ -580,6 +580,8 @@ def get_gameweek_predictions(gameweek):
                 s.avg_home_win_odds as home_odds,
                 s.avg_draw_odds as draw_odds,
                 s.avg_away_win_odds as away_odds,
+                s.avg_over_2_5_odds as over_2_5_odds,
+                s.avg_under_2_5_odds as under_2_5_odds,
                 r.home_goals as actual_home_goals,
                 r.away_goals as actual_away_goals
             FROM fixtures f
@@ -601,8 +603,10 @@ def get_gameweek_predictions(gameweek):
                 'home_odds': row[4],
                 'draw_odds': row[5],
                 'away_odds': row[6],
-                'actual_home_goals': row[7],
-                'actual_away_goals': row[8]
+                'over_2_5_odds': row[7],
+                'under_2_5_odds': row[8],
+                'actual_home_goals': row[9],
+                'actual_away_goals': row[10]
             }
             fixtures.append(fixture)
         
