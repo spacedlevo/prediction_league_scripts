@@ -242,6 +242,9 @@ deploy_*.sh
 # LEGACY AND ARCHIVE
 # ==============================================================================
 
+# Legacy Data (large historical datasets, already integrated)
+legacy/
+
 # Old Versions
 *.old
 *.bak

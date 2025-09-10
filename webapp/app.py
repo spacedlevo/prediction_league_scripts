@@ -682,6 +682,142 @@ def calculate_custom_points():
         return jsonify({'error': str(e)}), 500
 
 
+def get_fixtures_with_odds_multi_season(cursor, season_filter='2025/2026', logger=None):
+    """Get fixtures with odds data from both fixture_odds_summary and football_stats fallback"""
+    
+    # Primary query - use fixture_odds_summary when available
+    primary_query = """
+        SELECT 
+            f.fixture_id,
+            ht.team_name as home_team,
+            at.team_name as away_team,
+            s.avg_home_win_odds as home_odds,
+            s.avg_draw_odds as draw_odds,
+            s.avg_away_win_odds as away_odds,
+            s.avg_over_2_5_odds as over_2_5_odds,
+            s.avg_under_2_5_odds as under_2_5_odds,
+            r.home_goals as actual_home_goals,
+            r.away_goals as actual_away_goals,
+            f.season,
+            'fixture_odds_summary' as data_source
+        FROM fixtures f
+        JOIN teams ht ON f.home_teamid = ht.team_id
+        JOIN teams at ON f.away_teamid = at.team_id
+        LEFT JOIN fixture_odds_summary s ON f.fixture_id = s.fixture_id
+        LEFT JOIN results r ON f.fixture_id = r.fixture_id
+        WHERE {season_filter}
+        AND r.home_goals IS NOT NULL 
+        AND r.away_goals IS NOT NULL
+        AND s.avg_home_win_odds IS NOT NULL
+        AND s.avg_away_win_odds IS NOT NULL
+    """
+    
+    # Fallback query - use football_stats for historical data
+    fallback_query = """
+        SELECT 
+            f.fixture_id,
+            ht.team_name as home_team,
+            at.team_name as away_team,
+            fs.AvgH as home_odds,
+            fs.AvgD as draw_odds,
+            fs.AvgA as away_odds,
+            fs."Avg>2.5" as over_2_5_odds,
+            fs."Avg<2.5" as under_2_5_odds,
+            r.home_goals as actual_home_goals,
+            r.away_goals as actual_away_goals,
+            f.season,
+            'football_stats' as data_source
+        FROM fixtures f
+        JOIN teams ht ON f.home_teamid = ht.team_id
+        JOIN teams at ON f.away_teamid = at.team_id
+        LEFT JOIN football_stats fs ON (
+            f.home_teamid = fs.home_team_id 
+            AND f.away_teamid = fs.away_team_id 
+            AND DATE(f.kickoff_dttm) = DATE(fs.Date)
+        )
+        LEFT JOIN results r ON f.fixture_id = r.fixture_id
+        WHERE {season_filter}
+        AND r.home_goals IS NOT NULL 
+        AND r.away_goals IS NOT NULL
+        AND fs.AvgH IS NOT NULL
+        AND fs.AvgA IS NOT NULL
+        AND f.fixture_id NOT IN (
+            SELECT DISTINCT f2.fixture_id 
+            FROM fixtures f2 
+            LEFT JOIN fixture_odds_summary s2 ON f2.fixture_id = s2.fixture_id
+            WHERE s2.avg_home_win_odds IS NOT NULL
+        )
+    """
+    
+    # Build season filter
+    if season_filter == 'all':
+        season_condition = "f.season IS NOT NULL"
+    elif isinstance(season_filter, list):
+        seasons_list = "', '".join(season_filter) 
+        season_condition = f"f.season IN ('{seasons_list}')"
+    else:
+        season_condition = f"f.season = '{season_filter}'"
+    
+    primary_query = primary_query.format(season_filter=season_condition)
+    fallback_query = fallback_query.format(season_filter=season_condition)
+    
+    # Execute both queries and combine results
+    if logger:
+        logger.info(f"Executing primary query for seasons: {season_filter}")
+    cursor.execute(primary_query)
+    primary_results = cursor.fetchall()
+    
+    if logger:
+        logger.info(f"Found {len(primary_results)} fixtures from fixture_odds_summary")
+        logger.info(f"Executing fallback query for historical data")
+    cursor.execute(fallback_query)
+    fallback_results = cursor.fetchall()
+    
+    if logger:
+        logger.info(f"Found {len(fallback_results)} additional fixtures from football_stats")
+    
+    # Combine and format results
+    all_fixtures = []
+    
+    # Process primary results
+    for row in primary_results:
+        fixture = {
+            'fixture_id': row[0],
+            'home_team': row[1],
+            'away_team': row[2],
+            'home_odds': row[3],
+            'draw_odds': row[4],
+            'away_odds': row[5],
+            'over_2_5_odds': row[6],
+            'under_2_5_odds': row[7],
+            'actual_home_goals': row[8],
+            'actual_away_goals': row[9],
+            'season': row[10],
+            'data_source': row[11]
+        }
+        all_fixtures.append(fixture)
+    
+    # Process fallback results
+    for row in fallback_results:
+        fixture = {
+            'fixture_id': row[0],
+            'home_team': row[1],
+            'away_team': row[2],
+            'home_odds': row[3],
+            'draw_odds': row[4],
+            'away_odds': row[5],
+            'over_2_5_odds': row[6],
+            'under_2_5_odds': row[7],
+            'actual_home_goals': row[8],
+            'actual_away_goals': row[9],
+            'season': row[10],
+            'data_source': row[11]
+        }
+        all_fixtures.append(fixture)
+    
+    return all_fixtures
+
+
 @app.route('/api/predictions/season-performance')
 @require_auth
 def get_season_performance():
@@ -693,69 +829,40 @@ def get_season_performance():
     logger.info("=== Season Performance API Called ===")
     
     try:
-        # Log database connection details
-        db_path = Path(__file__).parent / config['database_path']
-        logger.info(f"Database path: {db_path}")
-        logger.info(f"Database exists: {db_path.exists()}")
+        # Get season parameter from query string (default to current season)
+        season = request.args.get('season', '2025/2026')
+        logger.info(f"Season performance analysis requested for: {season}")
         
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # First, check basic data availability
-        cursor.execute("SELECT COUNT(*) FROM fixtures WHERE season = '2025/2026'")
-        total_fixtures = cursor.fetchone()[0]
-        logger.info(f"Total fixtures for 2025/2026: {total_fixtures}")
+        # Get fixtures with multi-season fallback support
+        if season == 'all':
+            logger.info("Analyzing performance across all available seasons")
+            fixtures_data = get_fixtures_with_odds_multi_season(cursor, 'all', logger)
+        elif season == 'historical':
+            # Historical seasons (excluding current)
+            historical_seasons = ['2020/2021', '2021/2022', '2022/2023', '2023/2024', '2024/2025']
+            logger.info(f"Analyzing historical seasons: {historical_seasons}")
+            fixtures_data = get_fixtures_with_odds_multi_season(cursor, historical_seasons, logger)
+        else:
+            logger.info(f"Analyzing single season: {season}")
+            fixtures_data = get_fixtures_with_odds_multi_season(cursor, season, logger)
         
-        cursor.execute("SELECT COUNT(*) FROM results r JOIN fixtures f ON r.fixture_id = f.fixture_id WHERE f.season = '2025/2026'")
-        total_results = cursor.fetchone()[0]
-        logger.info(f"Total results available: {total_results}")
+        conn.close()
         
-        cursor.execute("SELECT COUNT(*) FROM fixture_odds_summary s JOIN fixtures f ON s.fixture_id = f.fixture_id WHERE f.season = '2025/2026'")
-        total_odds = cursor.fetchone()[0]
-        logger.info(f"Total fixtures with odds: {total_odds}")
+        # Count data sources
+        data_sources = {}
+        seasons_analyzed = set()
+        for fixture in fixtures_data:
+            source = fixture.get('data_source', 'unknown')
+            data_sources[source] = data_sources.get(source, 0) + 1
+            if fixture.get('season'):
+                seasons_analyzed.add(fixture['season'])
         
-        # Get all fixtures with odds and results for the current season
-        query = """
-            SELECT 
-                f.fixture_id,
-                ht.team_name as home_team,
-                at.team_name as away_team,
-                s.avg_home_win_odds as home_odds,
-                s.avg_draw_odds as draw_odds,
-                s.avg_away_win_odds as away_odds,
-                r.home_goals as actual_home_goals,
-                r.away_goals as actual_away_goals
-            FROM fixtures f
-            JOIN teams ht ON f.home_teamid = ht.team_id
-            JOIN teams at ON f.away_teamid = at.team_id
-            LEFT JOIN fixture_odds_summary s ON f.fixture_id = s.fixture_id
-            LEFT JOIN results r ON f.fixture_id = r.fixture_id
-            WHERE f.season = '2025/2026' 
-            AND r.home_goals IS NOT NULL 
-            AND r.away_goals IS NOT NULL
-            AND s.avg_home_win_odds IS NOT NULL
-            AND s.avg_away_win_odds IS NOT NULL
-            ORDER BY f.kickoff_dttm
-        """
-        
-        logger.info("Executing main query...")
-        cursor.execute(query)
-        
-        fixtures_data = []
-        for row in cursor.fetchall():
-            fixture = {
-                'fixture_id': row[0],
-                'home_team': row[1],
-                'away_team': row[2],
-                'home_odds': row[3],
-                'draw_odds': row[4],
-                'away_odds': row[5],
-                'actual_home_goals': row[6],
-                'actual_away_goals': row[7]
-            }
-            fixtures_data.append(fixture)
-        
-        logger.info(f"Query returned {len(fixtures_data)} complete fixtures")
+        logger.info(f"Data sources: {data_sources}")
+        logger.info(f"Seasons analyzed: {sorted(list(seasons_analyzed))}")
+        logger.info(f"Total fixtures for analysis: {len(fixtures_data)}")
         
         # Log first few fixtures for debugging
         for i, fixture in enumerate(fixtures_data[:3]):
@@ -764,20 +871,19 @@ def get_season_performance():
         conn.close()
         
         if not fixtures_data:
-            logger.warning("No fixtures found - returning empty result")
+            logger.warning(f"No fixtures found for season filter: {season}")
             return jsonify({
                 'strategies': [],
-                'message': 'No completed fixtures with odds data available yet',
+                'message': f'No completed fixtures with odds data available for {season}',
                 'debug': {
-                    'total_fixtures': total_fixtures,
-                    'total_results': total_results, 
-                    'total_odds': total_odds,
-                    'complete_fixtures': 0
+                    'season_filter': season,
+                    'complete_fixtures': 0,
+                    'data_sources_used': list(data_sources.keys())
                 }
             })
         
         # Calculate performance for each strategy
-        strategies = ['fixed', 'fixed-2-0', 'fixed-1-0', 'calibrated', 'home-away', 'poisson']
+        strategies = ['fixed', 'fixed-2-0', 'fixed-1-0', 'calibrated', 'home-away', 'poisson', 'smart-goals']
         strategy_performance = []
         
         logger.info("Calculating performance for each strategy...")
@@ -793,11 +899,12 @@ def get_season_performance():
         return jsonify({
             'strategies': strategy_performance,
             'total_games': len(fixtures_data),
-            'season': '2025/2026',
+            'season': season,
+            'seasons_analyzed': sorted(list(seasons_analyzed)),
             'debug': {
-                'total_fixtures': total_fixtures,
-                'total_results': total_results,
-                'total_odds': total_odds,
+                'season_filter': season,
+                'data_sources_used': data_sources,
+                'seasons_covered': sorted(list(seasons_analyzed)),
                 'complete_fixtures': len(fixtures_data)
             }
         })
@@ -823,7 +930,8 @@ def get_strategy_display_name(strategy):
         'fixed-1-0': 'Fixed (1-0 Favourite)',
         'calibrated': 'Calibrated Scorelines',
         'home-away': 'Home/Away Bias',
-        'poisson': 'Poisson Model'
+        'poisson': 'Poisson Model',
+        'smart-goals': 'Smart Goals (1X2 + Over/Under)'
     }
     return names.get(strategy, strategy.title())
 
@@ -938,6 +1046,40 @@ def generate_prediction_for_fixture(fixture, strategy):
             home_score, away_score = (2, 1) if is_home_fav else (1, 2)
         else:
             home_score, away_score = (1, 0) if is_home_fav else (0, 1)
+            
+    elif strategy == 'smart-goals':
+        # Combined 1X2 + Over/Under strategy
+        favourite_odds = min(home_odds, away_odds)
+        is_home_fav = home_odds <= away_odds
+        
+        # Get Over/Under odds (fallback to defaults if missing)
+        over_2_5_odds = float(fixture.get('over_2_5_odds', 1.90))
+        under_2_5_odds = float(fixture.get('under_2_5_odds', 1.90))
+        
+        # Determine if Over 2.5 is favoured (lower odds = more likely)
+        goals_favoured_high = over_2_5_odds < under_2_5_odds
+        
+        if favourite_odds <= 1.60:  # Short favourite
+            if goals_favoured_high:
+                # Over 2.5 is favoured - predict higher scoring
+                if over_2_5_odds <= 1.50:  # Very heavy over 2.5
+                    home_score, away_score = (3, 1) if is_home_fav else (1, 3)
+                else:
+                    home_score, away_score = (2, 1) if is_home_fav else (1, 2)
+            else:
+                # Under 2.5 favoured - predict low scoring
+                home_score, away_score = (1, 0) if is_home_fav else (0, 1)
+        elif favourite_odds <= 2.20:  # Moderate favourite
+            if goals_favoured_high:
+                home_score, away_score = (2, 1) if is_home_fav else (1, 2)
+            else:
+                home_score, away_score = (1, 0) if is_home_fav else (0, 1)
+        else:
+            # Close match - use totals market as main indicator
+            if goals_favoured_high:
+                home_score, away_score = (2, 1) if is_home_fav else (1, 2)
+            else:
+                home_score, away_score = 1, 1  # Conservative draw prediction
     
     return {'homeScore': home_score, 'awayScore': away_score}
 

@@ -462,7 +462,7 @@ def update_last_update_table(table_name, cursor, logger):
     """Update the last_update table with current timestamp"""
     try:
         dt = datetime.now()
-        now = dt.strftime("%d-%m-%Y. %H:%M:%S")
+        now = dt.strftime("%d-%m-%Y %H:%M:%S")
         timestamp = dt.timestamp()
         
         cursor.execute("""

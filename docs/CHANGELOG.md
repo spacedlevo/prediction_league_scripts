@@ -4,6 +4,95 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2025-09-10] - Over/Under Goals Markets Collection
+
+### Added - Totals Market Support
+- **Over/Under Goals Data**: Extended odds API script to collect totals (over/under) markets alongside existing h2h markets
+- **New Database Schema**: Added `total_line` and `outcome_type` columns to odds table for storing goals line data
+- **Flexible Configuration**: Added `--include-totals` command-line flag to control feature activation
+- **Comprehensive Processing**: Script now handles both "Over" and "Under" outcomes with proper price and point data
+
+### Technical Implementation
+- **API Parameter Enhancement**: Modified `get_odds()` to request `markets=h2h,totals` when enabled
+- **Database Extensions**: New columns support goals lines (e.g., 2.5, 3.5) and outcome types (over/under)
+- **Processing Logic**: Extended market processing loop to handle totals alongside existing h2h processing
+- **Backward Compatibility**: Feature is opt-in via command-line flag, existing h2h-only mode unchanged
+
+### Database Schema Changes
+```sql
+ALTER TABLE odds ADD COLUMN total_line REAL DEFAULT NULL;
+ALTER TABLE odds ADD COLUMN outcome_type TEXT DEFAULT NULL;
+CREATE INDEX idx_odds_totals ON odds(bet_type, total_line, outcome_type);
+```
+
+### Usage Examples
+```bash
+# Traditional h2h-only mode (unchanged)
+./venv/bin/python scripts/odds-api/fetch_odds.py
+
+# Include over/under markets (doubles API cost)
+./venv/bin/python scripts/odds-api/fetch_odds.py --include-totals
+
+# Test with sample data
+./venv/bin/python scripts/odds-api/fetch_odds.py --test
+
+# Database migration (run once before using --include-totals)
+./venv/bin/python scripts/odds-api/migrate_database.py
+```
+
+### Data Collected
+- **Goals Lines**: Primarily 2.5 goals for Premier League matches
+- **Market Coverage**: Available from multiple UK bookmakers (Paddy Power, Smarkets, Bet Victor, etc.)
+- **Betting Outcomes**: Both Over and Under odds for each goals line
+- **API Cost**: Doubles request usage from ~12 to ~25 requests per execution when enabled
+
+### Files Added/Modified
+- **fetch_odds.py**: Core functionality extended for totals market processing
+- **migrate_database.py**: New database migration script for schema updates
+- **add_totals_support.sql**: SQL migration script with schema changes
+
+## [2025-09-10] - Timestamp Format Standardization
+
+### Fixed - Database Update Consistency
+- **Standardized Timestamp Format**: All scripts now use consistent `"%d-%m-%Y %H:%M:%S"` format for last_update table
+- **Removed Format Inconsistencies**: Fixed scripts that used periods (`.`) after dates or different date formats
+- **Missing Column Fix**: Added missing `updated` column population in `backfill_team_ids.py`
+
+### Scripts Updated
+- **fetch_results.py**: Removed period from timestamp format (`%d-%m-%Y. %H:%M:%S` → `%d-%m-%Y %H:%M:%S`)
+- **pulse_api/fetch_pulse_data.py**: Standardized date format pattern
+- **odds-api/fetch_odds.py**: Aligned timestamp formatting with project standard  
+- **fpl/fetch_fpl_data.py**: Consistent format across all FPL scripts
+- **football_data/fetch_football_data.py**: Changed from ISO format (`%Y-%m-%d`) to project standard
+- **football_data/migrate_legacy_data.py**: Updated legacy format to match current standard
+- **fpl/backfill_team_ids.py**: Added missing `updated` column and proper timestamp formatting
+
+### Technical Implementation
+- **Consistent Pattern**: `dt.strftime("%d-%m-%Y %H:%M:%S")` across all scripts
+- **Full Column Support**: All scripts now populate `(table_name, updated, timestamp)` columns
+- **Proper Datetime Handling**: Single datetime object used for both formatted string and Unix timestamp
+
+## [2025-09-10] - Additional Fixed Scoring Variants
+
+### Added - Enhanced Strategy Comparison
+- **Fixed Strategy (2-0 Favourite)**: New clean sheet strategy always backing favourite to win 2-0
+- **Fixed Strategy (1-0 Favourite)**: New conservative strategy always backing favourite to win 1-0
+- **Expanded Performance Analysis**: Performance comparison table now shows 6 strategies instead of 4
+- **Enhanced Strategy Descriptions**: Updated frontend descriptions for all fixed scoring variants
+
+### Technical Implementation
+- **Backend API Enhancement**: Updated `/api/predictions/season-performance` to include new strategy variants
+- **Frontend Calculation Logic**: Added `fixed-2-0` and `fixed-1-0` cases to `calculatePrediction()` function
+- **Strategy Display Names**: Updated both backend and frontend mapping for consistent naming
+
+### Performance Analysis Strategies (Complete List)
+1. **Fixed (2-1 Favourite)** - Original balanced strategy
+2. **Fixed (2-0 Favourite)** - Clean sheet strategy backing shutout wins
+3. **Fixed (1-0 Favourite)** - Conservative strategy backing narrow wins  
+4. **Calibrated Scorelines** - Variable scores based on odds strength
+5. **Home/Away Bias** - Venue-based predictions with differentiated scoring
+6. **Poisson Model** - Mathematical framework for expected goals
+
 ## [2025-09-10] - Odds-Based Predictions Dashboard
 
 ### Added - Comprehensive Predictions Analysis System
@@ -14,7 +103,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Strategy Comparison Tool**: Side-by-side evaluation of different prediction methodologies
 
 ### Prediction Strategies Implemented
-- **Fixed Strategy**: Favourite team always wins 2-1 (matches existing automated_predictions.py logic)
+- **Fixed Strategy (2-1)**: Favourite team always wins 2-1 (matches existing automated_predictions.py logic)
+- **Fixed Strategy (2-0)**: Favourite team always wins 2-0 (clean sheet strategy backing favourite shutouts)
+- **Fixed Strategy (1-0)**: Favourite team always wins 1-0 (conservative strategy backing narrow favourite wins)
 - **Calibrated Predictions**: Variable scorelines based on favourite's odds strength:
   - Strong favourites (≤1.50 odds): 3-0 or 2-0 predictions
   - Moderate favourites (1.51-2.00): 2-1 predictions  

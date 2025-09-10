@@ -236,10 +236,13 @@ def backfill_team_ids_from_fixtures(cursor, team_mappings, logger, dry_run=False
 
 def update_last_update_table(cursor, logger):
     """Update last_update table to trigger database upload"""
+    dt = datetime.now()
+    now = dt.strftime("%d-%m-%Y %H:%M:%S")
+    timestamp = dt.timestamp()
     cursor.execute("""
-        INSERT OR REPLACE INTO last_update (table_name, timestamp) 
-        VALUES ('fantasy_pl_scores', CURRENT_TIMESTAMP)
-    """)
+        INSERT OR REPLACE INTO last_update (table_name, updated, timestamp) 
+        VALUES (?, ?, ?)
+    """, ('fantasy_pl_scores', now, timestamp))
     logger.info("Updated last_update table to trigger database upload")
 
 def main_backfill(dry_run=False):

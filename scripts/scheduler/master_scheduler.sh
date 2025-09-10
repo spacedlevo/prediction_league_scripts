@@ -14,6 +14,7 @@
 # - fetch_fpl_data.py: Daily at 7 AM (hour = 7, minute = 0)
 # - fetch_odds.py: Daily at 7 AM (hour = 7, minute = 0)
 # - fetch_pulse_data.py: Daily at 8 AM (hour = 8, minute = 0)
+# - fetch_football_data.py: Weekly on Sundays at 9 AM
 #
 # KEY IMPROVEMENTS:
 # - Eliminated complex second-based timing windows that caused missed executions
@@ -209,6 +210,14 @@ if [[ $current_hour -eq 8 ]] && [[ $current_minute -eq 0 ]]; then
     if [[ "$ENABLE_FETCH_PULSE_DATA" == "true" ]]; then
         run_script "scripts/pulse_api/fetch_pulse_data.py" "fetch_pulse_data" &
         log "DEBUG" "Triggered fetch_pulse_data (daily 8 AM)"
+    fi
+fi
+
+# Weekly on Sundays at 9 AM (Football-data.co.uk data collection)
+if [[ $(date +%u) -eq 7 ]] && [[ $current_hour -eq 9 ]] && [[ $current_minute -eq 0 ]]; then
+    if [[ "$ENABLE_FETCH_FOOTBALL_DATA" == "true" ]]; then
+        run_script "scripts/football_data/fetch_football_data.py" "fetch_football_data" &
+        log "DEBUG" "Triggered fetch_football_data (weekly Sunday 9 AM)"
     fi
 fi
 

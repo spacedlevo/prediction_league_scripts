@@ -625,6 +625,76 @@ curl -X POST "http://localhost:5000/api/predictions/calculate-points" \
   - 0 points: Incorrect prediction
 - `actual_home`/`actual_away`: Actual match scores
 
+#### Season Performance Analysis API
+- **URL**: `/api/predictions/season-performance`
+- **Method**: GET
+- **Purpose**: Compare performance of different prediction strategies across completed fixtures
+- **Authentication**: Required (session-based)
+
+##### Request Example
+```bash
+curl -X GET "http://localhost:5000/api/predictions/season-performance" \
+     -b "session_cookie=value"
+```
+
+##### Response Structure
+```json
+{
+  "strategies": [
+    {
+      "strategy": "Fixed (2-1 Favourite)",
+      "total_points": 45,
+      "correct_results": 18,
+      "exact_scores": 9,
+      "games_analyzed": 30,
+      "accuracy_rate": 60.0,
+      "avg_points_per_game": 1.5
+    },
+    {
+      "strategy": "Fixed (2-0 Favourite)",
+      "total_points": 38,
+      "correct_results": 15,
+      "exact_scores": 8,
+      "games_analyzed": 30,
+      "accuracy_rate": 50.0,
+      "avg_points_per_game": 1.27
+    },
+    {
+      "strategy": "Fixed (1-0 Favourite)",
+      "total_points": 32,
+      "correct_results": 14,
+      "exact_scores": 4,
+      "games_analyzed": 30,
+      "accuracy_rate": 46.7,
+      "avg_points_per_game": 1.07
+    }
+  ],
+  "debug": {
+    "complete_fixtures": 30,
+    "total_odds": 28
+  }
+}
+```
+
+##### Response Fields
+- `strategies`: Array of strategy performance data
+- `strategy`: Display name of the prediction strategy
+- `total_points`: Total points earned across all analyzed fixtures
+- `correct_results`: Number of correct win/draw/loss predictions
+- `exact_scores`: Number of perfect score predictions
+- `games_analyzed`: Number of completed fixtures analyzed
+- `accuracy_rate`: Percentage of correct predictions (results only)
+- `avg_points_per_game`: Average points per fixture
+- `debug`: Additional metadata about the analysis
+
+##### Supported Strategies
+1. **Fixed (2-1 Favourite)** - Favourite always wins 2-1
+2. **Fixed (2-0 Favourite)** - Favourite always wins 2-0 (clean sheet strategy)
+3. **Fixed (1-0 Favourite)** - Favourite always wins 1-0 (conservative strategy)
+4. **Calibrated Scorelines** - Variable scores based on odds strength
+5. **Home/Away Bias** - Venue-based predictions
+6. **Poisson Model** - Mathematical framework (placeholder implementation)
+
 ### Error Handling
 
 #### Standard Error Responses
@@ -715,6 +785,22 @@ async function calculatePoints(predictions) {
     
     const result = await response.json();
     console.log('Total Points:', result.total_points);
+}
+
+// Get season performance comparison
+async function getSeasonPerformance() {
+    const response = await fetch('/api/predictions/season-performance');
+    const data = await response.json();
+    
+    if (data.error) {
+        console.error('API Error:', data.error);
+        return;
+    }
+    
+    // Display strategy comparison
+    data.strategies.forEach(strategy => {
+        console.log(`${strategy.strategy}: ${strategy.total_points} points (${strategy.accuracy_rate}% accuracy)`);
+    });
 }
 ```
 

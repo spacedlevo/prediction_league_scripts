@@ -833,10 +833,20 @@ The web dashboard provides a comprehensive interface for managing the prediction
 
 #### Available Prediction Strategies
 
-**Fixed Strategy (Default)**
+**Fixed Strategy (2-1 Favourite) - Default**
 - Favourite team always wins 2-1
 - Matches existing automated_predictions.py logic
 - Simple and consistent approach
+
+**Fixed Strategy (2-0 Favourite)**
+- Favourite team always wins 2-0
+- Clean sheet strategy backing favourite shutouts
+- Conservative defensive-minded approach
+
+**Fixed Strategy (1-0 Favourite)**
+- Favourite team always wins 1-0
+- Ultra-conservative strategy backing narrow wins
+- Minimal scoring, maximum safety approach
 
 **Calibrated Predictions**
 - Variable scorelines based on odds strength:
@@ -874,10 +884,13 @@ The web dashboard provides a comprehensive interface for managing the prediction
 - **Accuracy Rate**: Percentage of correct predictions
 
 #### Strategy Comparison
-- Compare multiple approaches side-by-side
-- Historical performance when results are available
-- Backtest different strategies against actual results
-- Identify best-performing methods over time
+- Compare 6 different prediction approaches side-by-side
+- Historical performance analysis when results are available
+- Backtest strategies against actual results (3 fixed variants + 3 adaptive strategies)
+- Identify best-performing methods over time with detailed metrics:
+  - **Fixed Strategies**: 2-1, 2-0, and 1-0 favourite comparisons
+  - **Adaptive Strategies**: Calibrated, Home/Away Bias, and Poisson models
+- Performance ranking table with total points, accuracy rates, and games analyzed
 
 ### API Endpoints
 

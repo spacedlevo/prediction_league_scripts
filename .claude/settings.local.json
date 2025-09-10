@@ -25,7 +25,8 @@
       "Bash(venv/bin/python:*)",
       "Read(/usr/bin/**)",
       "Bash(ln:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "WebFetch(domain:the-odds-api.com)"
     ],
     "deny": [],
     "ask": []

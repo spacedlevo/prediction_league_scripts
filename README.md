@@ -17,9 +17,11 @@ A comprehensive automated system for managing Fantasy Premier League predictions
 
 ### 🔄 **Automated Data Processing**
 - **FPL API Integration**: Automatic fixtures, gameweeks, and results collection
+- **Historical Data**: 30+ years of Premier League match data (1993-2025) from football-data.co.uk
 - **Smart Change Detection**: Only updates database when data actually changes
 - **Intelligent Timing**: Runs during match days and timing windows
 - **Missing Results Detection**: Automatically fetches results for completed fixtures
+- **Comprehensive Statistics**: Match results, team stats, betting odds, referee info
 
 ### 📱 **Dropbox Integration**
 - **OAuth2 Authentication**: Secure token management with auto-refresh
@@ -112,35 +114,35 @@ A comprehensive automated system for managing Fantasy Premier League predictions
 ## 🔧 System Architecture
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   FPL API       │    │   Dropbox API   │    │  PythonAnywhere │
-│   - Fixtures    │    │   - Predictions │    │   - Database    │
-│   - Gameweeks   │    │   - OAuth2      │    │   - Hosting     │
-│   - Results     │    │   - File Sync   │    │   - SSH Upload  │
-└─────────┬───────┘    └─────────┬───────┘    └─────────┬───────┘
-          │                      │                      │
-          ▼                      ▼                      ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    Master Scheduler System                     │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │          Centralized Orchestration Engine              │   │
-│  │  - Timing Control    - Process Management              │   │
-│  │  - Lock Files        - Gameweek Validation            │   │
-│  │  - Health Monitoring - Configuration Management       │   │
-│  └─────────────────────────────────────────────────────────┘   │
-│                                                                 │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
-│  │   FPL       │  │ Prediction  │  │  Database   │             │
-│  │ Processing  │  │ Processing  │  │ Monitoring  │             │
-│  └─────────────┘  └─────────────┘  └─────────────┘             │
-│                                                                 │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │                SQLite Database                          │   │
-│  │  - Teams & Players    - Fixtures & Results            │   │
-│  │  - Predictions        - Gameweeks                     │   │
-│  │  - File Metadata      - Change Tracking               │   │
-│  └─────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│   FPL API       │  │   Dropbox API   │  │ Football-Data   │  │  PythonAnywhere │
+│   - Fixtures    │  │   - Predictions │  │ - Historical    │  │   - Database    │
+│   - Gameweeks   │  │   - OAuth2      │  │ - Weekly Data   │  │   - Hosting     │
+│   - Results     │  │   - File Sync   │  │ - Match Stats   │  │   - SSH Upload  │
+└─────────┬───────┘  └─────────┬───────┘  └─────────┬───────┘  └─────────┬───────┘
+          │                    │                    │                    │
+          ▼                    ▼                    ▼                    ▼
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                        Master Scheduler System                               │
+│  ┌─────────────────────────────────────────────────────────────────────┐     │
+│  │                Centralized Orchestration Engine                    │     │
+│  │  - Timing Control      - Process Management    - Weekly Scheduling │     │
+│  │  - Lock Files          - Gameweek Validation   - Historical Data   │     │
+│  │  - Health Monitoring   - Configuration Management                   │     │
+│  └─────────────────────────────────────────────────────────────────────┘     │
+│                                                                               │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐         │
+│  │   FPL       │  │ Prediction  │  │  Football   │  │  Database   │         │
+│  │ Processing  │  │ Processing  │  │    Data     │  │ Monitoring  │         │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘         │
+│                                                                               │
+│  ┌─────────────────────────────────────────────────────────────────────┐     │
+│  │                        SQLite Database                              │     │
+│  │  - Teams & Players      - Fixtures & Results    - Historical Stats │     │
+│  │  - Predictions          - Gameweeks             - Betting Odds     │     │
+│  │  - File Metadata        - Change Tracking       - Match Officials  │     │
+│  └─────────────────────────────────────────────────────────────────────┘     │
+└───────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## 🛠️ Core Components
@@ -156,6 +158,10 @@ A comprehensive automated system for managing Fantasy Premier League predictions
 - **`scripts/fpl/fetch_fixtures_gameweeks.py`** - Manages fixtures and gameweeks with validation
 - **`scripts/fpl/fetch_results.py`** - Processes match results with timezone handling
 - **`scripts/fpl/fetch_fpl_data.py`** - Comprehensive player data collection
+
+### Football-Data.co.uk Integration
+- **`scripts/football_data/migrate_legacy_data.py`** - Historical data migration (1993-2025)
+- **`scripts/football_data/fetch_football_data.py`** - Weekly current season data updates
 
 ### Prediction Management
 - **`scripts/prediction_league/clean_predictions_dropbox.py`** - Dropbox integration
@@ -195,6 +201,7 @@ Create `keys.json` from template and configure:
 ```bash
 # Enable/disable individual components
 ENABLE_FETCH_RESULTS=true
+ENABLE_FETCH_FOOTBALL_DATA=true
 ENABLE_MONITOR_UPLOAD=true
 ENABLE_CLEAN_PREDICTIONS=true
 ENABLE_FETCH_FIXTURES=true
@@ -228,6 +235,9 @@ OFFSEASON_MODE=false
 
 # Daily Data Refresh (7 AM)
 0 7 * * * cd /path/to/project && ./venv/bin/python scripts/fpl/fetch_fpl_data.py
+
+# Weekly Football Data (Sundays 9 AM)
+0 9 * * 0 cd /path/to/project && ./venv/bin/python scripts/football_data/fetch_football_data.py
 ```
 
 ## 🔒 Security Features

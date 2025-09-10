@@ -432,6 +432,38 @@ tail -f logs/script_$(date +%Y%m%d).log
 - **Change Triggering** - Updates last_update table to trigger automated database uploads
 - **Lock Management** - Prevents multiple concurrent executions
 
+### Football-Data.co.uk System (Historical Match Data)
+```bash
+# Import historical Premier League data (1993-2025)
+./venv/bin/python scripts/football_data/migrate_legacy_data.py --test --force
+
+# Download current season data weekly
+./venv/bin/python scripts/football_data/fetch_football_data.py --dry-run
+
+# Test with sample data
+./venv/bin/python scripts/football_data/fetch_football_data.py --test
+```
+
+**Football-Data System Features:**
+- **Historical Integration** - 7,146+ Premier League matches from 1993-2025 (32 seasons)
+- **Rich Match Data** - Results, statistics, referee info, comprehensive betting odds
+- **Team Mapping** - Automatic translation between football-data names and database teams
+- **Weekly Updates** - Automated downloads of current season data every Sunday
+- **Change Detection** - Smart updates only when actual data changes occur
+- **Sample Management** - Automatic cleanup with configurable retention (5 files default)
+
+**Data Includes:**
+- **Match Results** - Full-time/half-time scores and results
+- **Team Statistics** - Shots (total/on target), corners, cards, fouls for each team
+- **Official Information** - Referee assignments for each match
+- **Betting Markets** - Home/Draw/Away odds from multiple bookmakers (Bet365, William Hill, etc.)
+- **Advanced Markets** - Over/under goals, Asian handicap, correct score odds
+
+**Scheduler Integration:**
+- **Weekly Collection** - Runs automatically on Sundays at 9 AM via master scheduler
+- **Change Triggering** - Updates last_update table to trigger automated database uploads
+- **Configuration Control** - `ENABLE_FETCH_FOOTBALL_DATA=true/false` in scheduler config
+
 ### Master Scheduler System
 ```bash
 # Set up automated execution (single cron entry manages everything)
@@ -460,7 +492,8 @@ echo "DEBUG_MODE=true" >> scripts/scheduler/scheduler_config.conf
 - **Every 30 Minutes**: fetch_fixtures_gameweeks.py
 - **Every Hour**: automated_predictions.py
 - **Daily 7 AM**: fetch_fpl_data.py, fetch_odds.py
-- **Daily 8 AM**: fetch_pulse_data.py (NEW - September 2025)
+- **Daily 8 AM**: fetch_pulse_data.py
+- **Weekly Sundays 9 AM**: fetch_football_data.py (NEW - September 2025)
 - **Daily 2 AM**: Cleanup old logs and locks
 
 **Configuration Override (scripts/scheduler/scheduler_config.conf):**
@@ -477,6 +510,7 @@ ENABLE_AUTOMATED_PREDICTIONS=true
 ENABLE_FETCH_FPL_DATA=true
 ENABLE_FETCH_ODDS=true
 ENABLE_FETCH_PULSE_DATA=true
+ENABLE_FETCH_FOOTBALL_DATA=true
 
 # Debug output for timing analysis
 DEBUG_MODE=false

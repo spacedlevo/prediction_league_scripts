@@ -693,7 +693,7 @@ def update_last_update_table(cursor: sql.Cursor, conn: sql.Connection, logger: l
     try:
         now = datetime.now()
         timestamp = now.timestamp()
-        formatted_time = now.strftime("%d-%m-%Y. %H:%M:%S")
+        formatted_time = now.strftime("%d-%m-%Y %H:%M:%S")
         
         cursor.execute("""
             INSERT OR REPLACE INTO last_update (table_name, updated, timestamp) 

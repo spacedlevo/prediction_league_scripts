@@ -93,13 +93,14 @@ def insert_or_update_bookmaker(cursor, bookmaker_name):
     cursor.execute("SELECT bookmaker_id FROM bookmakers WHERE bookmaker_name = ?", (bookmaker_name,))
     return cursor.fetchone()[0]
 
-def insert_or_update_odds(cursor, match_id, home_team_id, away_team_id, bet_type, fixture_id, bookmaker_id, price):
-    """Insert or update odds record with price"""
-    # Check if record exists
+def insert_or_update_odds(cursor, match_id, home_team_id, away_team_id, bet_type, fixture_id, bookmaker_id, price, total_line=None, outcome_type=None):
+    """Insert or update odds record with price and totals support"""
+    # Check if record exists - include totals fields in uniqueness check
     cursor.execute("""
         SELECT odd_id FROM odds 
-        WHERE match_id = ? AND bet_type = ? AND bookmaker_id = ?
-    """, (match_id, bet_type, bookmaker_id))
+        WHERE match_id = ? AND bet_type = ? AND bookmaker_id = ? 
+        AND total_line IS ? AND outcome_type IS ?
+    """, (match_id, bet_type, bookmaker_id, total_line, outcome_type))
     
     existing = cursor.fetchone()
     
@@ -107,22 +108,23 @@ def insert_or_update_odds(cursor, match_id, home_team_id, away_team_id, bet_type
         # Update existing record
         cursor.execute("""
             UPDATE odds 
-            SET home_team_id = ?, away_team_id = ?, fixture_id = ?, price = ?
+            SET home_team_id = ?, away_team_id = ?, fixture_id = ?, price = ?, 
+                total_line = ?, outcome_type = ?
             WHERE odd_id = ?
-        """, (home_team_id, away_team_id, fixture_id, price, existing[0]))
+        """, (home_team_id, away_team_id, fixture_id, price, total_line, outcome_type, existing[0]))
     else:
         # Insert new record
         cursor.execute("""
             INSERT INTO odds 
-            (match_id, home_team_id, away_team_id, bet_type, fixture_id, bookmaker_id, price)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (match_id, home_team_id, away_team_id, bet_type, fixture_id, bookmaker_id, price))
+            (match_id, home_team_id, away_team_id, bet_type, fixture_id, bookmaker_id, price, total_line, outcome_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (match_id, home_team_id, away_team_id, bet_type, fixture_id, bookmaker_id, price, total_line, outcome_type))
 
 def update_last_update_table(table_name, cursor, logger):
     """Update the last_update table with current timestamp"""
     try:
         dt = datetime.now()
-        now = dt.strftime("%d-%m-%Y. %H:%M:%S")
+        now = dt.strftime("%d-%m-%Y %H:%M:%S")
         timestamp = dt.timestamp()
         
         cursor.execute("""
@@ -174,9 +176,12 @@ def process_odds_data(odds_data, logger):
                 bookmaker_name = bookmaker['title'].lower()
                 bookmaker_id = insert_or_update_bookmaker(cursor, bookmaker_name)
                 
-                # Process h2h market (head-to-head betting)
+                # Process all available markets
                 for market in bookmaker['markets']:
-                    if market['key'] == 'h2h':
+                    market_key = market['key']
+                    
+                    if market_key == 'h2h':
+                        # Process h2h market (head-to-head betting)
                         for outcome in market['outcomes']:
                             # Validate price exists
                             price = outcome.get('price')
@@ -194,9 +199,38 @@ def process_odds_data(odds_data, logger):
                             else:
                                 continue
                             
-                            # Insert or update the odds with price
+                            # Insert or update the odds with price (no totals data for h2h)
                             insert_or_update_odds(cursor, match_id, home_team_id, away_team_id, 
                                                 bet_type, fixture_id, bookmaker_id, price)
+                            processed_count += 1
+                    
+                    elif market_key == 'totals':
+                        # Process totals market (over/under betting)
+                        for outcome in market['outcomes']:
+                            # Validate required fields
+                            price = outcome.get('price')
+                            point = outcome.get('point')  # The goals line (e.g., 2.5)
+                            outcome_name = outcome.get('name')  # 'Over' or 'Under'
+                            
+                            if price is None or point is None or outcome_name is None:
+                                logger.warning(f"Missing totals data for {outcome_name} {point} in match {home_team} vs {away_team}")
+                                continue
+                            
+                            # Map outcome names to bet types and outcome types
+                            if outcome_name.lower() == 'over':
+                                bet_type = 'over'
+                                outcome_type = 'over'
+                            elif outcome_name.lower() == 'under':
+                                bet_type = 'under' 
+                                outcome_type = 'under'
+                            else:
+                                logger.warning(f"Unknown totals outcome: {outcome_name} for match {home_team} vs {away_team}")
+                                continue
+                            
+                            # Insert or update the totals odds
+                            insert_or_update_odds(cursor, match_id, home_team_id, away_team_id, 
+                                                bet_type, fixture_id, bookmaker_id, price, 
+                                                total_line=point, outcome_type=outcome_type)
                             processed_count += 1
         
         # Update timestamp before committing (critical for upload detection)
@@ -230,6 +264,8 @@ def refresh_fixture_odds_summary(logger):
                 avg_home_win_odds,
                 avg_draw_odds,
                 avg_away_win_odds,
+                avg_over_2_5_odds,
+                avg_under_2_5_odds,
                 bookmaker_count,
                 last_updated
             )
@@ -240,6 +276,8 @@ def refresh_fixture_odds_summary(logger):
                 AVG(CASE WHEN bet_type = 'home win' THEN price END) as avg_home_win_odds,
                 AVG(CASE WHEN bet_type = 'draw' THEN price END) as avg_draw_odds,
                 AVG(CASE WHEN bet_type = 'away win' THEN price END) as avg_away_win_odds,
+                AVG(CASE WHEN bet_type = 'over' AND total_line = 2.5 THEN price END) as avg_over_2_5_odds,
+                AVG(CASE WHEN bet_type = 'under' AND total_line = 2.5 THEN price END) as avg_under_2_5_odds,
                 COUNT(DISTINCT bookmaker_id) as bookmaker_count,
                 datetime('now') as last_updated
             FROM odds 
@@ -261,10 +299,17 @@ def refresh_fixture_odds_summary(logger):
     finally:
         conn.close()
 
-def get_odds(api_key, logger):
+def get_odds(api_key, logger, include_totals=False):
     """Fetch odds data from API with timeout and error handling"""
     url = "https://api.the-odds-api.com/v4/sports/soccer_epl/odds"
-    params = {"regions": "uk", "oddsFormat": "decimal", "apiKey": api_key}
+    
+    # Build markets parameter - always include h2h, optionally include totals
+    markets = "h2h"
+    if include_totals:
+        markets = "h2h,totals"
+        logger.info("Including totals (over/under) markets in API request")
+    
+    params = {"regions": "uk", "oddsFormat": "decimal", "markets": markets, "apiKey": api_key}
     
     logger.info("Fetching odds from API...")
     
@@ -297,11 +342,14 @@ def get_odds(api_key, logger):
         logger.error(f"Unexpected error during API request: {e}")
         return None
     
-def main(cleanup_count=5):
+def main(cleanup_count=5, include_totals=False):
     logger = setup_logging()
     logger.info("Starting odds fetch process...")
     
-    odds = get_odds(odds_api_key, logger)
+    if include_totals:
+        logger.info("Totals (over/under) markets enabled - this will double API usage cost")
+    
+    odds = get_odds(odds_api_key, logger, include_totals=include_totals)
     
     if odds:
         # Process the odds data into the database
@@ -372,6 +420,8 @@ def parse_arguments():
     parser.add_argument('--test', action='store_true', help='Run in test mode with sample data')
     parser.add_argument('--cleanup-count', type=int, default=5, 
                        help='Number of sample files to keep (0 to disable cleanup)')
+    parser.add_argument('--include-totals', action='store_true', 
+                       help='Include over/under (totals) markets - doubles API usage cost')
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -380,4 +430,4 @@ if __name__ == "__main__":
     if args.test:
         test_with_sample_data()
     else:
-        main(cleanup_count=args.cleanup_count)
+        main(cleanup_count=args.cleanup_count, include_totals=args.include_totals)

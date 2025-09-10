@@ -8,17 +8,34 @@
         <p class="text-gray-600">Automated predictions based on betting odds with multiple strategies and scoring analysis.</p>
     </div>
     
-    <!-- Gameweek Selector -->
+    <!-- Gameweek and Season Selectors -->
     <div class="bg-white shadow rounded-lg p-6">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-4">
-            <h2 class="text-lg font-semibold text-gray-900 mb-2 sm:mb-0">Select Gameweek</h2>
-            <select id="gameweekSelect" class="block w-full sm:w-48 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-                {% for gw in available_gameweeks %}
-                <option value="{{ gw }}" {% if gw == current_gameweek %}selected{% endif %}>
-                    Gameweek {{ gw }}
-                </option>
-                {% endfor %}
-            </select>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Gameweek Selector -->
+            <div class="flex flex-col">
+                <h2 class="text-lg font-semibold text-gray-900 mb-2">Select Gameweek</h2>
+                <select id="gameweekSelect" class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    {% for gw in available_gameweeks %}
+                    <option value="{{ gw }}" {% if gw == current_gameweek %}selected{% endif %}>
+                        Gameweek {{ gw }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <!-- Season Selector for Performance Analysis -->
+            <div class="flex flex-col">
+                <h2 class="text-lg font-semibold text-gray-900 mb-2">Performance Analysis Season</h2>
+                <select id="seasonSelect" class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    <option value="2024/2025">2024/2025 (Current)</option>
+                    <option value="2023/2024">2023/2024</option>
+                    <option value="2022/2023">2022/2023</option>
+                    <option value="2021/2022">2021/2022</option>
+                    <option value="2020/2021">2020/2021</option>
+                    <option value="all">All Seasons Combined</option>
+                    <option value="historical">Historical Seasons (2020-2024)</option>
+                </select>
+            </div>
         </div>
     </div>
 
@@ -37,6 +54,9 @@
                 </button>
                 <button class="strategy-tab border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm" data-strategy="poisson">
                     Poisson Model
+                </button>
+                <button class="strategy-tab border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm" data-strategy="smart-goals">
+                    Smart Goals
                 </button>
                 <button class="strategy-tab border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm" data-strategy="custom">
                     Custom Predictions
@@ -203,6 +223,7 @@
 <script>
 let currentGameweek = {{ current_gameweek }};
 let currentStrategy = 'fixed';
+let currentSeason = '2024/2025';
 let fixturesData = [];
 
 // Strategy descriptions
@@ -213,6 +234,7 @@ const strategyDescriptions = {
     calibrated: "Variable scorelines based on favourite strength: ≤1.50 odds = 3-0/2-0, 1.51-2.00 = 2-1, 2.01-2.50 = 1-0, >2.50 = 1-1",
     'home-away': "Considers venue bias: Home favourites predicted 2-0, Away favourites predicted 2-1",
     poisson: "Mathematical model using Poisson distribution to predict most likely scoreline based on expected goals from odds (Coming Soon)",
+    'smart-goals': "Combines 1X2 and Over/Under odds. Predicts 2-1 or 3-1 if favourite is short and high goals expected. Predicts 1-0 if favourite is short but low goals expected.",
     custom: "Enter your own predictions and see how many points you would score"
 };
 
@@ -223,6 +245,12 @@ function setupEventListeners() {
     document.getElementById('gameweekSelect').addEventListener('change', function() {
         currentGameweek = parseInt(this.value);
         loadFixtures(currentGameweek);
+    });
+    
+    // Season selector
+    document.getElementById('seasonSelect').addEventListener('change', function() {
+        currentSeason = this.value;
+        loadSeasonPerformance(); // Reload performance data for new season
     });
     
     // Strategy tabs
@@ -259,6 +287,7 @@ function updateStrategyContent() {
         calibrated: 'Calibrated Predictions (Variable Scorelines)',
         'home-away': 'Home/Away Bias Predictions',
         poisson: 'Poisson Model Predictions (Mathematical)',
+        'smart-goals': 'Smart Goals Strategy (1X2 + Over/Under)',
         custom: 'Custom Predictions'
     };
     
@@ -408,6 +437,41 @@ function calculatePrediction(fixture, strategy) {
                 [homeScore, awayScore] = isPoissonHomeFav ? [2, 1] : [1, 2];
             } else {
                 [homeScore, awayScore] = isPoissonHomeFav ? [1, 0] : [0, 1];
+            }
+            break;
+            
+        case 'smart-goals':
+            // Combined 1X2 + Over/Under strategy
+            const favouriteOdds = Math.min(homeOdds, awayOdds);
+            const isHomeFav = homeOdds <= awayOdds;
+            
+            // Get Over/Under odds (use fallback if not available)
+            const over25Odds = parseFloat(fixture.over_2_5_odds) || 1.90;
+            const under25Odds = parseFloat(fixture.under_2_5_odds) || 1.90;
+            const goalsMarketFavoursHigh = over25Odds < under25Odds;
+            
+            if (favouriteOdds <= 1.67) { // Short favourite
+                if (goalsMarketFavoursHigh) {
+                    if (over25Odds <= 1.70) {
+                        // Very heavy over 2.5 odds
+                        [homeScore, awayScore] = isHomeFav ? [3, 1] : [1, 3];
+                    } else {
+                        // Heavy over 2.5 odds
+                        [homeScore, awayScore] = isHomeFav ? [2, 1] : [1, 2];
+                    }
+                } else {
+                    // Under 2.5 favoured
+                    [homeScore, awayScore] = isHomeFav ? [1, 0] : [0, 1];
+                }
+            } else {
+                // Not a short favourite, use standard calibrated approach
+                if (favouriteOdds <= 2.00) {
+                    [homeScore, awayScore] = isHomeFav ? [2, 1] : [1, 2];
+                } else if (favouriteOdds <= 2.50) {
+                    [homeScore, awayScore] = isHomeFav ? [1, 0] : [0, 1];
+                } else {
+                    homeScore = 1; awayScore = 1;
+                }
             }
             break;
             
@@ -725,7 +789,10 @@ function loadSeasonPerformance() {
     document.getElementById('noPerformanceData').classList.add('hidden');
     
     // Load performance comparison for all strategies
-    fetch('/api/predictions/season-performance')
+    const apiUrl = `/api/predictions/season-performance?season=${encodeURIComponent(currentSeason)}`;
+    console.log('Fetching season performance for:', currentSeason, 'from:', apiUrl);
+    
+    fetch(apiUrl)
         .then(response => {
             console.log('API Response Status:', response.status);
             console.log('API Response Headers:', response.headers);
@@ -837,12 +904,19 @@ function generatePerformanceInsights(strategies) {
         prev.exact_scores > current.exact_scores ? prev : current
     );
     
+    let seasonLabel = currentSeason;
+    if (currentSeason === 'all') {
+        seasonLabel = 'All Seasons Combined';
+    } else if (currentSeason === 'historical') {
+        seasonLabel = 'Historical Seasons (2020-2024)';
+    }
+    
     insights.innerHTML = `
         <div class="space-y-2">
-            <p><strong>Best Overall:</strong> ${bestStrategy.strategy_name} with ${bestStrategy.total_points} points from ${totalGames} games</p>
+            <p><strong>Best Overall (${seasonLabel}):</strong> ${bestStrategy.strategy_name} with ${bestStrategy.total_points} points from ${totalGames} games</p>
             <p><strong>Most Accurate:</strong> ${strategies.find(s => s.accuracy_rate === bestAccuracy).strategy_name} (${bestAccuracy.toFixed(1)}% accuracy)</p>
             <p><strong>Best at Exact Scores:</strong> ${bestExactScorer.strategy_name} with ${bestExactScorer.exact_scores} perfect predictions</p>
-            <p><strong>Season Progress:</strong> Analysis based on ${totalGames} completed fixtures with available odds and results</p>
+            <p><strong>Analysis Period:</strong> ${seasonLabel} - ${totalGames} completed fixtures with available odds and results</p>
         </div>
     `;
 }
