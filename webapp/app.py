@@ -37,10 +37,20 @@ script_status = {}  # Track running scripts
 def load_config():
     """Load configuration from config.json file"""
     global config
-    config_path = Path( "/opt/prediction-league/config.json")
     
-    if not config_path.exists():
+    # Try local config first, then production path
+    local_config_path = Path(__file__).parent / "config.json"
+    production_config_path = Path("/opt/prediction-league/config.json")
+    
+    if local_config_path.exists():
+        config_path = local_config_path
+        print(f"Using local config: {config_path}")
+    elif production_config_path.exists():
+        config_path = production_config_path
+        print(f"Using production config: {config_path}")
+    else:
         # Create default config from example
+        config_path = local_config_path
         example_path = Path(__file__).parent / "config.json.example"
         if example_path.exists():
             import shutil
@@ -55,14 +65,42 @@ def load_config():
     # Set Flask configuration
     app.config['SECRET_KEY'] = config['secret_key']
     app.config['DEBUG'] = config.get('debug', False)
+    
+    # Setup logging for debugging
+    import logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
 
 
 def get_db_connection():
     """Get SQLite database connection"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     db_path = Path(__file__).parent / config['database_path']
+    logger.info(f"Database path requested: {db_path}")
+    logger.info(f"Database path exists: {db_path.exists()}")
+    logger.info(f"Current working directory: {Path.cwd()}")
+    logger.info(f"Webapp parent directory: {Path(__file__).parent}")
+    logger.info(f"Config database_path: {config['database_path']}")
+    
     if not db_path.exists():
+        # Try to find the database in common locations for debugging
+        alternative_paths = [
+            Path(__file__).parent.parent / "data" / "database.db",  # Up one level
+            Path.cwd() / "data" / "database.db",  # Current working directory
+            Path(__file__).parent / "data" / "database.db"  # Same level as webapp
+        ]
+        
+        logger.info("Database not found at expected location. Checking alternatives:")
+        for alt_path in alternative_paths:
+            logger.info(f"  {alt_path}: {'EXISTS' if alt_path.exists() else 'NOT FOUND'}")
+        
         raise FileNotFoundError(f"Database not found at {db_path}")
     
+    logger.info(f"Successfully connecting to database at: {db_path}")
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row  # Enable column access by name
     return conn
@@ -648,12 +686,36 @@ def calculate_custom_points():
 @require_auth
 def get_season_performance():
     """Get performance comparison for all prediction strategies this season"""
+    import logging
+    
+    # Setup logging for debugging
+    logger = logging.getLogger(__name__)
+    logger.info("=== Season Performance API Called ===")
+    
     try:
+        # Log database connection details
+        db_path = Path(__file__).parent / config['database_path']
+        logger.info(f"Database path: {db_path}")
+        logger.info(f"Database exists: {db_path.exists()}")
+        
         conn = get_db_connection()
         cursor = conn.cursor()
         
+        # First, check basic data availability
+        cursor.execute("SELECT COUNT(*) FROM fixtures WHERE season = '2025/2026'")
+        total_fixtures = cursor.fetchone()[0]
+        logger.info(f"Total fixtures for 2025/2026: {total_fixtures}")
+        
+        cursor.execute("SELECT COUNT(*) FROM results r JOIN fixtures f ON r.fixture_id = f.fixture_id WHERE f.season = '2025/2026'")
+        total_results = cursor.fetchone()[0]
+        logger.info(f"Total results available: {total_results}")
+        
+        cursor.execute("SELECT COUNT(*) FROM fixture_odds_summary s JOIN fixtures f ON s.fixture_id = f.fixture_id WHERE f.season = '2025/2026'")
+        total_odds = cursor.fetchone()[0]
+        logger.info(f"Total fixtures with odds: {total_odds}")
+        
         # Get all fixtures with odds and results for the current season
-        cursor.execute("""
+        query = """
             SELECT 
                 f.fixture_id,
                 ht.team_name as home_team,
@@ -674,7 +736,10 @@ def get_season_performance():
             AND s.avg_home_win_odds IS NOT NULL
             AND s.avg_away_win_odds IS NOT NULL
             ORDER BY f.kickoff_dttm
-        """)
+        """
+        
+        logger.info("Executing main query...")
+        cursor.execute(query)
         
         fixtures_data = []
         for row in cursor.fetchall():
@@ -690,31 +755,64 @@ def get_season_performance():
             }
             fixtures_data.append(fixture)
         
+        logger.info(f"Query returned {len(fixtures_data)} complete fixtures")
+        
+        # Log first few fixtures for debugging
+        for i, fixture in enumerate(fixtures_data[:3]):
+            logger.info(f"Sample fixture {i+1}: {fixture['home_team']} {fixture['actual_home_goals']}-{fixture['actual_away_goals']} {fixture['away_team']} (odds: {fixture['home_odds']:.2f}/{fixture['away_odds']:.2f})")
+        
         conn.close()
         
         if not fixtures_data:
+            logger.warning("No fixtures found - returning empty result")
             return jsonify({
                 'strategies': [],
-                'message': 'No completed fixtures with odds data available yet'
+                'message': 'No completed fixtures with odds data available yet',
+                'debug': {
+                    'total_fixtures': total_fixtures,
+                    'total_results': total_results, 
+                    'total_odds': total_odds,
+                    'complete_fixtures': 0
+                }
             })
         
         # Calculate performance for each strategy
         strategies = ['fixed', 'calibrated', 'home-away', 'poisson']
         strategy_performance = []
         
+        logger.info("Calculating performance for each strategy...")
         for strategy in strategies:
+            logger.info(f"Calculating performance for {strategy} strategy...")
             performance = calculate_strategy_performance(fixtures_data, strategy)
             performance['strategy_name'] = get_strategy_display_name(strategy)
             strategy_performance.append(performance)
+            logger.info(f"{strategy} strategy: {performance['total_points']} points, {performance['accuracy_rate']:.1f}% accuracy")
+        
+        logger.info("=== Season Performance API Completed Successfully ===")
         
         return jsonify({
             'strategies': strategy_performance,
             'total_games': len(fixtures_data),
-            'season': '2025/2026'
+            'season': '2025/2026',
+            'debug': {
+                'total_fixtures': total_fixtures,
+                'total_results': total_results,
+                'total_odds': total_odds,
+                'complete_fixtures': len(fixtures_data)
+            }
         })
     
     except Exception as e:
-        return jsonify({'error': str(e), 'strategies': []}), 500
+        logger.error(f"Error in season performance API: {str(e)}")
+        logger.exception("Full traceback:")
+        return jsonify({
+            'error': str(e), 
+            'strategies': [],
+            'debug': {
+                'error_type': type(e).__name__,
+                'error_message': str(e)
+            }
+        }), 500
 
 
 def get_strategy_display_name(strategy):

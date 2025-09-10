@@ -697,20 +697,57 @@ function clearAllCustomPredictions() {
 }
 
 function loadSeasonPerformance() {
+    console.log('=== Loading Season Performance Data ===');
+    
+    // Show loading state
+    document.getElementById('performanceTableLoading').classList.remove('hidden');
+    document.getElementById('performanceTable').classList.add('hidden');
+    document.getElementById('noPerformanceData').classList.add('hidden');
+    
     // Load performance comparison for all strategies
     fetch('/api/predictions/season-performance')
-        .then(response => response.json())
+        .then(response => {
+            console.log('API Response Status:', response.status);
+            console.log('API Response Headers:', response.headers);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            return response.json();
+        })
         .then(data => {
+            console.log('API Response Data:', data);
+            
+            // Check for debug information
+            if (data.debug) {
+                console.log('Debug Info:', data.debug);
+                console.log(`Database has ${data.debug.total_fixtures} fixtures, ${data.debug.total_results} results, ${data.debug.total_odds} odds`);
+                console.log(`Complete fixtures available: ${data.debug.complete_fixtures}`);
+            }
+            
+            // Check for API errors
+            if (data.error) {
+                console.error('API Error:', data.error);
+                showNoPerformanceDataWithError(`API Error: ${data.error}`);
+                return;
+            }
+            
+            // Check for strategies data
             if (data.strategies && data.strategies.length > 0) {
+                console.log(`Found ${data.strategies.length} strategies with data`);
                 displayPerformanceTable(data.strategies);
                 generatePerformanceInsights(data.strategies);
             } else {
-                showNoPerformanceData();
+                console.warn('No strategies data available');
+                const message = data.message || 'No performance data available';
+                showNoPerformanceDataWithError(message);
             }
         })
         .catch(error => {
             console.error('Error loading season performance:', error);
-            showNoPerformanceData();
+            console.error('Error stack:', error.stack);
+            showNoPerformanceDataWithError(`Network Error: ${error.message}`);
         });
 }
 
@@ -793,6 +830,25 @@ function generatePerformanceInsights(strategies) {
 function showNoPerformanceData() {
     document.getElementById('performanceTableLoading').classList.add('hidden');
     document.getElementById('noPerformanceData').classList.remove('hidden');
+}
+
+function showNoPerformanceDataWithError(errorMessage) {
+    document.getElementById('performanceTableLoading').classList.add('hidden');
+    document.getElementById('performanceTable').classList.add('hidden');
+    
+    // Update the no data section with error details
+    const noDataSection = document.getElementById('noPerformanceData');
+    noDataSection.innerHTML = `
+        <div class="text-gray-400 text-4xl mb-2">📊</div>
+        <p class="text-gray-500 font-medium">No performance data available yet</p>
+        <p class="text-sm text-gray-400 mt-2">Performance comparison will show once fixtures have results</p>
+        <div class="mt-4 p-3 bg-red-50 rounded-lg border border-red-200">
+            <p class="text-sm text-red-700 font-medium">Debug Information:</p>
+            <p class="text-xs text-red-600 mt-1 font-mono">${errorMessage}</p>
+            <p class="text-xs text-gray-500 mt-2">Check browser console for detailed logs</p>
+        </div>
+    `;
+    noDataSection.classList.remove('hidden');
 }
 
 // Initialize custom predictions functionality
