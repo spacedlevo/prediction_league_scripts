@@ -644,6 +644,188 @@ def calculate_custom_points():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/predictions/season-performance')
+@require_auth
+def get_season_performance():
+    """Get performance comparison for all prediction strategies this season"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get all fixtures with odds and results for the current season
+        cursor.execute("""
+            SELECT 
+                f.fixture_id,
+                ht.team_name as home_team,
+                at.team_name as away_team,
+                s.avg_home_win_odds as home_odds,
+                s.avg_draw_odds as draw_odds,
+                s.avg_away_win_odds as away_odds,
+                r.home_goals as actual_home_goals,
+                r.away_goals as actual_away_goals
+            FROM fixtures f
+            JOIN teams ht ON f.home_teamid = ht.team_id
+            JOIN teams at ON f.away_teamid = at.team_id
+            LEFT JOIN fixture_odds_summary s ON f.fixture_id = s.fixture_id
+            LEFT JOIN results r ON f.fixture_id = r.fixture_id
+            WHERE f.season = '2025/2026' 
+            AND r.home_goals IS NOT NULL 
+            AND r.away_goals IS NOT NULL
+            AND s.avg_home_win_odds IS NOT NULL
+            AND s.avg_away_win_odds IS NOT NULL
+            ORDER BY f.kickoff_dttm
+        """)
+        
+        fixtures_data = []
+        for row in cursor.fetchall():
+            fixture = {
+                'fixture_id': row[0],
+                'home_team': row[1],
+                'away_team': row[2],
+                'home_odds': row[3],
+                'draw_odds': row[4],
+                'away_odds': row[5],
+                'actual_home_goals': row[6],
+                'actual_away_goals': row[7]
+            }
+            fixtures_data.append(fixture)
+        
+        conn.close()
+        
+        if not fixtures_data:
+            return jsonify({
+                'strategies': [],
+                'message': 'No completed fixtures with odds data available yet'
+            })
+        
+        # Calculate performance for each strategy
+        strategies = ['fixed', 'calibrated', 'home-away', 'poisson']
+        strategy_performance = []
+        
+        for strategy in strategies:
+            performance = calculate_strategy_performance(fixtures_data, strategy)
+            performance['strategy_name'] = get_strategy_display_name(strategy)
+            strategy_performance.append(performance)
+        
+        return jsonify({
+            'strategies': strategy_performance,
+            'total_games': len(fixtures_data),
+            'season': '2025/2026'
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e), 'strategies': []}), 500
+
+
+def get_strategy_display_name(strategy):
+    """Get display name for strategy"""
+    names = {
+        'fixed': 'Fixed (2-1 Favourite)',
+        'calibrated': 'Calibrated Scorelines',
+        'home-away': 'Home/Away Bias',
+        'poisson': 'Poisson Model'
+    }
+    return names.get(strategy, strategy.title())
+
+
+def calculate_strategy_performance(fixtures_data, strategy):
+    """Calculate performance metrics for a specific strategy"""
+    total_points = 0
+    correct_results = 0
+    exact_scores = 0
+    games_analyzed = len(fixtures_data)
+    
+    for fixture in fixtures_data:
+        # Generate prediction using the same logic as frontend
+        prediction = generate_prediction_for_fixture(fixture, strategy)
+        
+        actual_home = fixture['actual_home_goals']
+        actual_away = fixture['actual_away_goals']
+        pred_home = prediction['homeScore']
+        pred_away = prediction['awayScore']
+        
+        # Calculate points
+        points = 0
+        
+        # Exact score (2 points)
+        if actual_home == pred_home and actual_away == pred_away:
+            points = 2
+            exact_scores += 1
+            correct_results += 1
+        # Correct result (1 point)
+        elif ((actual_home > actual_away and pred_home > pred_away) or
+              (actual_home < actual_away and pred_home < pred_away) or
+              (actual_home == actual_away and pred_home == pred_away)):
+            points = 1
+            correct_results += 1
+        
+        total_points += points
+    
+    accuracy_rate = (correct_results / games_analyzed * 100) if games_analyzed > 0 else 0
+    avg_points_per_game = total_points / games_analyzed if games_analyzed > 0 else 0
+    
+    return {
+        'total_points': total_points,
+        'correct_results': correct_results,
+        'exact_scores': exact_scores,
+        'games_analyzed': games_analyzed,
+        'accuracy_rate': accuracy_rate,
+        'avg_points_per_game': avg_points_per_game
+    }
+
+
+def generate_prediction_for_fixture(fixture, strategy):
+    """Generate prediction for a fixture using specified strategy (backend version of frontend logic)"""
+    home_odds = float(fixture['home_odds']) if fixture['home_odds'] else 999
+    away_odds = float(fixture['away_odds']) if fixture['away_odds'] else 999
+    
+    home_score = 1
+    away_score = 1
+    
+    if strategy == 'fixed':
+        if home_odds <= away_odds:
+            home_score = 2
+            away_score = 1
+        else:
+            home_score = 1
+            away_score = 2
+            
+    elif strategy == 'calibrated':
+        favourite_odds = min(home_odds, away_odds)
+        is_home_fav = home_odds <= away_odds
+        
+        if favourite_odds <= 1.50:
+            home_score, away_score = (3, 0) if is_home_fav else (0, 3)
+        elif favourite_odds <= 2.00:
+            home_score, away_score = (2, 1) if is_home_fav else (1, 2)
+        elif favourite_odds <= 2.50:
+            home_score, away_score = (1, 0) if is_home_fav else (0, 1)
+        else:
+            home_score, away_score = 1, 1
+            
+    elif strategy == 'home-away':
+        if home_odds <= away_odds:
+            home_score = 2
+            away_score = 0  # Home favourite
+        else:
+            home_score = 1
+            away_score = 2  # Away favourite
+            
+    elif strategy == 'poisson':
+        # Placeholder - using calibrated logic for now
+        favourite_odds = min(home_odds, away_odds)
+        is_home_fav = home_odds <= away_odds
+        
+        if favourite_odds <= 1.50:
+            home_score, away_score = (2, 0) if is_home_fav else (0, 2)
+        elif favourite_odds <= 2.00:
+            home_score, away_score = (2, 1) if is_home_fav else (1, 2)
+        else:
+            home_score, away_score = (1, 0) if is_home_fav else (0, 1)
+    
+    return {'homeScore': home_score, 'awayScore': away_score}
+
+
 # Helper Functions
 def get_players_missing_predictions(cursor) -> Dict:
     """Get players missing predictions for current and next gameweeks"""

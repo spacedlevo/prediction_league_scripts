@@ -66,6 +66,29 @@
                     <p class="text-sm text-blue-800"></p>
                 </div>
                 
+                <!-- Bulk Score Input (Custom Strategy Only) -->
+                <div id="bulkScoreInput" class="mb-6 p-4 bg-gray-50 rounded-lg hidden">
+                    <h4 class="text-sm font-medium text-gray-900 mb-3">Quick Fill Options</h4>
+                    <div class="flex flex-wrap gap-3 items-center">
+                        <div class="flex items-center space-x-2">
+                            <label class="text-sm text-gray-700">Apply to all:</label>
+                            <input type="text" id="bulkScore" class="w-16 px-2 py-1 border border-gray-300 rounded text-center text-sm" placeholder="2-1">
+                            <button id="applyBulkScore" class="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">
+                                Apply
+                            </button>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button class="bulk-preset px-2 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300" data-score="1-0">1-0</button>
+                            <button class="bulk-preset px-2 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300" data-score="2-1">2-1</button>
+                            <button class="bulk-preset px-2 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300" data-score="1-1">1-1</button>
+                            <button class="bulk-preset px-2 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300" data-score="0-0">0-0</button>
+                        </div>
+                        <button id="clearAllScores" class="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700">
+                            Clear All
+                        </button>
+                    </div>
+                </div>
+                
                 <!-- Fixtures Table -->
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200">
@@ -123,6 +146,54 @@
                 <div class="text-2xl font-bold text-gray-600" id="accuracyRate">0%</div>
                 <div class="text-sm text-gray-600">Accuracy Rate</div>
             </div>
+        </div>
+    </div>
+
+    <!-- Best Performing Models This Year -->
+    <div class="bg-white shadow rounded-lg p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">📊 Best Performing Models This Season</h2>
+        
+        <!-- Loading State for Performance Table -->
+        <div id="performanceTableLoading" class="text-center py-8">
+            <div class="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+            <p class="mt-2 text-sm text-gray-500">Loading performance data...</p>
+        </div>
+        
+        <!-- Performance Comparison Table -->
+        <div id="performanceTable" class="hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Strategy</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Points</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Accuracy %</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Correct Results</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Exact Scores</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Games Analyzed</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Points/Game</th>
+                        </tr>
+                    </thead>
+                    <tbody id="performanceTableBody" class="bg-white divide-y divide-gray-200">
+                        <!-- Performance data will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Performance Insights -->
+            <div class="mt-6 p-4 bg-yellow-50 rounded-lg">
+                <h3 class="text-sm font-medium text-yellow-800 mb-2">📈 Performance Insights</h3>
+                <div id="performanceInsights" class="text-sm text-yellow-700">
+                    <p>Performance data will be calculated based on all completed fixtures with available odds and results.</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- No Data State -->
+        <div id="noPerformanceData" class="text-center py-8 hidden">
+            <div class="text-gray-400 text-4xl mb-2">📊</div>
+            <p class="text-gray-500">No performance data available yet</p>
+            <p class="text-sm text-gray-400">Performance comparison will show once fixtures have results</p>
         </div>
     </div>
 </div>
@@ -189,6 +260,14 @@ function updateStrategyContent() {
     
     document.getElementById('strategyTitle').textContent = titleMap[currentStrategy];
     document.querySelector('#strategyDescription p').textContent = strategyDescriptions[currentStrategy];
+    
+    // Show/hide bulk score input for custom strategy
+    const bulkScoreInput = document.getElementById('bulkScoreInput');
+    if (currentStrategy === 'custom') {
+        bulkScoreInput.classList.remove('hidden');
+    } else {
+        bulkScoreInput.classList.add('hidden');
+    }
 }
 
 function loadFixtures(gameweek) {
@@ -438,6 +517,37 @@ function setupCustomPredictions() {
             handleCustomPredictionInput(e.target);
         }
     });
+    
+    // Bulk score input functionality
+    document.getElementById('applyBulkScore').addEventListener('click', function() {
+        const bulkScore = document.getElementById('bulkScore').value.trim();
+        if (bulkScore) {
+            applyBulkScore(bulkScore);
+        }
+    });
+    
+    // Bulk preset buttons
+    document.querySelectorAll('.bulk-preset').forEach(button => {
+        button.addEventListener('click', function() {
+            const score = this.dataset.score;
+            applyBulkScore(score);
+        });
+    });
+    
+    // Clear all scores
+    document.getElementById('clearAllScores').addEventListener('click', function() {
+        clearAllCustomPredictions();
+    });
+    
+    // Allow Enter key in bulk score input
+    document.getElementById('bulkScore').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            const bulkScore = this.value.trim();
+            if (bulkScore) {
+                applyBulkScore(bulkScore);
+            }
+        }
+    });
 }
 
 function handleCustomPredictionInput(input) {
@@ -550,11 +660,147 @@ function updateCustomPerformanceSummary(totalPoints, validPredictions) {
     document.getElementById('accuracyRate').textContent = accuracy + '%';
 }
 
+function applyBulkScore(score) {
+    const scoreRegex = /^(\d+)-(\d+)$/;
+    const match = score.match(scoreRegex);
+    
+    if (!match) {
+        alert('Please enter a valid score format (e.g., "2-1")');
+        return;
+    }
+    
+    // Apply to all custom prediction inputs
+    const inputs = document.querySelectorAll('.custom-prediction');
+    inputs.forEach(input => {
+        input.value = score;
+        input.classList.remove('border-red-500');
+        input.classList.add('border-green-500');
+    });
+    
+    // Recalculate points
+    calculateCustomPoints();
+    
+    // Clear the bulk input
+    document.getElementById('bulkScore').value = '';
+}
+
+function clearAllCustomPredictions() {
+    const inputs = document.querySelectorAll('.custom-prediction');
+    inputs.forEach(input => {
+        input.value = '';
+        input.classList.remove('border-green-500', 'border-red-500');
+    });
+    
+    // Hide points display
+    document.getElementById('pointsDisplay').classList.add('hidden');
+    document.getElementById('performanceSummary').classList.add('hidden');
+}
+
+function loadSeasonPerformance() {
+    // Load performance comparison for all strategies
+    fetch('/api/predictions/season-performance')
+        .then(response => response.json())
+        .then(data => {
+            if (data.strategies && data.strategies.length > 0) {
+                displayPerformanceTable(data.strategies);
+                generatePerformanceInsights(data.strategies);
+            } else {
+                showNoPerformanceData();
+            }
+        })
+        .catch(error => {
+            console.error('Error loading season performance:', error);
+            showNoPerformanceData();
+        });
+}
+
+function displayPerformanceTable(strategies) {
+    const tbody = document.getElementById('performanceTableBody');
+    tbody.innerHTML = '';
+    
+    // Sort strategies by total points (descending)
+    strategies.sort((a, b) => b.total_points - a.total_points);
+    
+    strategies.forEach((strategy, index) => {
+        const row = document.createElement('tr');
+        
+        // Add ranking indicator
+        let rankingClass = '';
+        let rankingIcon = '';
+        if (index === 0) {
+            rankingClass = 'bg-yellow-50 border-yellow-200';
+            rankingIcon = '🏆';
+        } else if (index === 1) {
+            rankingClass = 'bg-gray-50 border-gray-200';
+            rankingIcon = '🥈';
+        } else if (index === 2) {
+            rankingClass = 'bg-orange-50 border-orange-200';
+            rankingIcon = '🥉';
+        }
+        
+        row.className = rankingClass;
+        row.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                ${rankingIcon} ${strategy.strategy_name}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                <span class="font-semibold">${strategy.total_points}</span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                ${strategy.accuracy_rate.toFixed(1)}%
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                ${strategy.correct_results}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                ${strategy.exact_scores}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                ${strategy.games_analyzed}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                ${strategy.avg_points_per_game.toFixed(2)}
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+    
+    // Show the performance table
+    document.getElementById('performanceTableLoading').classList.add('hidden');
+    document.getElementById('performanceTable').classList.remove('hidden');
+}
+
+function generatePerformanceInsights(strategies) {
+    const bestStrategy = strategies[0];
+    const insights = document.getElementById('performanceInsights');
+    
+    const totalGames = bestStrategy.games_analyzed;
+    const bestAccuracy = Math.max(...strategies.map(s => s.accuracy_rate));
+    const bestExactScorer = strategies.reduce((prev, current) => 
+        prev.exact_scores > current.exact_scores ? prev : current
+    );
+    
+    insights.innerHTML = `
+        <div class="space-y-2">
+            <p><strong>Best Overall:</strong> ${bestStrategy.strategy_name} with ${bestStrategy.total_points} points from ${totalGames} games</p>
+            <p><strong>Most Accurate:</strong> ${strategies.find(s => s.accuracy_rate === bestAccuracy).strategy_name} (${bestAccuracy.toFixed(1)}% accuracy)</p>
+            <p><strong>Best at Exact Scores:</strong> ${bestExactScorer.strategy_name} with ${bestExactScorer.exact_scores} perfect predictions</p>
+            <p><strong>Season Progress:</strong> Analysis based on ${totalGames} completed fixtures with available odds and results</p>
+        </div>
+    `;
+}
+
+function showNoPerformanceData() {
+    document.getElementById('performanceTableLoading').classList.add('hidden');
+    document.getElementById('noPerformanceData').classList.remove('hidden');
+}
+
 // Initialize custom predictions functionality
 document.addEventListener('DOMContentLoaded', function() {
     setupEventListeners();
     setupCustomPredictions();
     loadFixtures(currentGameweek);
+    loadSeasonPerformance();
 });
 </script>
 {% endblock %}
