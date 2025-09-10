@@ -863,7 +863,6 @@ def get_fixtures_with_odds_multi_season(cursor, season_filter='2025/2026', logge
 
 
 @app.route('/api/predictions/season-performance')
-@require_auth
 def get_season_performance():
     """Get performance comparison for all prediction strategies this season"""
     import logging
@@ -1096,9 +1095,9 @@ def generate_prediction_for_fixture(fixture, strategy):
         favourite_odds = min(home_odds, away_odds)
         is_home_fav = home_odds <= away_odds
         
-        # Get Over/Under odds (fallback to defaults if missing)
-        over_2_5_odds = float(fixture.get('over_2_5_odds', 1.90))
-        under_2_5_odds = float(fixture.get('under_2_5_odds', 1.90))
+        # Get Over/Under odds (fallback to defaults if missing or None)
+        over_2_5_odds = float(fixture.get('over_2_5_odds') or 1.90)
+        under_2_5_odds = float(fixture.get('under_2_5_odds') or 1.90)
         
         # Determine if Over 2.5 is favoured (lower odds = more likely)
         goals_favoured_high = over_2_5_odds < under_2_5_odds
