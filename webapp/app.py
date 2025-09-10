@@ -663,7 +663,7 @@ def get_gameweek_predictions(gameweek):
                 'fixture_id': row[0],
                 'home_team': row[1],
                 'away_team': row[2],
-                'kickoff_time': convert_to_uk_time(row[3], '%d/%m/%Y %H:%M') if row[3] else None,
+                'kickoff_time': convert_to_uk_time(row[3], '%d/%m/%Y %H:%M %Z') if row[3] else None,
                 'kickoff_time_raw': row[3],  # Keep original for any JavaScript processing
                 'home_odds': row[4],
                 'draw_odds': row[5],
@@ -1471,7 +1471,7 @@ def get_recent_updates(cursor) -> List:
             
             # Format timestamp if available
             if update[2]:
-                update_dict['formatted_timestamp'] = convert_to_uk_time(update[2])
+                update_dict['formatted_timestamp'] = convert_to_uk_time(update[2], '%d/%m/%Y %H:%M %Z')
             
             formatted_updates.append(update_dict)
         
