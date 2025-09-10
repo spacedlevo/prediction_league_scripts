@@ -6,7 +6,7 @@
   "admin_password": "admin123",
   "host": "0.0.0.0",
   "port": 5000,
-  "debug": false,
+  "debug": true,
   "app_title": "Prediction League Admin",
   "timezone": "Europe/London",
   "items_per_page": 25,

@@ -519,6 +519,47 @@ def fpl_insights():
                              page_title='FPL Insights')
 
 
+@app.route('/debug')
+def debug_info():
+    """Debug endpoint to test API without authentication"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get current gameweek
+        cursor.execute("""
+            SELECT gameweek 
+            FROM gameweeks 
+            WHERE current_gameweek = 1 OR next_gameweek = 1
+            ORDER BY gameweek ASC
+            LIMIT 1
+        """)
+        current_gw = cursor.fetchone()
+        gameweek = current_gw[0] if current_gw else 1
+        
+        # Test API data
+        cursor.execute("""
+            SELECT COUNT(*) FROM fixtures f
+            LEFT JOIN fixture_odds_summary s ON f.fixture_id = s.fixture_id
+            WHERE f.gameweek = ? AND f.season = '2025/2026'
+        """, (gameweek,))
+        fixture_count = cursor.fetchone()[0]
+        
+        conn.close()
+        
+        return jsonify({
+            'status': 'ok',
+            'current_gameweek': gameweek,
+            'fixtures_found': fixture_count,
+            'message': 'Debug endpoint working'
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'error': str(e)
+        }), 500
+
+
 @app.route('/predictions')
 @require_auth
 def predictions_analysis():

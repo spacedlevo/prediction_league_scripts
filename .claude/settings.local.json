@@ -26,7 +26,10 @@
       "Read(/usr/bin/**)",
       "Bash(ln:*)",
       "Bash(mkdir:*)",
-      "WebFetch(domain:the-odds-api.com)"
+      "WebFetch(domain:the-odds-api.com)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []

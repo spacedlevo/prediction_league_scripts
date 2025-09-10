@@ -308,8 +308,24 @@ function loadFixtures(gameweek) {
     showLoading();
     
     fetch(`/api/predictions/gameweek/${gameweek}`)
-        .then(response => response.json())
+        .then(response => {
+            console.log('API Response status:', response.status);
+            console.log('API Response headers:', response.headers);
+            
+            // Check if we're being redirected to login
+            if (response.status === 200 && response.headers.get('content-type')?.includes('application/json')) {
+                return response.json();
+            } else if (response.status === 302 || response.url.includes('/login')) {
+                throw new Error('Authentication required - please log in first');
+            } else if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            } else {
+                // Try to parse as JSON anyway
+                return response.json();
+            }
+        })
         .then(data => {
+            console.log('API Response data:', data);
             fixturesData = data.fixtures || [];
             hideLoading();
             generatePredictions();
@@ -317,7 +333,12 @@ function loadFixtures(gameweek) {
         .catch(error => {
             console.error('Error loading fixtures:', error);
             hideLoading();
-            showError('Failed to load fixtures data');
+            
+            if (error.message.includes('Authentication required')) {
+                showError('Please log in first to view predictions data');
+            } else {
+                showError(`Failed to load fixtures data: ${error.message}`);
+            }
         });
 }
 
