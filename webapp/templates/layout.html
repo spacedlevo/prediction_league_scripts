@@ -70,6 +70,11 @@
                                   {% if request.endpoint == 'fpl_insights' %}active{% endif %}">
                             ⭐ FPL Insights
                         </a>
+                        <a href="{{ url_for('predictions_analysis') }}" 
+                           class="nav-link px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50
+                                  {% if request.endpoint == 'predictions_analysis' %}active{% endif %}">
+                            🎯 Predictions
+                        </a>
                     </div>
                 </div>
                 
@@ -104,6 +109,10 @@
                 <a href="{{ url_for('fpl_insights') }}" 
                    class="block px-3 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50">
                     ⭐ FPL Insights
+                </a>
+                <a href="{{ url_for('predictions_analysis') }}" 
+                   class="block px-3 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50">
+                    🎯 Predictions
                 </a>
             </div>
         </div>

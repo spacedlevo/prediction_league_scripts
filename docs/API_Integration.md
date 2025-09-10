@@ -509,3 +509,228 @@ WARNING - Missing price for Chelsea in match Chelsea vs Arsenal
 - Use test mode for development to avoid API calls
 - Monitor log files for usage patterns
 - Consider implementing request delays for high-frequency usage
+
+## Predictions Dashboard API
+
+### Overview
+The web dashboard provides RESTful API endpoints for accessing prediction analysis data and calculating custom prediction points.
+
+### Authentication
+All prediction API endpoints require authentication using the same mechanism as the web dashboard (session-based authentication after login).
+
+### Endpoints
+
+#### Get Gameweek Predictions Data
+- **URL**: `/api/predictions/gameweek/<int:gameweek>`
+- **Method**: GET
+- **Purpose**: Fetch fixtures with odds and results for a specific gameweek
+- **Authentication**: Required (session-based)
+
+##### Request Example
+```bash
+curl -X GET "http://localhost:5000/api/predictions/gameweek/1" \
+     -b "session_cookie=value"
+```
+
+##### Response Structure
+```json
+{
+  "gameweek": 1,
+  "fixtures": [
+    {
+      "fixture_id": 123,
+      "home_team": "Arsenal",
+      "away_team": "Chelsea",
+      "kickoff_time": "2025-08-16T17:30:00",
+      "home_odds": 2.15,
+      "draw_odds": 3.40,
+      "away_odds": 2.85,
+      "actual_home_goals": null,
+      "actual_away_goals": null
+    }
+  ],
+  "count": 10
+}
+```
+
+##### Response Fields
+- `gameweek`: The requested gameweek number
+- `fixtures`: Array of fixture objects with odds and results
+- `fixture_id`: Database fixture identifier
+- `home_team`/`away_team`: Team names
+- `kickoff_time`: Match kickoff time (ISO format)
+- `home_odds`/`draw_odds`/`away_odds`: Average odds from all bookmakers
+- `actual_home_goals`/`actual_away_goals`: Actual match results (null if not played)
+- `count`: Number of fixtures returned
+
+#### Calculate Custom Prediction Points
+- **URL**: `/api/predictions/calculate-points`
+- **Method**: POST
+- **Purpose**: Calculate points for custom predictions against actual results
+- **Authentication**: Required (session-based)
+
+##### Request Example
+```bash
+curl -X POST "http://localhost:5000/api/predictions/calculate-points" \
+     -H "Content-Type: application/json" \
+     -b "session_cookie=value" \
+     -d '{
+       "predictions": [
+         {"fixture_id": 123, "home_score": 2, "away_score": 1},
+         {"fixture_id": 124, "home_score": 0, "away_score": 0}
+       ]
+     }'
+```
+
+##### Request Body Structure
+```json
+{
+  "predictions": [
+    {
+      "fixture_id": 123,
+      "home_score": 2,
+      "away_score": 1
+    }
+  ]
+}
+```
+
+##### Response Structure
+```json
+{
+  "total_points": 3,
+  "results": [
+    {
+      "fixture_id": 123,
+      "points": 2,
+      "actual_home": 2,
+      "actual_away": 1
+    },
+    {
+      "fixture_id": 124,
+      "points": 1,
+      "actual_home": 0,
+      "actual_away": 1
+    }
+  ]
+}
+```
+
+##### Response Fields
+- `total_points`: Sum of all points earned
+- `results`: Array of individual fixture results
+- `points`: Points earned for this prediction (0, 1, or 2)
+  - 2 points: Exact score match
+  - 1 point: Correct result (win/draw/loss)
+  - 0 points: Incorrect prediction
+- `actual_home`/`actual_away`: Actual match scores
+
+### Error Handling
+
+#### Standard Error Responses
+```json
+{
+  "error": "Error message describing what went wrong",
+  "gameweek": 1,
+  "fixtures": [],
+  "count": 0
+}
+```
+
+#### Common Error Scenarios
+- **500 Internal Server Error**: Database connection issues or SQL errors
+- **404 Not Found**: Invalid gameweek number or no fixtures found
+- **400 Bad Request**: Invalid request format for POST endpoints
+- **401 Unauthorized**: Authentication required or session expired
+
+### Database Dependencies
+
+#### Required Tables
+- `fixtures`: Match fixture information
+- `teams`: Team names and IDs
+- `fixture_odds_summary`: Averaged odds data
+- `results`: Actual match results
+- `gameweeks`: Valid gameweek numbers
+
+#### SQL Query Pattern
+```sql
+SELECT 
+    f.fixture_id,
+    ht.team_name as home_team,
+    at.team_name as away_team,
+    f.kickoff_dttm,
+    s.avg_home_win_odds as home_odds,
+    s.avg_draw_odds as draw_odds,
+    s.avg_away_win_odds as away_odds,
+    r.home_goals as actual_home_goals,
+    r.away_goals as actual_away_goals
+FROM fixtures f
+JOIN teams ht ON f.home_teamid = ht.team_id
+JOIN teams at ON f.away_teamid = at.team_id
+LEFT JOIN fixture_odds_summary s ON f.fixture_id = s.fixture_id
+LEFT JOIN results r ON f.fixture_id = r.fixture_id
+WHERE f.gameweek = ? AND f.season = '2025/2026'
+ORDER BY f.kickoff_dttm
+```
+
+### Performance Considerations
+
+#### Caching Strategy
+- Frontend caches fixture data for current gameweek
+- API responses include all necessary data to minimize requests
+- Client-side validation reduces server-side processing
+
+#### Database Optimization
+- Uses efficient LEFT JOIN operations
+- Season and gameweek filtering reduces result set
+- Proper indexing on commonly queried fields
+
+### Integration Examples
+
+#### JavaScript Frontend Integration
+```javascript
+// Fetch gameweek data
+async function loadGameweekData(gameweek) {
+    const response = await fetch(`/api/predictions/gameweek/${gameweek}`);
+    const data = await response.json();
+    
+    if (data.error) {
+        console.error('API Error:', data.error);
+        return;
+    }
+    
+    // Process fixtures data
+    data.fixtures.forEach(fixture => {
+        // Display fixture with odds and predictions
+    });
+}
+
+// Calculate custom prediction points
+async function calculatePoints(predictions) {
+    const response = await fetch('/api/predictions/calculate-points', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ predictions })
+    });
+    
+    const result = await response.json();
+    console.log('Total Points:', result.total_points);
+}
+```
+
+#### Python Integration Example
+```python
+import requests
+
+# Get gameweek data
+response = requests.get(
+    'http://localhost:5000/api/predictions/gameweek/1',
+    cookies={'session': 'your_session_cookie'}
+)
+
+if response.status_code == 200:
+    data = response.json()
+    print(f"Found {data['count']} fixtures for gameweek {data['gameweek']}")
+else:
+    print(f"Error: {response.status_code}")
+```

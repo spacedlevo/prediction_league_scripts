@@ -481,6 +481,169 @@ def fpl_insights():
                              page_title='FPL Insights')
 
 
+@app.route('/predictions')
+@require_auth
+def predictions_analysis():
+    """Predictions analysis page showing odds-based predictions"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get current gameweek
+        cursor.execute("""
+            SELECT gameweek 
+            FROM gameweeks 
+            WHERE current_gameweek = 1 OR next_gameweek = 1
+            ORDER BY gameweek ASC
+            LIMIT 1
+        """)
+        current_gw = cursor.fetchone()
+        gameweek = current_gw[0] if current_gw else 1
+        
+        # Get available gameweeks for dropdown
+        cursor.execute("""
+            SELECT DISTINCT gameweek 
+            FROM fixtures 
+            WHERE season = '2025/2026'
+            ORDER BY gameweek
+        """)
+        available_gameweeks = [row[0] for row in cursor.fetchall()]
+        
+        conn.close()
+        
+        return render_template('predictions.html',
+                             current_gameweek=gameweek,
+                             available_gameweeks=available_gameweeks,
+                             page_title='Predictions Analysis')
+    
+    except Exception as e:
+        flash(f'Error loading predictions data: {e}', 'error')
+        return render_template('predictions.html',
+                             current_gameweek=1,
+                             available_gameweeks=[],
+                             page_title='Predictions Analysis')
+
+
+@app.route('/api/predictions/gameweek/<int:gameweek>')
+@require_auth
+def get_gameweek_predictions(gameweek):
+    """API endpoint to get fixtures and odds for a specific gameweek"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get fixtures with odds for the gameweek
+        cursor.execute("""
+            SELECT 
+                f.fixture_id,
+                ht.team_name as home_team,
+                at.team_name as away_team,
+                f.kickoff_dttm,
+                s.avg_home_win_odds as home_odds,
+                s.avg_draw_odds as draw_odds,
+                s.avg_away_win_odds as away_odds,
+                r.home_goals as actual_home_goals,
+                r.away_goals as actual_away_goals
+            FROM fixtures f
+            JOIN teams ht ON f.home_teamid = ht.team_id
+            JOIN teams at ON f.away_teamid = at.team_id
+            LEFT JOIN fixture_odds_summary s ON f.fixture_id = s.fixture_id
+            LEFT JOIN results r ON f.fixture_id = r.fixture_id
+            WHERE f.gameweek = ? AND f.season = '2025/2026'
+            ORDER BY f.kickoff_dttm
+        """, (gameweek,))
+        
+        fixtures = []
+        for row in cursor.fetchall():
+            fixture = {
+                'fixture_id': row[0],
+                'home_team': row[1],
+                'away_team': row[2],
+                'kickoff_time': row[3],
+                'home_odds': row[4],
+                'draw_odds': row[5],
+                'away_odds': row[6],
+                'actual_home_goals': row[7],
+                'actual_away_goals': row[8]
+            }
+            fixtures.append(fixture)
+        
+        conn.close()
+        
+        return jsonify({
+            'gameweek': gameweek,
+            'fixtures': fixtures,
+            'count': len(fixtures)
+        })
+    
+    except Exception as e:
+        return jsonify({
+            'error': str(e),
+            'gameweek': gameweek,
+            'fixtures': [],
+            'count': 0
+        }), 500
+
+
+@app.route('/api/predictions/calculate-points', methods=['POST'])
+@require_auth
+def calculate_custom_points():
+    """Calculate points for custom predictions"""
+    try:
+        data = request.get_json()
+        predictions = data.get('predictions', [])
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        total_points = 0
+        results = []
+        
+        for pred in predictions:
+            fixture_id = pred['fixture_id']
+            pred_home = int(pred['home_score'])
+            pred_away = int(pred['away_score'])
+            
+            # Get actual result
+            cursor.execute("""
+                SELECT home_goals, away_goals 
+                FROM results 
+                WHERE fixture_id = ?
+            """, (fixture_id,))
+            
+            result = cursor.fetchone()
+            if result:
+                actual_home, actual_away = result
+                
+                points = 0
+                # Exact score (2 points)
+                if actual_home == pred_home and actual_away == pred_away:
+                    points = 2
+                # Correct result (1 point)  
+                elif ((actual_home > actual_away and pred_home > pred_away) or
+                      (actual_home < actual_away and pred_home < pred_away) or
+                      (actual_home == actual_away and pred_home == pred_away)):
+                    points = 1
+                
+                total_points += points
+                results.append({
+                    'fixture_id': fixture_id,
+                    'points': points,
+                    'actual_home': actual_home,
+                    'actual_away': actual_away
+                })
+        
+        conn.close()
+        
+        return jsonify({
+            'total_points': total_points,
+            'results': results
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 # Helper Functions
 def get_players_missing_predictions(cursor) -> Dict:
     """Get players missing predictions for current and next gameweeks"""

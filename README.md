@@ -33,6 +33,13 @@ A comprehensive automated system for managing Fantasy Premier League predictions
 - **Change Monitoring**: Real-time detection and immediate sync
 - **Health Checks**: Regular uploads ensure system connectivity
 
+### 🎯 **Predictions Dashboard**
+- **Multiple Strategies**: 5 different prediction approaches (Fixed, Calibrated, Home/Away Bias, Poisson, Custom)
+- **Interactive Analysis**: Real-time points calculation and strategy comparison
+- **Performance Metrics**: Accuracy tracking, correct results, exact scores
+- **Custom Testing**: Manual score input with instant validation
+- **Historical Analysis**: Backtest strategies against actual results
+
 ### 🔧 **Production Ready**
 - **Comprehensive Logging**: Daily log files with detailed operation tracking
 - **Error Handling**: Graceful failure recovery and retry logic

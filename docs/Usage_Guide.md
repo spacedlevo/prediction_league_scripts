@@ -816,3 +816,108 @@ for row in cursor.fetchall():
 
 conn.close()
 ```
+
+## Web Dashboard Interface
+
+### Overview
+
+The web dashboard provides a comprehensive interface for managing the prediction league system. Access via `http://localhost:5000` (or configured host/port).
+
+### Predictions Analysis Dashboard
+
+#### Accessing the Dashboard
+1. Navigate to the web interface
+2. Click "🎯 Predictions" in the navigation menu
+3. Select desired gameweek from dropdown
+4. Choose prediction strategy from tabs
+
+#### Available Prediction Strategies
+
+**Fixed Strategy (Default)**
+- Favourite team always wins 2-1
+- Matches existing automated_predictions.py logic
+- Simple and consistent approach
+
+**Calibrated Predictions**
+- Variable scorelines based on odds strength:
+  - Strong favourites (≤1.50 odds): 3-0 or 2-0
+  - Moderate favourites (1.51-2.00): 2-1
+  - Slight favourites (2.01-2.50): 1-0
+  - Close matches (>2.50): 1-1
+
+**Home/Away Bias Strategy**
+- Home favourites: 2-0 predictions
+- Away favourites: 2-1 predictions
+- Considers venue advantage
+
+**Poisson Model (Framework)**
+- Mathematical foundation for expected goals
+- Currently uses calibrated approach as placeholder
+- Future implementation will use Over/Under markets
+
+**Custom Predictions**
+- Manual score input (e.g., "2-1", "0-0")
+- Real-time validation with visual feedback
+- Instant points calculation
+
+#### Using Custom Predictions
+1. Select "Custom Predictions" tab
+2. Enter scores in format "2-1" for each fixture
+3. Green borders indicate valid format
+4. Red borders show invalid input
+5. Points calculate automatically as you type
+
+#### Performance Analysis
+- **Correct Results**: Number of correct win/draw/loss predictions
+- **Exact Scores**: Number of perfect score predictions  
+- **Total Points**: Combined points (1 for result + 1 for exact score)
+- **Accuracy Rate**: Percentage of correct predictions
+
+#### Strategy Comparison
+- Compare multiple approaches side-by-side
+- Historical performance when results are available
+- Backtest different strategies against actual results
+- Identify best-performing methods over time
+
+### API Endpoints
+
+#### Get Gameweek Data
+```bash
+curl -X GET "http://localhost:5000/api/predictions/gameweek/1" \
+     -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+Response includes:
+- Fixture details (teams, kickoff times)
+- Average odds from all bookmakers
+- Actual results (if available)
+- Performance calculations
+
+#### Calculate Custom Points
+```bash
+curl -X POST "http://localhost:5000/api/predictions/calculate-points" \
+     -H "Content-Type: application/json" \
+     -H "Authorization: Bearer YOUR_TOKEN" \
+     -d '{
+       "predictions": [
+         {"fixture_id": 123, "home_score": 2, "away_score": 1},
+         {"fixture_id": 124, "home_score": 0, "away_score": 0}
+       ]
+     }'
+```
+
+### Educational Features
+
+Each strategy includes:
+- **Clear Description**: Explanation of methodology
+- **Usage Guidance**: When to use each approach
+- **Performance Context**: Historical success rates
+- **Mathematical Foundation**: Underlying logic explanation
+
+### Mobile Compatibility
+
+The dashboard is fully responsive:
+- Touch-friendly interface on tablets/phones
+- Optimized table layouts for small screens
+- Gesture navigation for strategy tabs
+- Mobile-optimized input validation

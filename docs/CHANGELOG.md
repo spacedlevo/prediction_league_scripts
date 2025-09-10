@@ -4,6 +4,82 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2025-09-10] - Odds-Based Predictions Dashboard
+
+### Added - Comprehensive Predictions Analysis System
+- **New Dashboard Page**: Added "🎯 Predictions" navigation menu with dedicated predictions analysis interface
+- **Multiple Prediction Strategies**: Five different prediction approaches with comparative analysis
+- **Interactive Custom Predictions**: Real-time score input with instant points calculation and validation
+- **Performance Analytics**: Complete scoring analysis with accuracy metrics and historical performance tracking
+- **Strategy Comparison Tool**: Side-by-side evaluation of different prediction methodologies
+
+### Prediction Strategies Implemented
+- **Fixed Strategy**: Favourite team always wins 2-1 (matches existing automated_predictions.py logic)
+- **Calibrated Predictions**: Variable scorelines based on favourite's odds strength:
+  - Strong favourites (≤1.50 odds): 3-0 or 2-0 predictions
+  - Moderate favourites (1.51-2.00): 2-1 predictions  
+  - Slight favourites (2.01-2.50): 1-0 predictions
+  - Close matches (>2.50): 1-1 predictions
+- **Home/Away Bias Strategy**: Considers venue advantage with differentiated predictions
+  - Home favourites: 2-0 predictions
+  - Away favourites: 2-1 predictions
+- **Poisson Model Framework**: Mathematical foundation for future expected goals implementation
+- **Custom Predictions**: Manual score input with real-time validation and scoring
+
+### Interactive Features - User Interface
+- **Gameweek Selector**: Dynamic dropdown to analyze any gameweek with live data loading
+- **Strategy Tabs**: Seamless switching between prediction approaches with visual feedback
+- **Real-Time Validation**: Custom prediction inputs with green/red visual indicators
+- **Live Points Calculation**: Instant scoring as users type custom predictions
+- **Performance Dashboard**: Comprehensive metrics including correct results, exact scores, total points, accuracy rates
+- **Mobile Responsive Design**: Optimized for all devices using existing TailwindCSS framework
+
+### Backend API Implementation
+- **RESTful Endpoints**: Two new API endpoints for prediction data and points calculation
+- **Database Integration**: Leverages existing odds, fixtures, results, and teams tables
+- **Error Handling**: Graceful fallbacks for missing data with proper HTTP status codes
+- **Performance Optimization**: Efficient SQL queries with proper JOIN operations
+
+### API Endpoints Added
+```
+GET  /api/predictions/gameweek/<int:gameweek>  - Fetch fixtures with odds and results
+POST /api/predictions/calculate-points         - Calculate points for custom predictions
+```
+
+### Scoring System Implementation
+- **Point Calculation Logic**: Matches prediction league rules exactly
+  - Exact score match: 2 points (1 for result + 1 for exact score)
+  - Correct result only: 1 point (right winner/draw, wrong score)
+  - Incorrect prediction: 0 points
+- **Real-Time Analytics**: Live performance tracking with accuracy percentages
+- **Historical Analysis**: Comparison across different prediction strategies when results are available
+
+### Database Schema Utilization
+- **Existing Tables**: Leverages `fixtures`, `fixture_odds_summary`, `results`, `teams` without modifications
+- **Optimal Queries**: Efficient LEFT JOIN operations for complete data retrieval
+- **Season Filtering**: Proper 2025/2026 season data isolation with gameweek-based organization
+
+### Technical Implementation Details
+- **Frontend Framework**: Pure JavaScript with no external dependencies beyond existing Chart.js
+- **State Management**: Client-side state management for strategy switching and data caching
+- **Input Validation**: Regex-based score validation with visual feedback system
+- **Error Recovery**: Comprehensive error handling for API failures and missing data
+- **Loading States**: Professional UX with loading indicators during data fetching
+
+### User Experience Enhancements
+- **Intuitive Interface**: Clear strategy descriptions and usage guidance
+- **Visual Feedback**: Color-coded success/error states throughout the interface
+- **Performance Metrics**: Detailed statistics display with accuracy rates and point breakdowns
+- **Strategy Education**: Built-in descriptions explaining each prediction methodology
+- **Responsive Design**: Seamless experience across desktop, tablet, and mobile devices
+
+### Benefits for Prediction League Management
+- **Strategy Optimization**: Data-driven approach to identify best-performing prediction methods
+- **Historical Analysis**: Ability to backtest different strategies against actual results
+- **Custom Testing**: Framework for users to test their own prediction approaches
+- **Performance Tracking**: Comprehensive metrics to evaluate prediction accuracy over time
+- **Educational Tool**: Clear explanation of different prediction methodologies for league participants
+
 ## [2025-09-09] - Bootstrap Update Logging Enhancement
 
 ### Added - FPL Bootstrap Change Tracking
