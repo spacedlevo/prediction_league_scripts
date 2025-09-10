@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.2.0] - 2025-09-10
+
+### Added
+- **Predictions Analysis System** - Comprehensive automated predictions with multiple strategies
+  - **7 Prediction Strategies**: Fixed, Calibrated, Home/Away Bias, Poisson, Smart Goals, Custom predictions
+  - **Smart Goals Strategy**: Advanced strategy combining 1X2 and Over/Under odds for intelligent predictions
+  - **Multi-Season Analysis**: Performance comparison across historical seasons (2020-2026)
+  - **Season Performance API**: Real-time strategy comparison with accuracy metrics and points calculation
+  - **Interactive Frontend**: Strategy tabs, season selector, bulk prediction tools
+  - **Over/Under Odds Support**: Database schema enhanced with avg_over_2_5_odds and avg_under_2_5_odds columns
+
+- **UK Timezone Display** - All timestamps now display in UK time (BST/GMT)
+  - **Automatic BST/GMT Handling**: Uses pytz to correctly handle British Summer Time transitions
+  - **Dashboard Updates**: Recent updates table shows UK time instead of UTC
+  - **Predictions API**: Kickoff times converted to UK format (DD/MM/YYYY HH:MM)
+  - **Configuration Driven**: Uses timezone setting from config.json
+
+### Enhanced
+- **Database Schema**: Added Over/Under 2.5 odds columns to fixture_odds_summary table
+- **API Endpoints**: New `/api/predictions/gameweek/{gameweek}` and `/api/predictions/season-performance` endpoints
+- **Multi-Season Data Access**: Fallback system using football_stats when fixture_odds_summary unavailable
+- **Error Handling**: Improved JavaScript error handling with authentication detection
+- **Performance Metrics**: Total points, accuracy rate, correct results, exact scores analysis
+
+### Fixed
+- **JavaScript Syntax Errors**: Resolved duplicate variable declarations in strategy switch cases
+- **Authentication Issues**: Temporarily removed auth requirements from prediction APIs for development
+- **Null Value Handling**: Fixed TypeError when Over/Under odds contain None values
+- **Season Detection**: Corrected current season from 2024/2025 to 2025/2026
+
+### Technical Details
+- **Strategy Logic**: Smart Goals combines favourite odds strength with goals market preferences
+- **Data Sources**: Prioritized access to fixture_odds_summary with football_stats fallback
+- **Timezone Function**: `convert_to_uk_time()` handles timestamps, ISO strings, and datetime objects
+- **Performance Calculation**: 2 points for exact scores, 1 point for correct results
+- **Season Support**: Individual seasons, all seasons combined, historical seasons only
+
+### Configuration
+```bash
+# Database migration for Over/Under odds
+./venv/bin/python scripts/odds-api/migrate_summary_totals.py
+
+# Refresh odds summary to populate totals
+./venv/bin/python scripts/odds-api/fetch_odds.py --test
+
+# Timezone configuration in config.json
+"timezone": "Europe/London"
+```
+
 ## [3.1.0] - 2025-09-10
 
 ### Added
@@ -105,6 +154,28 @@ OFFSEASON_ENABLE_FETCH_FOOTBALL_DATA=false
 ---
 
 ## Release Notes
+
+### Version 3.2.0 - Predictions Analysis & UK Timezone
+This major feature release introduces a comprehensive predictions analysis system with multiple strategies and UK timezone display throughout the application.
+
+**Key Features:**
+- **Smart Predictions**: 7 different strategies including advanced Smart Goals combining 1X2 and Over/Under odds
+- **Historical Analysis**: Performance comparison across multiple seasons (2020-2026)
+- **UK Time Display**: All timestamps automatically converted to British time (BST/GMT)
+- **Interactive Dashboard**: Real-time strategy performance comparison and accuracy metrics
+- **Multi-Season Data**: Intelligent fallback system using historical football_stats data
+
+**Strategy Performance Example (2025/2026, 30 games):**
+- **Smart Goals**: 18 points, 46.7% accuracy, 4 exact scores
+- **Fixed (1-0)**: 18 points, 46.7% accuracy, 4 exact scores
+- **Calibrated**: 17 points, 46.7% accuracy, 3 exact scores
+
+**Migration Required:**
+```bash
+# Add Over/Under odds support
+./venv/bin/python scripts/odds-api/migrate_summary_totals.py
+./venv/bin/python scripts/odds-api/fetch_odds.py --test
+```
 
 ### Version 3.1.0 - Football-Data Integration
 This major feature release adds comprehensive historical Premier League data dating back to 1993. The integration provides rich match statistics, betting odds, and automated weekly updates for the current season.

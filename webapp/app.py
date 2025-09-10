@@ -19,9 +19,10 @@ import json
 import sqlite3
 import subprocess
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+import pytz
 
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -32,6 +33,29 @@ app = Flask(__name__)
 # Global variables for configuration and state
 config = {}
 script_status = {}  # Track running scripts
+
+
+def convert_to_uk_time(timestamp_or_dt, format_str='%d/%m/%Y %H:%M'):
+    """Convert timestamp or datetime to UK timezone and format"""
+    try:
+        if isinstance(timestamp_or_dt, (int, float)):
+            # Unix timestamp
+            utc_dt = datetime.fromtimestamp(timestamp_or_dt, tz=timezone.utc)
+        elif isinstance(timestamp_or_dt, str):
+            # ISO datetime string
+            utc_dt = datetime.fromisoformat(timestamp_or_dt.replace('Z', '+00:00'))
+        else:
+            # Assume it's already a datetime object
+            utc_dt = timestamp_or_dt
+            if utc_dt.tzinfo is None:
+                # Assume UTC if no timezone info
+                utc_dt = utc_dt.replace(tzinfo=timezone.utc)
+        
+        uk_tz = pytz.timezone(config.get('timezone', 'Europe/London'))
+        uk_dt = utc_dt.astimezone(uk_tz)
+        return uk_dt.strftime(format_str)
+    except (ValueError, OSError, AttributeError):
+        return 'Unknown'
 
 
 def load_config():
@@ -639,7 +663,8 @@ def get_gameweek_predictions(gameweek):
                 'fixture_id': row[0],
                 'home_team': row[1],
                 'away_team': row[2],
-                'kickoff_time': row[3],
+                'kickoff_time': convert_to_uk_time(row[3], '%d/%m/%Y %H:%M') if row[3] else None,
+                'kickoff_time_raw': row[3],  # Keep original for any JavaScript processing
                 'home_odds': row[4],
                 'draw_odds': row[5],
                 'away_odds': row[6],
@@ -1446,13 +1471,7 @@ def get_recent_updates(cursor) -> List:
             
             # Format timestamp if available
             if update[2]:
-                try:
-                    # Convert Unix timestamp to datetime and format
-                    dt = datetime.fromtimestamp(update[2])
-                    update_dict['formatted_timestamp'] = dt.strftime('%d/%m/%Y %H:%M')
-                except (ValueError, OSError):
-                    # Keep 'Unknown' as fallback for invalid timestamps
-                    pass
+                update_dict['formatted_timestamp'] = convert_to_uk_time(update[2])
             
             formatted_updates.append(update_dict)
         

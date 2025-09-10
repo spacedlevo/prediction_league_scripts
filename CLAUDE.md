@@ -569,6 +569,209 @@ sqlite3 data/database.db "SELECT * FROM last_update ORDER BY timestamp DESC LIMI
 sqlite3 data/database.db "SELECT COUNT(*) FROM predictions p JOIN fixtures f ON p.fixture_id = f.fixture_id WHERE f.season = '2025/2026' GROUP BY f.gameweek;"
 ```
 
+## Predictions Analysis System (September 2025)
+
+### Overview
+
+The predictions analysis system provides automated predictions based on betting odds with multiple strategies and comprehensive performance analysis across historical seasons.
+
+### Features
+
+**Core Functionality:**
+- **Automated Predictions**: 7 different strategies for generating scoreline predictions
+- **Multi-Season Analysis**: Performance comparison across historical seasons (2020-2026)
+- **Strategy Performance**: Real-time points calculation and accuracy metrics
+- **Season Selector**: Analyze performance for specific seasons or combined historical data
+- **Smart Goals Strategy**: Advanced strategy combining 1X2 and Over/Under odds
+
+### Database Schema Updates
+
+**Enhanced Over/Under Support:**
+```sql
+-- Added to fixture_odds_summary table
+ALTER TABLE fixture_odds_summary ADD COLUMN avg_over_2_5_odds REAL DEFAULT NULL;
+ALTER TABLE fixture_odds_summary ADD COLUMN avg_under_2_5_odds REAL DEFAULT NULL;
+CREATE INDEX IF NOT EXISTS idx_fixture_odds_totals ON fixture_odds_summary(avg_over_2_5_odds, avg_under_2_5_odds);
+```
+
+**Migration Commands:**
+```bash
+# Run database migration for Over/Under odds
+./venv/bin/python scripts/odds-api/migrate_summary_totals.py
+
+# Refresh odds summary to populate totals
+./venv/bin/python scripts/odds-api/fetch_odds.py --test
+```
+
+### Prediction Strategies
+
+**1. Fixed Strategies:**
+- **Fixed (2-1 Favourite)**: Favourite always wins 2-1
+- **Fixed (2-0 Favourite)**: Favourite always wins 2-0 (clean sheet strategy)
+- **Fixed (1-0 Favourite)**: Favourite always wins 1-0 (conservative strategy)
+
+**2. Dynamic Strategies:**
+- **Calibrated**: Variable scorelines based on favourite strength
+  - ≤1.50 odds = 3-0/2-0
+  - 1.51-2.00 = 2-1
+  - 2.01-2.50 = 1-0
+  - >2.50 = 1-1
+- **Home/Away Bias**: Considers venue advantage
+  - Home favourites: 2-0
+  - Away favourites: 2-1
+
+**3. Advanced Strategies:**
+- **Poisson Model**: Mathematical distribution-based predictions (placeholder)
+- **Smart Goals**: Combines 1X2 and Over/Under odds
+  - Short favourite + high goals expected → 2-1 or 3-1
+  - Short favourite + low goals expected → 1-0
+  - Uses fallback values when Over/Under data unavailable
+
+**4. Custom Strategy:**
+- **Manual Entry**: User can enter custom predictions and see point calculations
+
+### Smart Goals Strategy Logic
+
+```python
+# Core logic for Smart Goals strategy
+if favourite_odds <= 1.67:  # Short favourite
+    if goals_market_favours_high:
+        if over_2_5_odds <= 1.70:
+            # Very heavy over 2.5 odds
+            prediction = "3-1" if home_favourite else "1-3"
+        else:
+            # Heavy over 2.5 odds  
+            prediction = "2-1" if home_favourite else "1-2"
+    else:
+        # Under 2.5 favoured
+        prediction = "1-0" if home_favourite else "0-1"
+```
+
+### Multi-Season Data Access
+
+**Data Sources (Prioritized):**
+1. **fixture_odds_summary**: Primary source for recent seasons with complete odds data
+2. **football_stats**: Fallback source for historical data using AvgH/AvgA as 1X2 odds and Avg>2.5/Avg<2.5 for totals
+
+**Supported Seasons:**
+- **2025/2026**: Current season (primary data source)
+- **2024/2025**: Recent season with odds data
+- **2020-2024**: Historical seasons with fallback data
+- **All Seasons**: Combined analysis across all available data
+- **Historical Only**: Excludes current season for baseline comparison
+
+### Webapp API Endpoints
+
+**Core Endpoints:**
+```bash
+# Get fixtures and odds for specific gameweek
+GET /api/predictions/gameweek/{gameweek}
+
+# Get season performance analysis
+GET /api/predictions/season-performance?season={season}
+```
+
+**Authentication Requirements:**
+- **Main predictions page**: Requires login (`@require_auth`)
+- **API endpoints**: Temporarily made public for debugging (remove auth decorators)
+- **Debug endpoint**: Public access for troubleshooting
+
+### Performance Analysis
+
+**Metrics Calculated:**
+- **Total Points**: Sum of all prediction points (2 for exact score, 1 for correct result)
+- **Accuracy Rate**: Percentage of correct results predicted
+- **Correct Results**: Count of matches where result (H/D/A) was correct
+- **Exact Scores**: Count of matches where exact scoreline was predicted
+- **Games Analyzed**: Total fixtures with both odds and results available
+- **Avg Points/Game**: Average points earned per fixture
+
+**Example Performance Results (2025/2026 season, 30 games):**
+- **Smart Goals**: 18 points, 46.7% accuracy, 4 exact scores
+- **Fixed (1-0)**: 18 points, 46.7% accuracy, 4 exact scores  
+- **Calibrated**: 17 points, 46.7% accuracy, 3 exact scores
+
+### Frontend Features
+
+**Strategy Tabs:**
+- Interactive strategy selection with real-time calculations
+- Strategy descriptions explaining prediction logic
+- Points display for completed matches
+
+**Season Selector:**
+- Dropdown for selecting analysis period
+- Options: Individual seasons, all seasons, historical only
+- Real-time performance comparison updates
+
+**Bulk Prediction Tools (Custom Strategy):**
+- Quick-fill options (1-0, 2-1, 1-1, 0-0)
+- Apply score to all fixtures
+- Clear all predictions
+- Real-time points calculation
+
+### Troubleshooting
+
+**Common Issues:**
+1. **"Loading predictions..." hanging**
+   - **Cause**: JavaScript authentication errors or syntax errors
+   - **Fix**: Check browser console for errors, ensure proper login
+
+2. **Season performance 500 errors**
+   - **Cause**: None values in Over/Under odds causing float() errors
+   - **Fix**: Use `fixture.get('over_2_5_odds') or 1.90` instead of default parameters
+
+3. **Duplicate variable declarations**
+   - **Cause**: Multiple `const favouriteOdds` in JavaScript switch cases
+   - **Fix**: Use unique variable names per strategy (e.g., `smartFavouriteOdds`)
+
+**Debug Commands:**
+```bash
+# Test API endpoints directly
+curl http://localhost:5000/debug
+curl http://localhost:5000/api/predictions/gameweek/3
+curl "http://localhost:5000/api/predictions/season-performance?season=2025/2026"
+
+# Check Over/Under odds availability
+sqlite3 data/database.db "SELECT COUNT(*) FROM fixture_odds_summary WHERE avg_over_2_5_odds IS NOT NULL;"
+
+# Verify current gameweek logic
+sqlite3 data/database.db "SELECT gameweek FROM gameweeks WHERE current_gameweek = 1 OR next_gameweek = 1 ORDER BY gameweek ASC LIMIT 1;"
+```
+
+### Development Notes
+
+**JavaScript Error Handling:**
+```javascript
+// Improved error handling for authentication
+fetch('/api/predictions/gameweek/' + gameweek)
+    .then(response => {
+        if (response.status === 200 && response.headers.get('content-type')?.includes('application/json')) {
+            return response.json();
+        } else if (response.url.includes('/login')) {
+            throw new Error('Authentication required - please log in first');
+        }
+        // Handle other errors...
+    })
+```
+
+**Null Value Handling:**
+```python
+# Safe handling of None values in odds data
+over_2_5_odds = float(fixture.get('over_2_5_odds') or 1.90)  # 'or' handles None
+under_2_5_odds = float(fixture.get('under_2_5_odds') or 1.90)
+```
+
+**Variable Scoping:**
+```javascript
+// Avoid duplicate variable declarations in switch cases
+case 'calibrated':
+    const favouriteOdds = Math.min(homeOdds, awayOdds);
+    break;
+case 'smart-goals':
+    const smartFavouriteOdds = Math.min(homeOdds, awayOdds);  // Unique name
+    break;
+```
+
 ## Summary
 
 For this hobby project:
