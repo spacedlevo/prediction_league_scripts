@@ -1587,8 +1587,17 @@ def get_top_fpl_players(cursor) -> Dict:
 
 def execute_script(script_key: str, script_info: Dict):
     """Execute a script in background and track status"""
-    script_path = Path(__file__).parent / config['scripts_path'] / script_info['path']
-    venv_python = Path(__file__).parent / config['venv_path']
+    # Handle absolute vs relative paths properly
+    if Path(config['scripts_path']).is_absolute():
+        script_path = Path(config['scripts_path']) / script_info['path']
+    else:
+        script_path = Path(__file__).parent / config['scripts_path'] / script_info['path']
+    
+    if Path(config['venv_path']).is_absolute():
+        venv_python = Path(config['venv_path'])
+    else:
+        venv_python = Path(__file__).parent / config['venv_path']
+    
     timeout = script_info.get('timeout', config.get('script_timeout', 300))
     
     # Initialize status
