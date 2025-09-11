@@ -1,8 +1,8 @@
 {
   "secret_key": "change-this-secret-key-in-production",
-  "database_path": "../data/database.db",
-  "scripts_path": "../scripts",
-  "venv_path": "../venv/bin/python",
+  "database_path": "/home/predictionleague/projects/prediction_league_scripts/data/database.db",
+  "scripts_path": "/home/predictionleague/projects/prediction_league_scripts/scripts",
+  "venv_path": "/home/predictionleague/projects/prediction_league_scripts/venv/bin/python",
   "admin_password": "admin123",
   "host": "0.0.0.0",
   "port": 5000,
