@@ -59,6 +59,12 @@
       "name": "Update Football Data",
       "description": "Fetch current season Premier League data from football-data.co.uk with results and odds",
       "timeout": 180
+    },
+    "test_script": {
+      "path": "test_script.py",
+      "name": "Test Script",
+      "description": "Debug script to test webapp execution environment",
+      "timeout": 30
     }
   }
 }

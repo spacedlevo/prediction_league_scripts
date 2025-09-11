@@ -1591,6 +1591,9 @@ def get_top_fpl_players(cursor) -> Dict:
 
 def execute_script(script_key: str, script_info: Dict):
     """Execute a script in background and track status"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     # Handle absolute vs relative paths properly
     if Path(config['scripts_path']).is_absolute():
         script_path = Path(config['scripts_path']) / script_info['path']
@@ -1603,6 +1606,14 @@ def execute_script(script_key: str, script_info: Dict):
         venv_python = Path(__file__).parent / config['venv_path']
     
     timeout = script_info.get('timeout', config.get('script_timeout', 300))
+    
+    # Debug logging
+    logger.info(f"Executing script: {script_key}")
+    logger.info(f"Script path: {script_path}")
+    logger.info(f"Script exists: {script_path.exists()}")
+    logger.info(f"Python venv: {venv_python}")
+    logger.info(f"Python exists: {venv_python.exists()}")
+    logger.info(f"Timeout: {timeout}s")
     
     # Initialize status
     script_status[script_key] = {
@@ -1621,9 +1632,15 @@ def execute_script(script_key: str, script_info: Dict):
             project_root = Path(__file__).parent / config['scripts_path']
             project_root = project_root.parent
         
+        logger.info(f"Working directory: {project_root}")
+        logger.info(f"Working directory exists: {project_root.exists()}")
+        
         # Execute script
+        cmd = [str(venv_python), str(script_path)]
+        logger.info(f"Command: {' '.join(cmd)}")
+        
         process = subprocess.Popen(
-            [str(venv_python), str(script_path)],
+            cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -1631,6 +1648,8 @@ def execute_script(script_key: str, script_info: Dict):
             universal_newlines=True,
             cwd=str(project_root)
         )
+        
+        logger.info(f"Process started with PID: {process.pid}")
         
         # Read output in real-time
         output_lines = []
@@ -1667,12 +1686,15 @@ def execute_script(script_key: str, script_info: Dict):
         })
         
     except Exception as e:
+        logger.error(f"Script execution failed: {e}")
+        logger.exception("Full traceback:")
         script_status[script_key].update({
             'running': False,
             'end_time': datetime.now().isoformat(),
             'error': str(e),
             'returncode': -1,
-            'success': False
+            'success': False,
+            'output': [f"ERROR: {str(e)}"]
         })
 
 
