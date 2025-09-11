@@ -103,7 +103,11 @@ def get_db_connection():
     import logging
     logger = logging.getLogger(__name__)
     
-    db_path = Path(__file__).parent / config['database_path']
+    # Handle absolute vs relative paths properly
+    if Path(config['database_path']).is_absolute():
+        db_path = Path(config['database_path'])
+    else:
+        db_path = Path(__file__).parent / config['database_path']
     logger.info(f"Database path requested: {db_path}")
     logger.info(f"Database path exists: {db_path.exists()}")
     logger.info(f"Current working directory: {Path.cwd()}")
@@ -1610,6 +1614,13 @@ def execute_script(script_key: str, script_info: Dict):
     }
     
     try:
+        # Set working directory to project root (parent of scripts directory)
+        if Path(config['scripts_path']).is_absolute():
+            project_root = Path(config['scripts_path']).parent
+        else:
+            project_root = Path(__file__).parent / config['scripts_path']
+            project_root = project_root.parent
+        
         # Execute script
         process = subprocess.Popen(
             [str(venv_python), str(script_path)],
@@ -1617,7 +1628,8 @@ def execute_script(script_key: str, script_info: Dict):
             stderr=subprocess.PIPE,
             text=True,
             bufsize=1,
-            universal_newlines=True
+            universal_newlines=True,
+            cwd=str(project_root)
         )
         
         # Read output in real-time
