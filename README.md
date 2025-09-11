@@ -17,7 +17,7 @@ A comprehensive automated system for managing Fantasy Premier League predictions
 
 ### 🔄 **Automated Data Processing**
 - **FPL API Integration**: Automatic fixtures, gameweeks, and results collection
-- **Historical Data**: 30+ years of Premier League match data (1993-2025) from football-data.co.uk
+- **Complete Historical Data**: 32 seasons of Premier League match data (1993-2025, 12,324+ matches, 100% coverage) from football-data.co.uk
 - **Smart Change Detection**: Only updates database when data actually changes
 - **Intelligent Timing**: Runs during match days and timing windows
 - **Missing Results Detection**: Automatically fetches results for completed fixtures

@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.1] - 2025-09-11
+
+### Fixed
+- **Football-Data Historical Coverage** - Resolved incomplete historical data integration
+  - **Root Cause**: 24 historical Premier League teams were missing from database, causing 5,148 matches (42%) to be skipped during migration
+  - **Solution**: Added all missing historical teams (Blackburn, West Brom, Bolton, Middlesbrough, Stoke, Wigan, Birmingham, Portsmouth, etc.)
+  - **Result**: Achieved perfect 100% historical data coverage (12,324/12,324 matches)
+
+### Enhanced
+- **Complete Team Coverage**: Added 24 missing historical Premier League teams to database
+  - **Major Historical Teams**: Blackburn Rovers, West Bromwich Albion, Bolton Wanderers, Middlesbrough, Stoke City, Wigan Athletic
+  - **Additional Teams**: Birmingham City, Portsmouth, Charlton Athletic, Sheffield Wednesday, Cardiff City, Hull City, QPR, Reading, Derby County, Swansea City, plus 8 others
+  - **Team Mapping**: Updated migration script to handle all 51 historical Premier League teams
+  
+- **Perfect Data Coverage**: Achieved 100% historical match coverage across all eras
+  - **1990s**: 2,824/2,824 matches (100.0% coverage) ✅
+  - **2000s**: 3,800/3,800 matches (100.0% coverage) ✅  
+  - **2010s**: 3,800/3,800 matches (100.0% coverage) ✅
+  - **2020s**: 1,900/1,900 matches (100.0% coverage) ✅
+
+### Technical Details
+- **Database Schema**: Added 24 historical teams (team_ids 30-53) with proper football_data_name mappings
+- **Migration Script**: Enhanced `create_team_name_mapping()` function with complete historical team coverage
+- **Data Integrity**: All 32 seasons now have perfect match counts matching original football-data.co.uk source
+- **Performance**: Comprehensive indexes ensure optimal query performance with larger dataset
+
+### Before/After Comparison
+**Before Fix (v3.1.0):**
+- 7,176 matches migrated (58.2% coverage)
+- 27 teams mapped, 24 historical teams missing
+- Significant data gaps in early Premier League eras
+
+**After Fix (v3.1.1):**  
+- 12,324 matches migrated (100% coverage)
+- 51 teams mapped (complete historical coverage)
+- Perfect data integrity across all 32 seasons
+
 ## [3.2.0] - 2025-09-10
 
 ### Added
@@ -30,6 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Multi-Season Data Access**: Fallback system using football_stats when fixture_odds_summary unavailable
 - **Error Handling**: Improved JavaScript error handling with authentication detection
 - **Performance Metrics**: Total points, accuracy rate, correct results, exact scores analysis
+- **Timezone Display**: Added BST/GMT indicators to all timestamp displays for better user clarity
 
 ### Fixed
 - **JavaScript Syntax Errors**: Resolved duplicate variable declarations in strategy switch cases
@@ -40,7 +78,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Technical Details
 - **Strategy Logic**: Smart Goals combines favourite odds strength with goals market preferences
 - **Data Sources**: Prioritized access to fixture_odds_summary with football_stats fallback
-- **Timezone Function**: `convert_to_uk_time()` handles timestamps, ISO strings, and datetime objects
+- **Timezone Function**: `convert_to_uk_time()` handles timestamps, ISO strings, and datetime objects with BST/GMT indicators
 - **Performance Calculation**: 2 points for exact scores, 1 point for correct results
 - **Season Support**: Individual seasons, all seasons combined, historical seasons only
 
@@ -52,6 +90,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 # Refresh odds summary to populate totals
 ./venv/bin/python scripts/odds-api/fetch_odds.py --test
 
+# Timezone dependency installation (required for production)
+pip install pytz
+
 # Timezone configuration in config.json
 "timezone": "Europe/London"
 ```
@@ -62,8 +103,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Football-Data.co.uk Integration System** - Complete historical Premier League data integration
   - **Historical Migration**: `scripts/football_data/migrate_legacy_data.py` - Import 32 seasons (1993-2025) of Premier League data
   - **Weekly Data Fetch**: `scripts/football_data/fetch_football_data.py` - Automated current season data downloads
-  - **Rich Dataset**: 7,146+ historical matches with results, statistics, referee info, and comprehensive betting odds
-  - **Team Mapping**: Automatic translation between football-data.co.uk team names and database teams
+  - **Complete Historical Dataset**: 12,324 historical matches with results, statistics, referee info, and comprehensive betting odds (100% coverage)  
+  - **Team Mapping**: Complete translation for all 51 historical Premier League teams
   - **Scheduler Integration**: Weekly automated updates every Sunday at 9 AM
   - **Sample Management**: Automatic cleanup of downloaded CSV files with configurable retention
 
@@ -75,7 +116,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Technical Details
 - **Database**: New `football_stats` table with 192 columns including all historical match data
-- **Data Coverage**: Premier League matches from 1993/94 to 2025/26 seasons
+- **Data Coverage**: Complete Premier League matches from 1993/94 to 2025/26 seasons (12,324 matches, 100% coverage)
 - **Match Data**: Full-time/half-time results, team statistics, referee assignments, betting odds
 - **Betting Markets**: Home/Draw/Away odds, over/under goals, Asian handicap, correct score from multiple bookmakers
 - **Team Statistics**: Shots (total/on target), corners, cards, fouls for both teams

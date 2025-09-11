@@ -332,6 +332,7 @@ The project virtual environment includes:
 - `requests` - HTTP client for API calls
 - `paramiko` - SSH/SFTP for PythonAnywhere uploads  
 - `tqdm` - Progress bars for long operations
+- `pytz` - **REQUIRED** - Timezone handling for UK time display (BST/GMT conversion)
 
 ### Recommended Command Line Testing
 ```bash
@@ -445,9 +446,9 @@ tail -f logs/script_$(date +%Y%m%d).log
 ```
 
 **Football-Data System Features:**
-- **Historical Integration** - 7,146+ Premier League matches from 1993-2025 (32 seasons)
+- **Complete Historical Integration** - 12,324 Premier League matches from 1993-2025 (32 seasons, 100% coverage)
 - **Rich Match Data** - Results, statistics, referee info, comprehensive betting odds
-- **Team Mapping** - Automatic translation between football-data names and database teams
+- **Team Mapping** - Complete translation for all 51 historical Premier League teams 
 - **Weekly Updates** - Automated downloads of current season data every Sunday
 - **Change Detection** - Smart updates only when actual data changes occur
 - **Sample Management** - Automatic cleanup with configurable retention (5 files default)
@@ -771,6 +772,29 @@ case 'smart-goals':
     const smartFavouriteOdds = Math.min(homeOdds, awayOdds);  // Unique name
     break;
 ```
+
+## Production Deployment
+
+### Critical Dependencies for Production
+When deploying to production servers (Ubuntu/systemd), ensure all dependencies are installed:
+
+```bash
+# Essential timezone dependency (service will fail without this)
+pip install pytz
+
+# Verify installation
+python -c "import pytz; print('pytz installed successfully')"
+```
+
+**Common Production Issues:**
+- **Service fails with exit code 3**: Usually indicates missing `pytz` dependency
+- **Check logs**: `journalctl -u prediction-league.service --no-pager -l`
+- **Test app import**: `python -c "import app"` to verify all dependencies
+
+### Systemd Service Requirements
+- Ensure virtual environment includes all dependencies
+- Working directory must be set to webapp directory
+- Config.json must be accessible with correct timezone setting
 
 ## Summary
 
