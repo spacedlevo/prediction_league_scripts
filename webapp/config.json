@@ -53,6 +53,12 @@
       "name": "Upload Database",
       "description": "Check for changes and upload database to remote server",
       "timeout": 60
+    },
+    "fetch_football_data": {
+      "path": "football_data/fetch_football_data.py",
+      "name": "Update Football Data",
+      "description": "Fetch current season Premier League data from football-data.co.uk with results and odds",
+      "timeout": 180
     }
   }
 }
