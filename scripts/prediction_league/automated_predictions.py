@@ -377,7 +377,7 @@ def main():
                 logger("No odds data found for gameweek")
     
     # Check if we should send fixtures notification
-    if check_already_processed("send_fixtures", within_hours=1, logger=logger):
+    if check_already_processed("send_fixtures", within_hours=24, logger=logger):
         logger("Fixtures notification already sent recently, skipping")
     else:
         # Send fixtures notification

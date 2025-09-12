@@ -7,6 +7,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Automated Predictions** - Updated fixture notification timing from 1 hour to 24 hour cooldown
+  - **Improvement**: Reduced notification frequency while maintaining timely fixture delivery
+  - **Logic**: Fixtures are less time-sensitive than predictions, 24-hour spacing prevents spam
+  - **Context**: Script still only runs when deadline is within 36 hours
+
+## [3.2.1] - 2025-09-11
+
+### Fixed
+- **Webapp Script Execution System** - Resolved critical path resolution bugs preventing scripts from running
+  - **Root Cause**: Script execution failing due to improper path handling when webapp deployed with absolute paths in config
+  - **Database Path Bug**: `get_db_connection()` function using relative path concatenation with absolute paths from config
+  - **Working Directory Bug**: Scripts executed from webapp directory instead of project root, breaking relative path dependencies  
+  - **Script Path Bug**: `execute_script()` function incorrectly concatenating absolute paths
+  - **Result**: Scripts now run successfully from webapp with proper logging and output capture
+
+### Enhanced
+- **Improved Script Execution Environment**
+  - **Working Directory Fix**: Scripts now execute from correct project root directory (`/home/predictionleague/projects/prediction_league_scripts`)
+  - **Path Resolution**: Enhanced path handling to support both absolute and relative paths in config
+  - **Debug Logging**: Added comprehensive debug logging for script execution troubleshooting
+  - **Error Handling**: Enhanced exception capture with full tracebacks for better debugging
+  
+- **Football Data Script Integration**
+  - **Webapp Integration**: Added `fetch_football_data.py` to available scripts in webapp configuration
+  - **Script Configuration**: Proper timeout (180s) and description for football data updates
+  - **Historical Data Access**: Weekly Premier League data collection now manageable through webapp
+
+- **Debug Tools**
+  - **Test Script**: Added `scripts/test_script.py` for debugging webapp execution environment
+  - **Environment Validation**: Test script validates working directory, file access, and Python environment
+  - **Webapp Integration**: Test script available through webapp interface for troubleshooting
+
+### Technical Details
+- **Path Resolution Logic**: Added absolute vs relative path detection for `scripts_path`, `venv_path`, and `database_path`
+- **Working Directory**: `subprocess.Popen` now uses `cwd` parameter set to project root directory
+- **Error Capture**: Script status tracking enhanced with detailed error information and output logs
+- **Debug Logging**: Comprehensive logging including file existence, paths, commands, and process IDs
+
+### Before/After Comparison
+**Before Fix:**
+- Scripts triggered 302 redirects with no logging
+- Database connection failures due to path resolution
+- Working directory `/opt/prediction-league` breaking script dependencies
+- No error visibility for troubleshooting
+
+**After Fix:**
+- Scripts execute successfully with proper output capture
+- Database connections work with absolute path configuration
+- Scripts run from correct project root directory
+- Full debug logging and error reporting available
+
+### Configuration
+Scripts now support both deployment scenarios:
+```json
+// Production (absolute paths)
+{
+  "database_path": "/home/predictionleague/projects/prediction_league_scripts/data/database.db",
+  "scripts_path": "/home/predictionleague/projects/prediction_league_scripts/scripts",
+  "venv_path": "/home/predictionleague/projects/prediction_league_scripts/venv/bin/python"
+}
+
+// Development (relative paths) 
+{
+  "database_path": "../data/database.db",
+  "scripts_path": "../scripts", 
+  "venv_path": "../venv/bin/python"
+}
+```
+
 ## [3.1.1] - 2025-09-11
 
 ### Fixed
