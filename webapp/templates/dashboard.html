@@ -111,6 +111,107 @@
         </div>
     </div>
     
+    <!-- Predictions Progress Cards -->
+    {% if predictions_progress.current.gameweek or predictions_progress.next.gameweek %}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Current Gameweek Progress -->
+        {% if predictions_progress.current.gameweek %}
+        <div class="bg-white shadow rounded-lg">
+            <div class="px-6 py-4 border-b border-gray-200 bg-green-50">
+                <h3 class="text-lg font-medium text-green-900 flex items-center">
+                    <span class="text-xl mr-2">📊</span>
+                    Current GW {{ predictions_progress.current.gameweek }} Submissions
+                </h3>
+            </div>
+            <div class="p-6">
+                <div class="flex items-center justify-between">
+                    <div class="flex-1">
+                        <div class="flex items-baseline">
+                            <div class="text-3xl font-bold text-green-600">
+                                {{ predictions_progress.current.players_completed }}
+                            </div>
+                            <div class="ml-2 text-sm font-medium text-green-500">
+                                / {{ predictions_progress.current.total_players }}
+                            </div>
+                        </div>
+                        <div class="text-sm text-gray-600 mt-1">
+                            players completed ({{ predictions_progress.current.completion_rate }}%)
+                        </div>
+                    </div>
+                    <div class="ml-4">
+                        <div class="text-2xl">
+                            {% if predictions_progress.current.completion_rate == 100 %}
+                                🎉
+                            {% elif predictions_progress.current.completion_rate >= 75 %}
+                                🟢
+                            {% elif predictions_progress.current.completion_rate >= 50 %}
+                                🟡
+                            {% else %}
+                                🔴
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <!-- Progress bar -->
+                <div class="mt-4">
+                    <div class="bg-gray-200 rounded-full h-2">
+                        <div class="bg-green-600 h-2 rounded-full" style="width: {{ predictions_progress.current.completion_rate }}%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Next Gameweek Progress -->
+        {% if predictions_progress.next.gameweek %}
+        <div class="bg-white shadow rounded-lg">
+            <div class="px-6 py-4 border-b border-gray-200 bg-blue-50">
+                <h3 class="text-lg font-medium text-blue-900 flex items-center">
+                    <span class="text-xl mr-2">📈</span>
+                    Next GW {{ predictions_progress.next.gameweek }} Submissions
+                </h3>
+            </div>
+            <div class="p-6">
+                <div class="flex items-center justify-between">
+                    <div class="flex-1">
+                        <div class="flex items-baseline">
+                            <div class="text-3xl font-bold text-blue-600">
+                                {{ predictions_progress.next.players_completed }}
+                            </div>
+                            <div class="ml-2 text-sm font-medium text-blue-500">
+                                / {{ predictions_progress.next.total_players }}
+                            </div>
+                        </div>
+                        <div class="text-sm text-gray-600 mt-1">
+                            players completed ({{ predictions_progress.next.completion_rate }}%)
+                        </div>
+                    </div>
+                    <div class="ml-4">
+                        <div class="text-2xl">
+                            {% if predictions_progress.next.completion_rate == 100 %}
+                                🎯
+                            {% elif predictions_progress.next.completion_rate >= 75 %}
+                                🟢
+                            {% elif predictions_progress.next.completion_rate >= 50 %}
+                                🟡
+                            {% else %}
+                                ⏳
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <!-- Progress bar -->
+                <div class="mt-4">
+                    <div class="bg-gray-200 rounded-full h-2">
+                        <div class="bg-blue-600 h-2 rounded-full" style="width: {{ predictions_progress.next.completion_rate }}%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+    
     <!-- Prediction Issues Alerts -->
     {% if missing_predictions.current.gameweek or missing_predictions.next.gameweek %}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -145,13 +246,13 @@
                 
                 {% if current_invalid %}
                 <div class="mb-4">
-                    <h4 class="text-sm font-medium text-gray-900 mb-2">Players with Invalid (9-9) Predictions:</h4>
+                    <h4 class="text-sm font-medium text-gray-900 mb-2">Players with Incomplete Predictions:</h4>
                     <div class="bg-yellow-50 rounded-lg p-3 max-h-32 overflow-y-auto">
                         <ul class="space-y-1 text-sm">
                             {% for player in current_invalid %}
                             <li class="flex justify-between items-center">
                                 <span class="text-yellow-800">{{ player.player_name }}</span>
-                                <span class="text-yellow-600 text-xs">{{ player.invalid_count }} invalid</span>
+                                <span class="text-yellow-600 text-xs">{{ player.valid_count }}/{{ player.total_fixtures }}</span>
                             </li>
                             {% endfor %}
                         </ul>
@@ -200,13 +301,13 @@
                 
                 {% if next_invalid %}
                 <div class="mb-4">
-                    <h4 class="text-sm font-medium text-gray-900 mb-2">Players with Invalid Predictions:</h4>
+                    <h4 class="text-sm font-medium text-gray-900 mb-2">Players with Incomplete Predictions:</h4>
                     <div class="bg-yellow-50 rounded-lg p-3 max-h-32 overflow-y-auto">
                         <ul class="space-y-1 text-sm">
                             {% for player in next_invalid %}
                             <li class="flex justify-between items-center">
                                 <span class="text-yellow-800">{{ player.player_name }}</span>
-                                <span class="text-yellow-600 text-xs">{{ player.invalid_count }} invalid</span>
+                                <span class="text-yellow-600 text-xs">{{ player.valid_count }}/{{ player.total_fixtures }}</span>
                             </li>
                             {% endfor %}
                         </ul>

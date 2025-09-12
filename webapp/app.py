@@ -193,6 +193,9 @@ def dashboard():
         # Get players missing predictions for current and next gameweeks
         missing_predictions = get_players_missing_predictions(cursor)
         
+        # Get predictions progress for current and next gameweeks
+        predictions_progress = get_predictions_progress(cursor)
+        
         # Get players with identical predictions for current and next gameweeks
         identical_predictions = get_players_with_identical_predictions(cursor)
         
@@ -202,6 +205,7 @@ def dashboard():
                              stats=stats, 
                              recent_updates=recent_updates,
                              missing_predictions=missing_predictions,
+                             predictions_progress=predictions_progress,
                              identical_predictions=identical_predictions,
                              page_title='Dashboard')
     
@@ -211,6 +215,7 @@ def dashboard():
                              stats={}, 
                              recent_updates=[],
                              missing_predictions={'current': {}, 'next': {}},
+                             predictions_progress={'current': {}, 'next': {}},
                              identical_predictions={'current': {}, 'next': {}},
                              page_title='Dashboard')
 
@@ -1157,6 +1162,88 @@ def generate_prediction_for_fixture(fixture, strategy):
 
 
 # Helper Functions
+def get_predictions_progress(cursor) -> Dict:
+    """Get predictions submission progress for upcoming gameweeks"""
+    progress_data = {'current': {}, 'next': {}}
+    
+    try:
+        # Get current gameweek
+        cursor.execute("SELECT gameweek FROM gameweeks WHERE current_gameweek = 1")
+        current_gw_result = cursor.fetchone()
+        current_gameweek = current_gw_result[0] if current_gw_result else None
+        
+        # Get next gameweek  
+        cursor.execute("SELECT gameweek FROM gameweeks WHERE next_gameweek = 1")
+        next_gw_result = cursor.fetchone()
+        next_gameweek = next_gw_result[0] if next_gw_result else None
+        
+        # Get total active players
+        cursor.execute("SELECT COUNT(*) FROM players WHERE active = 1")
+        total_active_players = cursor.fetchone()[0]
+        
+        # Process current gameweek
+        if current_gameweek:
+            cursor.execute("SELECT COUNT(*) FROM fixtures WHERE gameweek = ? AND season = '2025/2026'", (current_gameweek,))
+            total_fixtures = cursor.fetchone()[0]
+            
+            # Count players with complete valid predictions
+            cursor.execute("""
+                SELECT COUNT(*) as players_with_complete_predictions
+                FROM (
+                    SELECT p.player_id
+                    FROM predictions p
+                    JOIN fixtures f ON p.fixture_id = f.fixture_id
+                    JOIN players pl ON p.player_id = pl.player_id
+                    WHERE f.gameweek = ? AND f.season = '2025/2026' AND pl.active = 1
+                    GROUP BY p.player_id
+                    HAVING COUNT(*) = ? AND SUM(CASE WHEN p.home_goals != 9 OR p.away_goals != 9 THEN 1 ELSE 0 END) = ?
+                )
+            """, (current_gameweek, total_fixtures, total_fixtures))
+            
+            complete_players_result = cursor.fetchone()
+            players_with_complete = complete_players_result[0] if complete_players_result else 0
+            
+            progress_data['current'] = {
+                'gameweek': current_gameweek,
+                'total_players': total_active_players,
+                'players_completed': players_with_complete,
+                'completion_rate': round((players_with_complete / total_active_players * 100) if total_active_players > 0 else 0, 1)
+            }
+        
+        # Process next gameweek
+        if next_gameweek:
+            cursor.execute("SELECT COUNT(*) FROM fixtures WHERE gameweek = ? AND season = '2025/2026'", (next_gameweek,))
+            total_fixtures = cursor.fetchone()[0]
+            
+            # Count players with complete valid predictions
+            cursor.execute("""
+                SELECT COUNT(*) as players_with_complete_predictions
+                FROM (
+                    SELECT p.player_id
+                    FROM predictions p
+                    JOIN fixtures f ON p.fixture_id = f.fixture_id
+                    JOIN players pl ON p.player_id = pl.player_id
+                    WHERE f.gameweek = ? AND f.season = '2025/2026' AND pl.active = 1
+                    GROUP BY p.player_id
+                    HAVING COUNT(*) = ? AND SUM(CASE WHEN p.home_goals != 9 OR p.away_goals != 9 THEN 1 ELSE 0 END) = ?
+                )
+            """, (next_gameweek, total_fixtures, total_fixtures))
+            
+            complete_players_result = cursor.fetchone()
+            players_with_complete = complete_players_result[0] if complete_players_result else 0
+            
+            progress_data['next'] = {
+                'gameweek': next_gameweek,
+                'total_players': total_active_players,
+                'players_completed': players_with_complete,
+                'completion_rate': round((players_with_complete / total_active_players * 100) if total_active_players > 0 else 0, 1)
+            }
+            
+    except Exception as e:
+        print(f"Error getting predictions progress: {e}")
+        
+    return progress_data
+
 def get_players_missing_predictions(cursor) -> Dict:
     """Get players missing predictions for current and next gameweeks"""
     missing_data = {'current': {}, 'next': {}}
@@ -1191,7 +1278,7 @@ def get_players_missing_predictions(cursor) -> Dict:
                 # Check predictions for this player in current gameweek
                 cursor.execute("""
                     SELECT COUNT(*) as total_predictions,
-                           SUM(CASE WHEN home_goals = 9 AND away_goals = 9 THEN 1 ELSE 0 END) as invalid_predictions
+                           SUM(CASE WHEN home_goals != 9 OR away_goals != 9 THEN 1 ELSE 0 END) as valid_predictions
                     FROM predictions p
                     JOIN fixtures f ON p.fixture_id = f.fixture_id
                     WHERE p.player_id = ? AND f.gameweek = ? AND f.season = '2025/2026'
@@ -1199,7 +1286,7 @@ def get_players_missing_predictions(cursor) -> Dict:
                 
                 result = cursor.fetchone()
                 total_predictions = result[0] if result else 0
-                invalid_predictions = result[1] if result else 0
+                valid_predictions = result[1] if result else 0
                 
                 if total_predictions < total_fixtures:
                     players_missing.append({
@@ -1208,10 +1295,13 @@ def get_players_missing_predictions(cursor) -> Dict:
                         'total_fixtures': total_fixtures,
                         'missing_count': total_fixtures - total_predictions
                     })
-                elif invalid_predictions > 0:
+                elif valid_predictions < total_fixtures and total_predictions == total_fixtures:
+                    # Player has all predictions but some are still 9-9 (incomplete)
                     players_with_invalid.append({
                         'player_name': player_name,
-                        'invalid_count': invalid_predictions
+                        'valid_count': valid_predictions,
+                        'total_fixtures': total_fixtures,
+                        'invalid_count': total_fixtures - valid_predictions
                     })
             
             missing_data['current']['players_missing'] = players_missing
@@ -1236,7 +1326,7 @@ def get_players_missing_predictions(cursor) -> Dict:
                 # Check predictions for this player in next gameweek
                 cursor.execute("""
                     SELECT COUNT(*) as total_predictions,
-                           SUM(CASE WHEN home_goals = 9 AND away_goals = 9 THEN 1 ELSE 0 END) as invalid_predictions
+                           SUM(CASE WHEN home_goals != 9 OR away_goals != 9 THEN 1 ELSE 0 END) as valid_predictions
                     FROM predictions p
                     JOIN fixtures f ON p.fixture_id = f.fixture_id
                     WHERE p.player_id = ? AND f.gameweek = ? AND f.season = '2025/2026'
@@ -1244,7 +1334,7 @@ def get_players_missing_predictions(cursor) -> Dict:
                 
                 result = cursor.fetchone()
                 total_predictions = result[0] if result else 0
-                invalid_predictions = result[1] if result else 0
+                valid_predictions = result[1] if result else 0
                 
                 if total_predictions < total_fixtures:
                     players_missing.append({
@@ -1253,10 +1343,13 @@ def get_players_missing_predictions(cursor) -> Dict:
                         'total_fixtures': total_fixtures,
                         'missing_count': total_fixtures - total_predictions
                     })
-                elif invalid_predictions > 0:
+                elif valid_predictions < total_fixtures and total_predictions == total_fixtures:
+                    # Player has all predictions but some are still 9-9 (incomplete)
                     players_with_invalid.append({
                         'player_name': player_name,
-                        'invalid_count': invalid_predictions
+                        'valid_count': valid_predictions,
+                        'total_fixtures': total_fixtures,
+                        'invalid_count': total_fixtures - valid_predictions
                     })
             
             missing_data['next']['players_missing'] = players_missing
