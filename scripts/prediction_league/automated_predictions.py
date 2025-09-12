@@ -8,9 +8,17 @@ based on odds data, uploads them to Dropbox, and sends notifications via Pushove
 FUNCTIONALITY:
 - Checks if next gameweek deadline is within 36 hours
 - Uses odds data to generate predictions (favorite wins 2-1)
-- Uploads predictions file to Dropbox
-- Sends notifications via Pushover API
+- Uploads predictions to two Dropbox locations:
+  * /predictions_league/odds-api/predictions{gameweek}.txt (new file)
+  * /predictions_league/Predictions/2025_26/gameweek{gameweek}.txt (append/create)
+- Sends notifications via Pushover API with UK timezone conversion
 - Prevents duplicate runs using database tracking
+
+DROPBOX INTEGRATION:
+- Downloads existing gameweek predictions file if it exists
+- Appends new predictions to existing content
+- Creates new gameweek file if none exists
+- Handles both upload locations independently with error recovery
 """
 
 import json
@@ -18,6 +26,7 @@ import requests
 import sqlite3 as sql
 from datetime import datetime, timezone
 from pathlib import Path
+import pytz
 
 # Configuration
 CURRENT_SEASON = "2025/2026"
@@ -169,6 +178,31 @@ def check_file_exists_dropbox(file_path, config, logger):
         logger(f"Error checking Dropbox file: {e}")
         return False
 
+def download_dropbox_file(file_path, config, logger):
+    """Download file content from Dropbox"""
+    try:
+        headers = {
+            'Authorization': f'Bearer {config["dropbox_oath_token"]}',
+            'Dropbox-API-Arg': json.dumps({'path': file_path})
+        }
+        
+        response = requests.post(
+            'https://content.dropboxapi.com/2/files/download',
+            headers=headers
+        )
+        
+        if response.status_code == 200:
+            content = response.content.decode('utf-8')
+            logger(f"Successfully downloaded file: {file_path}")
+            return content
+        else:
+            logger(f"Failed to download {file_path}: {response.status_code} - {response.text}")
+            return None
+            
+    except Exception as e:
+        logger(f"Error downloading {file_path}: {e}")
+        return None
+
 def upload_to_dropbox(predictions_string, gameweek, config, logger):
     """Upload predictions to Dropbox"""
     file_path = f"/predictions_league/odds-api/predictions{gameweek}.txt"
@@ -199,6 +233,60 @@ def upload_to_dropbox(predictions_string, gameweek, config, logger):
             
     except Exception as e:
         logger(f"Error uploading to Dropbox: {e}")
+        return False
+
+def append_or_create_gameweek_predictions(predictions_string, gameweek, config, logger):
+    """Append predictions to the main gameweek predictions file or create it if it doesn't exist"""
+    file_path = f"/predictions_league/Predictions/2025_26/gameweek{gameweek}.txt"
+    
+    try:
+        existing_content = ""
+        
+        # Check if file exists and download current content
+        if check_file_exists_dropbox(file_path, config, logger):
+            existing_content = download_dropbox_file(file_path, config, logger)
+            if existing_content is None:
+                logger(f"Failed to download existing file content for {file_path}")
+                return False
+            logger(f"Downloaded existing content from {file_path}")
+        else:
+            logger(f"File {file_path} doesn't exist, will create new file")
+        
+        # Combine existing content with new predictions
+        if existing_content:
+            # Add a newline between existing content and new predictions if needed
+            if not existing_content.endswith('\n'):
+                existing_content += '\n'
+            combined_content = existing_content + predictions_string
+        else:
+            combined_content = predictions_string
+        
+        # Upload the combined content (overwrite mode to replace the entire file)
+        headers = {
+            'Authorization': f'Bearer {config["dropbox_oath_token"]}',
+            'Dropbox-API-Arg': json.dumps({
+                'path': file_path,
+                'mode': 'overwrite',  # Overwrite the entire file with combined content
+                'autorename': False
+            }),
+            'Content-Type': 'application/octet-stream'
+        }
+        
+        response = requests.post(
+            'https://content.dropboxapi.com/2/files/upload',
+            headers=headers,
+            data=combined_content.encode('utf-8')
+        )
+        
+        if response.status_code == 200:
+            logger(f"Successfully updated gameweek predictions file: {file_path}")
+            return True
+        else:
+            logger(f"Failed to update gameweek predictions file: {response.status_code} - {response.text}")
+            return False
+            
+    except Exception as e:
+        logger(f"Error updating gameweek predictions file: {e}")
         return False
 
 def fetch_fixtures(gameweek, logger):
@@ -241,9 +329,11 @@ def create_fixtures_string(gameweek, deadline_timestamp, logger):
         [f"{home.title()} v {away.title()}" for home, away, _ in fixtures]
     )
     
-    # Convert timestamp to UK timezone for display
-    deadline_dt = datetime.fromtimestamp(deadline_timestamp, tz=timezone.utc)
-    deadline_time = deadline_dt.strftime("%H:%M")
+    # Convert UTC timestamp to London time (handles both GMT and BST automatically)
+    utc_dt = datetime.fromtimestamp(deadline_timestamp, tz=timezone.utc)
+    london_tz = pytz.timezone('Europe/London')
+    london_dt = utc_dt.astimezone(london_tz)
+    deadline_time = london_dt.strftime("%H:%M")
     result = f"{fixtures_str}\n\nDeadline tomorrow at {deadline_time}"
     
     return result
@@ -365,14 +455,26 @@ def main():
             if odds_data:
                 predictions_string = create_predictions_string(odds_data, logger)
                 
-                # Upload to Dropbox
-                if upload_to_dropbox(predictions_string, gameweek, config, logger):
+                # Upload to Dropbox odds-api folder
+                upload_success = upload_to_dropbox(predictions_string, gameweek, config, logger)
+                
+                # Also append/create predictions in the main gameweek file
+                append_success = append_or_create_gameweek_predictions(predictions_string, gameweek, config, logger)
+                
+                if upload_success or append_success:
+                    if upload_success and append_success:
+                        logger("Successfully uploaded to both odds-api and gameweek predictions files")
+                    elif upload_success:
+                        logger("Successfully uploaded to odds-api file, but failed to update gameweek predictions file")
+                    elif append_success:
+                        logger("Successfully updated gameweek predictions file, but failed to upload to odds-api file")
+                    
                     update_last_update_table("predictions", logger)
                     
                     # Send predictions via Pushover
                     send_pushover_message(predictions_string, config, logger)
                 else:
-                    logger("Failed to upload predictions, skipping notifications")
+                    logger("Failed to upload predictions to both locations, skipping notifications")
             else:
                 logger("No odds data found for gameweek")
     

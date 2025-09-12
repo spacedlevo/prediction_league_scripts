@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Automated Predictions Gameweek Integration** - Enhanced automated predictions to write to main gameweek predictions files
+  - **Dual File Creation**: Predictions now automatically appended to both `/predictions_league/odds-api/predictions{gameweek}.txt` and `/predictions_league/Predictions/2025_26/gameweek{gameweek}.txt`
+  - **Append/Create Logic**: If gameweek file exists, predictions are appended; if not, new file is created
+  - **Dropbox API Integration**: Uses Dropbox download/upload API to read existing content and combine with new predictions
+  - **Error Handling**: Graceful handling when one location fails, continues if at least one upload succeeds
+  - **Enhanced Logging**: Detailed logging shows success/failure status for both upload locations
+
+### Fixed
+- **Timezone Display** - Fixed deadline time display in automated predictions notifications
+  - **Issue**: Deadline times were showing in UTC instead of local UK time
+  - **Solution**: Added pytz dependency and proper timezone conversion using `Europe/London` timezone
+  - **Result**: Pushover notifications now display correct London time (handles BST/GMT automatically)
+  - **Implementation**: `create_fixtures_string()` function now converts UTC timestamps to London time
+
 ### Changed
 - **Automated Predictions** - Updated fixture notification timing from 1 hour to 24 hour cooldown
   - **Improvement**: Reduced notification frequency while maintaining timely fixture delivery
