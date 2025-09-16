@@ -23,14 +23,15 @@ A comprehensive automated system for managing Fantasy Premier League predictions
 - **Missing Results Detection**: Automatically fetches results for completed fixtures
 - **Comprehensive Statistics**: Match results, team stats, betting odds, referee info
 
-### 📱 **Dropbox Integration**
-- **OAuth2 Authentication**: Secure token management with auto-refresh
-- **Prediction Processing**: Automatic cleaning and processing of prediction files
+### 📱 **Intelligent Automated Predictions**
+- **AI-Driven Strategy Selection**: Uses real-time season analysis to determine optimal prediction format (1-0 vs 2-1)
+- **Adaptive Prediction Generation**: Automatically switches strategy based on current season's low-scoring percentage
+- **OAuth2 Dropbox Integration**: Secure token management with auto-refresh
 - **Dual-File Upload**: Automated predictions written to both odds-api and main gameweek files
 - **Append/Create Logic**: Intelligent handling of existing gameweek predictions with content preservation
-- **File Monitoring**: Change detection and processing of updated predictions
-- **Multiple Format Support**: Text file parsing with team name recognition
+- **Deadline-Based Triggering**: Only runs when gameweek deadline is within 36 hours
 - **UK Timezone Display**: Automatic BST/GMT conversion for deadline notifications
+- **Fallback Protection**: Gracefully falls back to 2-1 strategy if recommendation system unavailable
 
 ### 🗄️ **Database Management**
 - **SQLite Backend**: Lightweight, reliable data storage
@@ -38,12 +39,14 @@ A comprehensive automated system for managing Fantasy Premier League predictions
 - **Change Monitoring**: Real-time detection and immediate sync
 - **Health Checks**: Regular uploads ensure system connectivity
 
-### 🎯 **Predictions Dashboard**
-- **Multiple Strategies**: 5 different prediction approaches (Fixed, Calibrated, Home/Away Bias, Poisson, Custom)
-- **Interactive Analysis**: Real-time points calculation and strategy comparison
-- **Performance Metrics**: Accuracy tracking, correct results, exact scores
-- **Custom Testing**: Manual score input with instant validation
-- **Historical Analysis**: Backtest strategies against actual results
+### 🎯 **Intelligent Predictions Dashboard**
+- **Adaptive Strategy Recommendations**: AI-driven strategy switching based on real-time season analysis
+- **7 Prediction Strategies**: Fixed (2-1, 2-0, 1-0), Adaptive, Calibrated, Home/Away Bias, Poisson, Smart Goals, Custom
+- **Season Pattern Analysis**: Monitors low-scoring match percentage to recommend optimal strategies
+- **Strategy Switch Notifications**: Pushover alerts when optimal strategy changes (1-0 vs 2-1)
+- **Historical Validation**: 32+ seasons of data (1993-2025) validate recommendation accuracy
+- **Real-Time Performance**: Live strategy comparison with accuracy tracking and exact scores
+- **Custom Testing**: Manual score input with instant validation and points calculation
 
 ### 🔧 **Production Ready**
 - **Comprehensive Logging**: Daily log files with detailed operation tracking
@@ -177,6 +180,27 @@ A comprehensive automated system for managing Fantasy Premier League predictions
 ### Legacy Support
 - **`legacy/`** - Previous system versions for reference
 
+### Intelligent Strategy Recommendation System
+- **`scripts/prediction_league/update_season_recommendations.py`** - Weekly season analysis and recommendations
+- **`scripts/database/setup_season_recommendations.py`** - Database schema setup and historical data population
+- **`scripts/database/create_season_recommendations_table.sql`** - SQL schema for recommendation tables
+- **`webapp/app.py`** - Enhanced with adaptive strategy API endpoints
+- **`webapp/templates/predictions.html`** - Recommendation dashboard widget and adaptive strategy
+
+**Key Features:**
+- **Real-Time Season Analysis**: Monitors low-scoring match percentage (≤2 goals)
+- **Strategy Switch Recommendations**: Suggests optimal timing to switch between 1-0 and 2-1 strategies
+- **Historical Pattern Matching**: Uses 32+ seasons of data to validate recommendations
+- **Confidence Levels**: Early/Moderate/High confidence based on sample size
+- **Automated Notifications**: Pushover alerts for strategy changes
+- **Performance Tracking**: Expected points improvement calculations
+
+**Recommendation Logic:**
+- **>47% low-scoring matches**: Recommend 1-0 strategy
+- **<47% low-scoring matches**: Continue 2-1 strategy
+- **Sample size thresholds**: 40 matches (moderate), 80 matches (high confidence)
+- **Historical validation**: Based on comprehensive analysis of 2019-2026 seasons
+
 ## ⚙️ Configuration
 
 ### API Keys Setup
@@ -211,6 +235,7 @@ ENABLE_FETCH_FIXTURES=true
 ENABLE_AUTOMATED_PREDICTIONS=true
 ENABLE_FETCH_FPL_DATA=true
 ENABLE_FETCH_ODDS=true
+ENABLE_UPDATE_RECOMMENDATIONS=true
 
 # Timing controls
 DELAY_BETWEEN_RESULTS_UPLOAD=30
@@ -241,6 +266,9 @@ OFFSEASON_MODE=false
 
 # Weekly Football Data (Sundays 9 AM)
 0 9 * * 0 cd /path/to/project && ./venv/bin/python scripts/football_data/fetch_football_data.py
+
+# Season Recommendations (Sundays 10 AM)
+0 10 * * 0 cd /path/to/project && ./venv/bin/python scripts/prediction_league/update_season_recommendations.py
 ```
 
 ## 🔒 Security Features

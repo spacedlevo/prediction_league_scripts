@@ -1,18 +1,28 @@
 #!/usr/bin/env python3
 """
-Automated Predictions Script
+Automated Predictions Script with Intelligent Strategy Recommendations
 
 This script checks for upcoming gameweeks and automatically generates predictions
-based on odds data, uploads them to Dropbox, and sends notifications via Pushover.
+based on odds data using the intelligent season recommendation system. It uploads
+predictions to Dropbox and sends notifications via Pushover.
 
 FUNCTIONALITY:
 - Checks if next gameweek deadline is within 36 hours
-- Uses odds data to generate predictions (favorite wins 2-1)
+- Uses intelligent season recommendations to determine optimal strategy (1-0 vs 2-1)
+- Generates predictions based on current season analysis:
+  * 1-0 strategy when >47% matches are low-scoring
+  * 2-1 strategy when ≤47% matches are low-scoring
 - Uploads predictions to two Dropbox locations:
   * /predictions_league/odds-api/predictions{gameweek}.txt (new file)
   * /predictions_league/Predictions/2025_26/gameweek{gameweek}.txt (append/create)
 - Sends notifications via Pushover API with UK timezone conversion
 - Prevents duplicate runs using database tracking
+
+INTELLIGENT STRATEGY INTEGRATION:
+- Queries season_recommendations table for current optimal strategy
+- Adapts prediction format based on real-time season analysis
+- Falls back to 2-1 strategy if recommendation system unavailable
+- Logs strategy selection and reasoning for transparency
 
 DROPBOX INTEGRATION:
 - Downloads existing gameweek predictions file if it exists
@@ -46,6 +56,40 @@ def setup_logging():
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         print(f"{timestamp} - {message}")
     return log
+
+def get_current_season_recommendation(season=CURRENT_SEASON, logger=None):
+    """Get the current recommended strategy for the season from the recommendation system"""
+    if not logger:
+        logger = setup_logging()
+
+    try:
+        conn = sql.connect(db_path)
+        cursor = conn.cursor()
+
+        # Get latest recommendation for the season
+        cursor.execute('''
+            SELECT recommended_strategy, confidence_level, low_scoring_percentage
+            FROM season_recommendations
+            WHERE season = ?
+            ORDER BY last_updated DESC
+            LIMIT 1
+        ''', (season,))
+
+        result = cursor.fetchone()
+        conn.close()
+
+        if result:
+            strategy, confidence, percentage = result
+            logger(f"Retrieved season recommendation: {strategy} strategy (confidence: {confidence}, {percentage:.1f}% low-scoring)")
+            return strategy
+        else:
+            logger(f"No recommendation found for season {season}, using default 2-1 strategy")
+            return '2-1'
+
+    except Exception as e:
+        logger(f"Error retrieving season recommendation: {e}")
+        logger("Falling back to default 2-1 strategy")
+        return '2-1'
 
 def fetch_next_gameweek(logger):
     """Get the next upcoming gameweek and its deadline"""
@@ -124,32 +168,42 @@ def get_gameweek_odds(gameweek, logger):
         conn.close()
 
 def create_predictions_string(odds_data, logger):
-    """Create the predictions string based on odds data"""
+    """Create the predictions string based on odds data using intelligent season recommendations"""
     predictions = ["Tom Levin", ""]
-    
+
+    # Get current season's recommended strategy
+    recommended_strategy = get_current_season_recommendation(CURRENT_SEASON, logger)
+    logger(f"Using {recommended_strategy} strategy for automated predictions")
+
     for row in odds_data:
         home_team, away_team, home_odds, away_odds = row[:4]
-        
+
         # Capitalize team names
         home_team = home_team.title()
         away_team = away_team.title()
-        
-        # Determine favorite (lower odds = favorite)
+
+        # Generate prediction based on recommended strategy
         if home_odds and away_odds:
             if home_odds <= away_odds:
                 # Home team favorite
-                prediction = f"{home_team} 2-1 {away_team}"
+                if recommended_strategy == '1-0':
+                    prediction = f"{home_team} 1-0 {away_team}"
+                else:  # Default to 2-1 strategy
+                    prediction = f"{home_team} 2-1 {away_team}"
             else:
-                # Away team favorite  
-                prediction = f"{home_team} 1-2 {away_team}"
+                # Away team favorite
+                if recommended_strategy == '1-0':
+                    prediction = f"{home_team} 0-1 {away_team}"
+                else:  # Default to 2-1 strategy
+                    prediction = f"{home_team} 1-2 {away_team}"
         else:
             # Default if odds missing
             prediction = f"{home_team} 1-1 {away_team}"
-            
+
         predictions.append(prediction)
-    
+
     result = "\n".join(predictions)
-    logger(f"Created predictions for {len(odds_data)} fixtures")
+    logger(f"Created {recommended_strategy} strategy predictions for {len(odds_data)} fixtures")
     return result
 
 def check_file_exists_dropbox(file_path, config, logger):

@@ -399,9 +399,14 @@ python scripts/prediction_league/automated_predictions.py
 - Sends notifications via Pushover API with UK timezone conversion
 - Prevents duplicate runs using database tracking
 
-#### Prediction Logic
+#### Intelligent Prediction Logic
+- **AI-Driven Strategy**: Uses intelligent season recommendations to determine optimal strategy
+- **Adaptive Scoring**:
+  * **1-0 strategy** when >47% of season matches are low-scoring (≤2 goals)
+  * **2-1 strategy** when ≤47% of season matches are low-scoring
 - **Favorite Detection**: Team with lower odds is considered favorite
-- **Score Format**: Favorite wins 2-1, underdog wins 1-2
+- **Current Season**: 53.3% low-scoring → Using 1-0 strategy (favorite 1-0, underdog 0-1)
+- **Fallback Protection**: Defaults to 2-1 strategy if recommendation system unavailable
 - **Team Names**: Properly capitalized (e.g., "Chelsea", "Man Utd")
 - **Header**: Always includes "Tom Levin" at the top
 
@@ -412,6 +417,10 @@ python scripts/prediction_league/automated_predictions.py
 - ✅ **Database Tracking**: Updates `last_update` table for "predictions" and "send_fixtures"
 
 #### Enhanced Features (September 2025)
+- 🎯 **Intelligent Strategy Integration**: AI-driven prediction format based on real-time season analysis
+  * Automatically switches between 1-0 and 2-1 strategies
+  * Uses season_recommendations table for optimal strategy selection
+  * Expected +0.05 pts/game improvement over fixed 2-1 approach
 - 🆕 **Dual-File Upload**: Automatically writes predictions to both locations
   * Odds-API folder for processing pipeline
   * Main gameweek folder for participant access
@@ -421,28 +430,33 @@ python scripts/prediction_league/automated_predictions.py
 - 🆕 **Error Recovery**: Continues if one upload location fails
 - 🆕 **Enhanced Logging**: Detailed success/failure reporting for both uploads
 
-#### Expected Output
+#### Expected Output (with Intelligent Strategy)
 ```
-2025-08-29 23:39:11 - Starting automated predictions script
-2025-08-29 23:39:11 - Next gameweek: 3, deadline: 2025-08-30 10:00:00+00:00
-2025-08-29 23:39:11 - Within 36 hours: True
-2025-08-29 23:39:12 - Found 10 fixtures with odds for gameweek 3
-2025-08-29 23:39:13 - Successfully uploaded predictions to Dropbox
-2025-08-29 23:39:14 - Successfully sent Pushover notification
-2025-08-29 23:39:14 - Successfully sent Pushover notification (fixtures)
-2025-08-29 23:39:14 - Automated predictions script completed
+2025-09-16 20:18:00 - Starting automated predictions script
+2025-09-16 20:18:00 - Next gameweek: 3, deadline: 2025-09-17 11:00:00+00:00
+2025-09-16 20:18:00 - Within 36 hours: True
+2025-09-16 20:18:00 - Retrieved season recommendation: 1-0 strategy (confidence: early, 53.3% low-scoring)
+2025-09-16 20:18:00 - Using 1-0 strategy for automated predictions
+2025-09-16 20:18:01 - Found 10 fixtures with odds for gameweek 3
+2025-09-16 20:18:01 - Created 1-0 strategy predictions for 10 fixtures
+2025-09-16 20:18:02 - Successfully uploaded predictions to Dropbox (odds-api)
+2025-09-16 20:18:03 - Successfully uploaded predictions to Dropbox (gameweek)
+2025-09-16 20:18:04 - Successfully sent Pushover notification
+2025-09-16 20:18:04 - Automated predictions script completed
 ```
 
-#### Prediction Format Example
+#### Prediction Format Example (1-0 Strategy)
 ```
 Tom Levin
 
-Chelsea 2-1 Fulham
-Man Utd 2-1 Burnley
-Spurs 2-1 Bournemouth
-Sunderland 1-2 Brentford
-Liverpool 2-1 Arsenal
+Chelsea 1-0 Fulham
+Man Utd 1-0 Burnley
+Spurs 1-0 Bournemouth
+Sunderland 0-1 Brentford
+Liverpool 1-0 Arsenal
 ```
+
+**Strategy Note**: Current season (53.3% low-scoring) triggers 1-0 strategy. During high-scoring seasons, the same script would automatically generate 2-1 predictions.
 
 #### Notifications Sent
 1. **Predictions**: Full prediction list with "Tom Levin" header
@@ -930,6 +944,166 @@ curl -X POST "http://localhost:5000/api/predictions/calculate-points" \
        ]
      }'
 ```
+
+## Intelligent Season Recommendations System
+
+### Overview
+
+The Intelligent Season Recommendations System automatically analyzes current season patterns and recommends optimal prediction strategies. It monitors the percentage of low-scoring matches (≤2 goals) and suggests when to switch between 1-0 and 2-1 strategies.
+
+### Setup and Installation
+
+#### Database Schema Setup
+```bash
+# One-time setup: Create recommendation tables and populate historical data
+./venv/bin/python scripts/database/setup_season_recommendations.py
+```
+
+This creates:
+- `season_recommendations` - Current season analysis and recommendations
+- `strategy_season_performance` - Performance tracking across different season types
+- `historical_season_patterns` - 32+ seasons of historical patterns (1993-2025)
+
+#### Scheduler Integration
+
+The system runs automatically via the Master Scheduler:
+
+**Configuration (`scripts/scheduler/scheduler_config.conf`):**
+```bash
+# Enable weekly season recommendation updates
+ENABLE_UPDATE_RECOMMENDATIONS=true
+```
+
+**Execution Schedule:**
+- **Weekly on Sundays at 10 AM** - Analyzes current season and updates recommendations
+- **Runs after football data collection** - Ensures latest match data is available
+
+### Manual Usage
+
+#### Season Analysis
+```bash
+# Analyze current season (2025/2026)
+./venv/bin/python scripts/prediction_league/update_season_recommendations.py
+
+# Analyze specific season
+./venv/bin/python scripts/prediction_league/update_season_recommendations.py --season "2024/2025"
+
+# Dry run (no database updates)
+./venv/bin/python scripts/prediction_league/update_season_recommendations.py --dry-run
+
+# Force notification even for minor changes
+./venv/bin/python scripts/prediction_league/update_season_recommendations.py --force-notification
+```
+
+### Recommendation Logic
+
+#### Strategy Thresholds
+- **>47% low-scoring matches**: Recommend **1-0 strategy**
+- **≤47% low-scoring matches**: Continue **2-1 strategy**
+
+#### Confidence Levels
+- **Early** (< 40 matches): Monitor trends, limited confidence
+- **Moderate** (40-79 matches): Reasonable sample size for decisions
+- **High** (80+ matches): Strong confidence for strategy switching
+
+#### Notification Priorities
+- **High Priority**: Strategy changes with moderate/high confidence
+- **Normal Priority**: Early strategy changes or significant pattern shifts (>3%)
+- **No Notification**: Minor weekly updates
+
+### API Endpoints
+
+#### Season Recommendation
+```bash
+# Get current season recommendation
+curl http://localhost:5000/api/season-recommendation
+
+# Get specific season recommendation
+curl "http://localhost:5000/api/season-recommendation?season=2024/2025"
+```
+
+**Response Format:**
+```json
+{
+  "recommendation": {
+    "season": "2025/2026",
+    "recommended_strategy": "1-0",
+    "confidence_level": "moderate",
+    "low_scoring_percentage": 53.3,
+    "total_matches": 30,
+    "recommendation_reason": "Season shows 53.3% low-scoring matches (above 47% threshold)",
+    "expected_points_improvement": 0.05
+  },
+  "switch_guidance": {
+    "timing_message": "Moderate confidence in 1-0 strategy. Consider switching now.",
+    "next_review_week": 8
+  },
+  "historical_context": {
+    "similar_seasons": [
+      {"season": "2022/2023", "percentage": 47.4, "optimal_strategy": "1-0"}
+    ]
+  }
+}
+```
+
+### Web Dashboard Integration
+
+#### Adaptive Strategy Tab
+- **🎯 Recommended** strategy tab uses real-time recommendations
+- **Automatically switches** between 1-0 and 2-1 based on season analysis
+- **Default selection** for new users
+
+#### Recommendation Widget
+- **Prominent dashboard widget** showing current season analysis
+- **Real-time statistics**: matches played, low-scoring percentage, goals per game
+- **Switch timing guidance** with confidence indicators
+- **Historical context** showing similar seasons
+
+#### Performance Tracking
+- **Season performance API** includes adaptive strategy results
+- **Comparison tables** show adaptive vs fixed strategy performance
+- **Expected improvement** calculations displayed
+
+### Historical Validation
+
+The system leverages comprehensive historical analysis:
+
+#### Data Sources
+- **32+ Premier League seasons** (1993-2025)
+- **12,324+ matches** with complete results and odds data
+- **Strategy performance** across different season types
+
+#### Key Findings
+- **2025/2026**: 53.3% low-scoring → 1-0 optimal (+0.05 pts/game improvement)
+- **2022/2023**: 47.4% low-scoring → 1-0 optimal (+0.024 pts/game improvement)
+- **2021/2022**: 44.8% low-scoring → 1-0 optimal (+0.029 pts/game improvement)
+- **2023/2024**: 35.3% low-scoring → 2-1 optimal (high-scoring season)
+
+### Troubleshooting
+
+#### Common Issues
+
+**No recommendations generated:**
+```bash
+# Check if season has completed matches
+./venv/bin/python -c "
+import sqlite3
+conn = sqlite3.connect('data/database.db')
+cursor = conn.cursor()
+cursor.execute('SELECT COUNT(*) FROM fixtures f JOIN results r ON f.fixture_id = r.fixture_id WHERE f.season = \"2025/2026\"')
+print(f'Completed matches: {cursor.fetchone()[0]}')
+"
+```
+
+**API endpoints returning errors:**
+- Verify database tables exist: `scripts/database/setup_season_recommendations.py`
+- Check webapp configuration: correct database paths in `config.json`
+- Restart webapp service after schema changes
+
+**Notifications not working:**
+- Verify Pushover configuration in `keys.json`
+- Test manually: `--force-notification` flag
+- Check significant change thresholds (strategy change or >3% pattern shift)
 
 ### Educational Features
 

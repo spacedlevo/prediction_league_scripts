@@ -8,6 +8,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **🎯 Intelligent Strategy Switching Recommendation System** - AI-driven prediction strategy optimization based on real-time season analysis
+  - **Real-Time Season Monitoring**: Analyzes low-scoring match percentage (≤2 goals) from completed fixtures
+  - **Adaptive Strategy Logic**: Automatically recommends 1-0 strategy when >47% matches are low-scoring, 2-1 strategy otherwise
+  - **Historical Pattern Matching**: Leverages 32+ seasons of Premier League data (1993-2025) for validation
+  - **Confidence-Based Recommendations**: Early/Moderate/High confidence levels based on sample size (40/80 match thresholds)
+  - **Weekly Automated Analysis**: Scheduler integration with Sunday 10 AM execution for recommendation updates
+  - **Pushover Notifications**: Smart alerts for strategy changes with priority-based messaging
+  - **Database Schema**: New tables for season recommendations, strategy performance, and historical patterns
+  - **API Endpoints**: `/api/season-recommendation` for real-time recommendation data
+  - **Web Dashboard Integration**: Recommendation widget with current season stats and switch timing guidance
+  - **Adaptive Strategy Tab**: New "🎯 Recommended" strategy that dynamically switches between 1-0 and 2-1 predictions
+  - **Performance Tracking**: Expected points improvement calculations (+0.05 pts/game for current season)
+
+- **Enhanced Predictions Dashboard** - Major upgrade to prediction analysis capabilities
+  - **7 Strategy Options**: Fixed (2-1, 2-0, 1-0), Adaptive, Calibrated, Home/Away Bias, Poisson, Smart Goals, Custom
+  - **Season Recommendation Widget**: Prominent dashboard showing current analysis and switch guidance
+  - **Historical Context Display**: Shows similar seasons and their optimal strategies
+  - **Interactive Strategy Comparison**: Real-time performance metrics across all strategies
+  - **Backend Strategy Logic**: Enhanced `generate_prediction_for_fixture()` with adaptive strategy support
+
+- **🎯 Intelligent Automated Predictions** - Refactored automated predictions to use AI-driven strategy recommendations
+  - **Adaptive Strategy Integration**: Replaces fixed 2-1 strategy with intelligent season-based recommendations
+  - **Real-Time Strategy Selection**: Automatically uses 1-0 strategy for current season (53.3% low-scoring matches)
+  - **Fallback Protection**: Gracefully defaults to 2-1 strategy if recommendation system unavailable
+  - **Enhanced Logging**: Clear indication of strategy selection and reasoning in output
+  - **Expected Performance**: +0.05 pts/game improvement over fixed 2-1 approach
+  - **Seamless Integration**: No changes to scheduling, Dropbox uploads, or notification systems
+
 - **Automated Predictions Gameweek Integration** - Enhanced automated predictions to write to main gameweek predictions files
   - **Dual File Creation**: Predictions now automatically appended to both `/predictions_league/odds-api/predictions{gameweek}.txt` and `/predictions_league/Predictions/2025_26/gameweek{gameweek}.txt`
   - **Append/Create Logic**: If gameweek file exists, predictions are appended; if not, new file is created
@@ -16,6 +44,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Enhanced Logging**: Detailed logging shows success/failure status for both upload locations
 
 ### Fixed
+- **JavaScript Syntax Errors in Predictions Template** - Fixed critical syntax errors preventing predictions page from loading
+  - **Issue**: Used Python-style docstrings (`"""`) in JavaScript functions causing "Unexpected string" errors
+  - **Solution**: Replaced Python docstrings with proper JavaScript comments (`//`) in all recommendation functions
+  - **Affected Functions**: `loadSeasonRecommendation()`, `updateRecommendationWidget()`, `getConfidenceColor()`, `hideRecommendationWidget()`, `updateAdaptiveStrategyDescription()`
+  - **Result**: Predictions page now loads correctly with functional recommendation widget and adaptive strategy
+
 - **Timezone Display** - Fixed deadline time display in automated predictions notifications
   - **Issue**: Deadline times were showing in UTC instead of local UK time
   - **Solution**: Added pytz dependency and proper timezone conversion using `Europe/London` timezone
