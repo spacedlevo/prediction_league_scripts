@@ -221,6 +221,14 @@ if [[ $(date +%u) -eq 7 ]] && [[ $current_hour -eq 9 ]] && [[ $current_minute -e
     fi
 fi
 
+# Weekly on Sundays at 10 AM (Season recommendation updates)
+if [[ $(date +%u) -eq 7 ]] && [[ $current_hour -eq 10 ]] && [[ $current_minute -eq 0 ]]; then
+    if [[ "$ENABLE_UPDATE_RECOMMENDATIONS" == "true" ]]; then
+        run_script "scripts/prediction_league/update_season_recommendations.py" "update_recommendations" &
+        log "DEBUG" "Triggered update_season_recommendations (weekly Sunday 10 AM)"
+    fi
+fi
+
 # Wait for background processes to complete
 wait
 
@@ -248,6 +256,8 @@ if [[ "${DEBUG_MODE:-false}" == "true" ]]; then
     log "DEBUG" "  ENABLE_FETCH_FPL_DATA: $ENABLE_FETCH_FPL_DATA"
     log "DEBUG" "  ENABLE_FETCH_ODDS: $ENABLE_FETCH_ODDS"
     log "DEBUG" "  ENABLE_FETCH_PULSE_DATA: $ENABLE_FETCH_PULSE_DATA"
+    log "DEBUG" "  ENABLE_FETCH_FOOTBALL_DATA: $ENABLE_FETCH_FOOTBALL_DATA"
+    log "DEBUG" "  ENABLE_UPDATE_RECOMMENDATIONS: $ENABLE_UPDATE_RECOMMENDATIONS"
     
     # Log timing conditions that might prevent execution
     log "DEBUG" "Timing analysis:"

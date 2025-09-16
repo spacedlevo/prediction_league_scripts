@@ -1057,7 +1057,7 @@ function showNoPerformanceDataWithError(errorMessage) {
 }
 
 function loadSeasonRecommendation() {
-    """Load season recommendation data and update the UI"""
+    // Load season recommendation data and update the UI
     console.log('Loading season recommendation...');
 
     fetch(`/api/season-recommendation?season=${encodeURIComponent(currentSeason)}`)
@@ -1086,7 +1086,7 @@ function loadSeasonRecommendation() {
 }
 
 function updateRecommendationWidget(data) {
-    """Update the recommendation widget with loaded data"""
+    // Update the recommendation widget with loaded data
     const widget = document.getElementById('recommendationWidget');
     const rec = data.recommendation;
     const guidance = data.switch_guidance;
@@ -1136,7 +1136,7 @@ function updateRecommendationWidget(data) {
 }
 
 function getConfidenceColor(confidence) {
-    """Get CSS color class for confidence level"""
+    // Get CSS color class for confidence level
     switch(confidence) {
         case 'high': return 'bg-green-600';
         case 'moderate': return 'bg-yellow-600';
@@ -1146,12 +1146,12 @@ function getConfidenceColor(confidence) {
 }
 
 function hideRecommendationWidget() {
-    """Hide the recommendation widget if data loading fails"""
+    // Hide the recommendation widget if data loading fails
     document.getElementById('recommendationWidget').classList.add('hidden');
 }
 
 function updateAdaptiveStrategyDescription(recommendation) {
-    """Update the adaptive strategy description based on current recommendation"""
+    // Update the adaptive strategy description based on current recommendation
     const currentStrategy = recommendation.recommended_strategy;
     const confidence = recommendation.confidence_level;
     const percentage = recommendation.low_scoring_percentage;
