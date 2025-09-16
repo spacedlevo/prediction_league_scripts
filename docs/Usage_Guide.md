@@ -393,8 +393,10 @@ python scripts/prediction_league/automated_predictions.py
 ```
 - Checks if next gameweek deadline is within 36 hours
 - Generates predictions based on odds data (favorite wins 2-1)
-- Uploads predictions to Dropbox at `predictions_league/odds-api/predictions{gameweek}.txt`
-- Sends notifications via Pushover API
+- **Dual-file upload** to Dropbox:
+  * `predictions_league/odds-api/predictions{gameweek}.txt` (new file)
+  * `predictions_league/Predictions/2025_26/gameweek{gameweek}.txt` (append/create)
+- Sends notifications via Pushover API with UK timezone conversion
 - Prevents duplicate runs using database tracking
 
 #### Prediction Logic
@@ -408,6 +410,16 @@ python scripts/prediction_league/automated_predictions.py
 - ✅ **File Existence Check**: Skips if predictions file already exists in Dropbox
 - ✅ **Recent Processing**: Won't process again if run within the last hour
 - ✅ **Database Tracking**: Updates `last_update` table for "predictions" and "send_fixtures"
+
+#### Enhanced Features (September 2025)
+- 🆕 **Dual-File Upload**: Automatically writes predictions to both locations
+  * Odds-API folder for processing pipeline
+  * Main gameweek folder for participant access
+- 🆕 **Append Logic**: Downloads existing gameweek files and appends new predictions
+- 🆕 **Content Preservation**: Maintains existing predictions while adding automated ones
+- 🆕 **UK Timezone Notifications**: Pushover messages display London time (BST/GMT)
+- 🆕 **Error Recovery**: Continues if one upload location fails
+- 🆕 **Enhanced Logging**: Detailed success/failure reporting for both uploads
 
 #### Expected Output
 ```

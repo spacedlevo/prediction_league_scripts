@@ -960,7 +960,7 @@ def get_season_performance():
             })
         
         # Calculate performance for each strategy
-        strategies = ['fixed', 'fixed-2-0', 'fixed-1-0', 'calibrated', 'home-away', 'poisson', 'smart-goals']
+        strategies = ['adaptive', 'fixed', 'fixed-2-0', 'fixed-1-0', 'calibrated', 'home-away', 'poisson', 'smart-goals']
         strategy_performance = []
         
         logger.info("Calculating performance for each strategy...")
@@ -999,11 +999,327 @@ def get_season_performance():
         }), 500
 
 
+@app.route('/api/season-recommendation')
+def get_season_recommendation():
+    """Get current season strategy recommendation based on real-time analysis"""
+    import logging
+
+    # Setup logging for debugging
+    logger = logging.getLogger(__name__)
+    logger.info("=== Season Recommendation API Called ===")
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Get season parameter (default to current season)
+        season = request.args.get('season', '2025/2026')
+        logger.info(f"Season recommendation requested for: {season}")
+
+        # Get latest recommendation for the season
+        cursor.execute('''
+            SELECT
+                season, current_gameweek, total_matches, low_scoring_matches,
+                low_scoring_percentage, goals_per_game_avg, recommended_strategy,
+                confidence_level, recommendation_reason, historical_precedents,
+                expected_points_improvement, last_updated
+            FROM season_recommendations
+            WHERE season = ?
+            ORDER BY last_updated DESC
+            LIMIT 1
+        ''', (season,))
+
+        recommendation = cursor.fetchone()
+
+        if not recommendation:
+            # Generate new recommendation for the season
+            logger.info(f"No existing recommendation found for {season}, generating new one...")
+            recommendation_data = generate_season_recommendation(cursor, season, logger)
+        else:
+            # Convert to dict for easier handling
+            recommendation_data = {
+                'season': recommendation[0],
+                'current_gameweek': recommendation[1],
+                'total_matches': recommendation[2],
+                'low_scoring_matches': recommendation[3],
+                'low_scoring_percentage': recommendation[4],
+                'goals_per_game_avg': recommendation[5],
+                'recommended_strategy': recommendation[6],
+                'confidence_level': recommendation[7],
+                'recommendation_reason': recommendation[8],
+                'historical_precedents': json.loads(recommendation[9]) if recommendation[9] else [],
+                'expected_points_improvement': recommendation[10],
+                'last_updated': recommendation[11]
+            }
+            logger.info(f"Retrieved existing recommendation: {recommendation_data['recommended_strategy']} ({recommendation_data['confidence_level']})")
+
+        # Get switch timing guidance
+        switch_guidance = get_switch_timing_guidance(recommendation_data, logger)
+
+        # Get historical context
+        historical_context = get_historical_context(cursor, recommendation_data['low_scoring_percentage'], logger)
+
+        conn.close()
+
+        response_data = {
+            'recommendation': recommendation_data,
+            'switch_guidance': switch_guidance,
+            'historical_context': historical_context,
+            'success': True
+        }
+
+        logger.info("=== Season Recommendation API Completed Successfully ===")
+        return jsonify(response_data)
+
+    except Exception as e:
+        logger.error(f"Error in season recommendation API: {str(e)}")
+        logger.exception("Full traceback:")
+        return jsonify({
+            'error': str(e),
+            'success': False,
+            'recommendation': None
+        }), 500
+
+
+def generate_season_recommendation(cursor, season, logger):
+    """Generate a new season recommendation based on current data"""
+    logger.info(f"Generating new recommendation for season: {season}")
+
+    # Get current season stats
+    cursor.execute('''
+        SELECT
+            COUNT(*) as total_matches,
+            SUM(CASE WHEN (r.home_goals + r.away_goals) <= 2 THEN 1 ELSE 0 END) as low_scoring,
+            AVG(r.home_goals + r.away_goals) as avg_goals,
+            MAX(f.gameweek) as current_gameweek
+        FROM fixtures f
+        JOIN results r ON f.fixture_id = r.fixture_id
+        WHERE f.season = ?
+        AND r.home_goals IS NOT NULL
+        AND r.away_goals IS NOT NULL
+    ''', (season,))
+
+    result = cursor.fetchone()
+
+    if not result or result[0] == 0:
+        logger.warning(f"No completed matches found for season {season}")
+        return {
+            'season': season,
+            'current_gameweek': 1,
+            'total_matches': 0,
+            'low_scoring_matches': 0,
+            'low_scoring_percentage': 0.0,
+            'goals_per_game_avg': 2.5,
+            'recommended_strategy': '2-1',
+            'confidence_level': 'early',
+            'recommendation_reason': 'No completed matches yet - using default 2-1 strategy',
+            'historical_precedents': [],
+            'expected_points_improvement': 0.0,
+            'last_updated': datetime.now().isoformat()
+        }
+
+    total_matches, low_scoring, avg_goals, current_gameweek = result
+    low_scoring_percentage = (low_scoring / total_matches) * 100
+
+    logger.info(f"Season stats: {total_matches} matches, {low_scoring_percentage:.1f}% low-scoring")
+
+    # Determine recommendation based on analysis thresholds
+    if low_scoring_percentage > 47:
+        recommended_strategy = '1-0'
+        expected_improvement = 0.05 if low_scoring_percentage > 50 else 0.025
+        reason = f"Season shows {low_scoring_percentage:.1f}% low-scoring matches (above 47% threshold for 1-0 strategy)"
+    else:
+        recommended_strategy = '2-1'
+        expected_improvement = 0.0
+        reason = f"Season shows {low_scoring_percentage:.1f}% low-scoring matches (below 47% threshold, continue 2-1 strategy)"
+
+    # Determine confidence level
+    if total_matches >= 80:
+        confidence = 'high'
+    elif total_matches >= 40:
+        confidence = 'moderate'
+    else:
+        confidence = 'early'
+
+    # Find similar historical seasons
+    cursor.execute('''
+        SELECT season, low_scoring_percentage, optimal_strategy, strategy_advantage
+        FROM historical_season_patterns
+        WHERE ABS(low_scoring_percentage - ?) < 5.0
+        ORDER BY ABS(low_scoring_percentage - ?)
+        LIMIT 3
+    ''', (low_scoring_percentage, low_scoring_percentage))
+
+    similar_seasons = cursor.fetchall()
+    historical_precedents = [{
+        'season': s[0],
+        'percentage': s[1],
+        'strategy': s[2],
+        'advantage': s[3]
+    } for s in similar_seasons]
+
+    # Save to database
+    recommendation_data = {
+        'season': season,
+        'current_gameweek': current_gameweek or 1,
+        'total_matches': total_matches,
+        'low_scoring_matches': low_scoring,
+        'low_scoring_percentage': low_scoring_percentage,
+        'goals_per_game_avg': avg_goals or 2.5,
+        'recommended_strategy': recommended_strategy,
+        'confidence_level': confidence,
+        'recommendation_reason': reason,
+        'historical_precedents': historical_precedents,
+        'expected_points_improvement': expected_improvement,
+        'last_updated': datetime.now().isoformat()
+    }
+
+    cursor.execute('''
+        INSERT OR REPLACE INTO season_recommendations
+        (season, current_gameweek, total_matches, low_scoring_matches,
+         low_scoring_percentage, goals_per_game_avg, recommended_strategy,
+         confidence_level, recommendation_reason, historical_precedents,
+         expected_points_improvement)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (
+        season, current_gameweek or 1, total_matches, low_scoring,
+        low_scoring_percentage, avg_goals or 2.5, recommended_strategy,
+        confidence, reason, json.dumps(historical_precedents),
+        expected_improvement
+    ))
+
+    cursor.connection.commit()
+    logger.info(f"Saved new recommendation: {recommended_strategy} ({confidence})")
+
+    return recommendation_data
+
+
+def get_switch_timing_guidance(recommendation_data, logger):
+    """Generate switch timing guidance based on current season progress"""
+    current_gw = recommendation_data['current_gameweek']
+    total_matches = recommendation_data['total_matches']
+    confidence = recommendation_data['confidence_level']
+    strategy = recommendation_data['recommended_strategy']
+
+    guidance = {
+        'current_week': current_gw,
+        'assessment_stage': '',
+        'next_review_week': 0,
+        'action_recommended': '',
+        'timing_message': ''
+    }
+
+    if total_matches < 40:  # Early season (weeks 1-4)
+        guidance.update({
+            'assessment_stage': 'early_monitoring',
+            'next_review_week': max(5, current_gw + 2),
+            'action_recommended': 'monitor',
+            'timing_message': f'Early season assessment - monitor for {40 - total_matches} more matches before confident recommendation'
+        })
+    elif total_matches < 80:  # Mid early season (weeks 5-8)
+        if strategy == '1-0':
+            guidance.update({
+                'assessment_stage': 'moderate_confidence',
+                'next_review_week': current_gw + 4,
+                'action_recommended': 'consider_switch',
+                'timing_message': f'Moderate confidence in 1-0 strategy. Consider switching now, full confidence after week 8.'
+            })
+        else:
+            guidance.update({
+                'assessment_stage': 'moderate_confidence',
+                'next_review_week': current_gw + 4,
+                'action_recommended': 'continue_monitoring',
+                'timing_message': f'Continue with 2-1 strategy. Re-assess after week 8.'
+            })
+    else:  # High confidence (week 8+)
+        if strategy == '1-0':
+            guidance.update({
+                'assessment_stage': 'high_confidence',
+                'next_review_week': 15,  # Mid-season review
+                'action_recommended': 'switch_now',
+                'timing_message': f'High confidence: Switch to 1-0 strategy now. Expected season benefit: +{recommendation_data["expected_points_improvement"]:.2f} pts/game'
+            })
+        else:
+            guidance.update({
+                'assessment_stage': 'high_confidence',
+                'next_review_week': 15,
+                'action_recommended': 'continue_current',
+                'timing_message': f'High confidence: Continue 2-1 strategy. Mid-season review at week 15.'
+            })
+
+    return guidance
+
+
+def get_historical_context(cursor, current_percentage, logger):
+    """Get historical context for current season's scoring pattern"""
+    # Get similar seasons
+    cursor.execute('''
+        SELECT
+            season, low_scoring_percentage, optimal_strategy, strategy_advantage,
+            season_classification
+        FROM historical_season_patterns
+        ORDER BY ABS(low_scoring_percentage - ?)
+        LIMIT 5
+    ''', (current_percentage,))
+
+    similar_seasons = cursor.fetchall()
+
+    # Get overall distribution
+    cursor.execute('''
+        SELECT
+            COUNT(*) as total_seasons,
+            AVG(low_scoring_percentage) as avg_percentage,
+            COUNT(CASE WHEN optimal_strategy = '1-0' THEN 1 END) as seasons_favoring_1_0,
+            COUNT(CASE WHEN optimal_strategy = '2-1' THEN 1 END) as seasons_favoring_2_1
+        FROM historical_season_patterns
+    ''')
+
+    distribution = cursor.fetchone()
+
+    context = {
+        'similar_seasons': [{
+            'season': s[0],
+            'percentage': s[1],
+            'optimal_strategy': s[2],
+            'advantage': s[3],
+            'classification': s[4]
+        } for s in similar_seasons],
+        'historical_average': distribution[1] if distribution[1] else 45.0,
+        'seasons_1_0_optimal': distribution[2] if distribution[2] else 0,
+        'seasons_2_1_optimal': distribution[3] if distribution[3] else 0,
+        'current_vs_average': current_percentage - (distribution[1] if distribution[1] else 45.0),
+        'percentile_rank': calculate_percentile_rank(cursor, current_percentage, logger)
+    }
+
+    return context
+
+
+def calculate_percentile_rank(cursor, current_percentage, logger):
+    """Calculate what percentile the current season's low-scoring percentage is"""
+    cursor.execute('''
+        SELECT COUNT(*)
+        FROM historical_season_patterns
+        WHERE low_scoring_percentage <= ?
+    ''', (current_percentage,))
+
+    lower_count = cursor.fetchone()[0]
+
+    cursor.execute('SELECT COUNT(*) FROM historical_season_patterns')
+    total_count = cursor.fetchone()[0]
+
+    if total_count > 0:
+        percentile = (lower_count / total_count) * 100
+        return round(percentile, 1)
+    else:
+        return 50.0  # Default middle percentile
+
+
 def get_strategy_display_name(strategy):
     """Get display name for strategy"""
     names = {
         'fixed': 'Fixed (2-1 Favourite)',
-        'fixed-2-0': 'Fixed (2-0 Favourite)', 
+        'adaptive': 'Adaptive (Season-Based Recommendation)',
+        'fixed-2-0': 'Fixed (2-0 Favourite)',
         'fixed-1-0': 'Fixed (1-0 Favourite)',
         'calibrated': 'Calibrated Scorelines',
         'home-away': 'Home/Away Bias',
@@ -1011,6 +1327,35 @@ def get_strategy_display_name(strategy):
         'smart-goals': 'Smart Goals (1X2 + Over/Under)'
     }
     return names.get(strategy, strategy.title())
+
+
+def get_current_season_recommendation(season='2025/2026'):
+    """Get the current recommended strategy for a season"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Get latest recommendation for the season
+        cursor.execute('''
+            SELECT recommended_strategy
+            FROM season_recommendations
+            WHERE season = ?
+            ORDER BY last_updated DESC
+            LIMIT 1
+        ''', (season,))
+
+        result = cursor.fetchone()
+        conn.close()
+
+        if result:
+            return result[0]
+        else:
+            # If no recommendation exists, return default
+            return '2-1'
+
+    except Exception as e:
+        # If there's any error, return default strategy
+        return '2-1'
 
 
 def calculate_strategy_performance(fixtures_data, strategy):
@@ -1074,7 +1419,29 @@ def generate_prediction_for_fixture(fixture, strategy):
         else:
             home_score = 1
             away_score = 2
-            
+
+    elif strategy == 'adaptive':
+        # Get current season recommendation to determine which strategy to use
+        season = fixture.get('season', '2025/2026')
+        recommended_strategy = get_current_season_recommendation(season)
+
+        if recommended_strategy == '1-0':
+            # Use 1-0 strategy
+            if home_odds <= away_odds:
+                home_score = 1
+                away_score = 0
+            else:
+                home_score = 0
+                away_score = 1
+        else:
+            # Default to 2-1 strategy
+            if home_odds <= away_odds:
+                home_score = 2
+                away_score = 1
+            else:
+                home_score = 1
+                away_score = 2
+
     elif strategy == 'fixed-2-0':
         if home_odds <= away_odds:
             home_score = 2

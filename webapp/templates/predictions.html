@@ -7,7 +7,70 @@
         <h1 class="text-2xl font-bold text-gray-900 mb-2">🎯 Predictions Analysis</h1>
         <p class="text-gray-600">Automated predictions based on betting odds with multiple strategies and scoring analysis.</p>
     </div>
-    
+
+    <!-- Strategy Recommendation Widget -->
+    <div id="recommendationWidget" class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 shadow rounded-lg p-6 hidden">
+        <div class="flex items-start justify-between">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center">
+                        <span class="text-blue-600 font-bold">🎯</span>
+                    </div>
+                </div>
+                <div class="ml-4">
+                    <h3 class="text-lg font-semibold text-blue-900" id="recommendationTitle">Strategy Recommendation</h3>
+                    <p class="text-sm text-blue-700" id="recommendationSubtitle">Analyzing current season patterns...</p>
+                </div>
+            </div>
+            <div class="flex-shrink-0">
+                <div class="bg-blue-600 text-white px-3 py-1 rounded-full text-sm font-medium" id="confidenceBadge">
+                    Loading...
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- Current Season Stats -->
+                <div class="bg-white rounded-lg p-4 border border-blue-100">
+                    <h4 class="text-sm font-medium text-gray-900 mb-2">Current Season</h4>
+                    <div class="space-y-1 text-sm text-gray-600">
+                        <div>Matches: <span id="seasonMatches" class="font-medium text-gray-900">-</span></div>
+                        <div>Low-scoring: <span id="seasonLowScoring" class="font-medium text-gray-900">-</span></div>
+                        <div>Avg Goals/Game: <span id="seasonAvgGoals" class="font-medium text-gray-900">-</span></div>
+                    </div>
+                </div>
+
+                <!-- Recommendation -->
+                <div class="bg-white rounded-lg p-4 border border-blue-100">
+                    <h4 class="text-sm font-medium text-gray-900 mb-2">Recommended Strategy</h4>
+                    <div class="text-lg font-bold text-blue-600" id="recommendedStrategy">Loading...</div>
+                    <div class="text-xs text-gray-500 mt-1" id="expectedImprovement">Expected improvement: +0.00 pts/game</div>
+                </div>
+
+                <!-- Switch Timing -->
+                <div class="bg-white rounded-lg p-4 border border-blue-100">
+                    <h4 class="text-sm font-medium text-gray-900 mb-2">Switch Timing</h4>
+                    <div class="text-sm text-gray-600" id="switchAction">Monitor</div>
+                    <div class="text-xs text-gray-500 mt-1" id="nextReview">Next review: Week -</div>
+                </div>
+            </div>
+
+            <!-- Detailed Recommendation -->
+            <div class="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-100">
+                <h4 class="text-sm font-medium text-blue-900 mb-2">📊 Analysis & Recommendation</h4>
+                <p class="text-sm text-blue-800" id="recommendationReason">Loading season analysis...</p>
+                <p class="text-sm text-blue-700 mt-2" id="timingGuidance">Loading timing guidance...</p>
+            </div>
+
+            <!-- Historical Context -->
+            <div class="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200 hidden" id="historicalContext">
+                <h4 class="text-xs font-medium text-gray-700 mb-2">📈 Historical Context</h4>
+                <div class="text-xs text-gray-600" id="historicalSimilar">Similar seasons: Loading...</div>
+            </div>
+        </div>
+    </div>
+
     <!-- Gameweek and Season Selectors -->
     <div class="bg-white shadow rounded-lg p-6">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -44,8 +107,11 @@
     <div class="bg-white shadow rounded-lg">
         <div class="border-b border-gray-200">
             <nav class="-mb-px flex space-x-8 px-6 pt-4">
-                <button class="strategy-tab active border-transparent text-blue-600 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm" data-strategy="fixed">
+                <button class="strategy-tab border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm" data-strategy="fixed">
                     Fixed (2-1 Favourite)
+                </button>
+                <button class="strategy-tab active border-transparent text-blue-600 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm" data-strategy="adaptive">
+                    🎯 Recommended
                 </button>
                 <button class="strategy-tab border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm" data-strategy="calibrated">
                     Calibrated
@@ -223,13 +289,15 @@
 {% block scripts %}
 <script>
 let currentGameweek = {{ current_gameweek }};
-let currentStrategy = 'fixed';
+let currentStrategy = 'adaptive';
 let currentSeason = '2025/2026';
 let fixturesData = [];
+let recommendationData = null;
 
 // Strategy descriptions
 const strategyDescriptions = {
     fixed: "Favourite team always wins 2-1. Simple and consistent approach using the team with lower odds.",
+    adaptive: "Uses the recommended strategy based on current season analysis. Automatically adapts between 1-0 and 2-1 predictions based on scoring patterns.",
     'fixed-2-0': "Favourite team always wins 2-0. Clean sheet strategy backing the favourite with a shutout win.",
     'fixed-1-0': "Favourite team always wins 1-0. Conservative strategy backing narrow wins by the favourite.",
     calibrated: "Variable scorelines based on favourite strength: ≤1.50 odds = 3-0/2-0, 1.51-2.00 = 2-1, 2.01-2.50 = 1-0, >2.50 = 1-1",
@@ -283,6 +351,7 @@ function switchStrategy(strategy) {
 function updateStrategyContent() {
     const titleMap = {
         fixed: 'Fixed Strategy Predictions (2-1 Favourite)',
+        adaptive: 'Adaptive Strategy Predictions (Season-Based Recommendation)',
         'fixed-2-0': 'Fixed Strategy Predictions (2-0 Favourite)',
         'fixed-1-0': 'Fixed Strategy Predictions (1-0 Favourite)',
         calibrated: 'Calibrated Predictions (Variable Scorelines)',
@@ -408,7 +477,27 @@ function calculatePrediction(fixture, strategy) {
                 homeScore = 1; awayScore = 2;
             }
             break;
-            
+
+        case 'adaptive':
+            // Use recommended strategy from season analysis
+            const recommendedStrategy = recommendationData ? recommendationData.recommendation.recommended_strategy : '2-1';
+            if (recommendedStrategy === '1-0') {
+                // Use 1-0 strategy
+                if (homeOdds <= awayOdds) {
+                    homeScore = 1; awayScore = 0;
+                } else {
+                    homeScore = 0; awayScore = 1;
+                }
+            } else {
+                // Default to 2-1 strategy
+                if (homeOdds <= awayOdds) {
+                    homeScore = 2; awayScore = 1;
+                } else {
+                    homeScore = 1; awayScore = 2;
+                }
+            }
+            break;
+
         case 'fixed-2-0':
             if (homeOdds <= awayOdds) {
                 homeScore = 2; awayScore = 0;
@@ -967,12 +1056,116 @@ function showNoPerformanceDataWithError(errorMessage) {
     noDataSection.classList.remove('hidden');
 }
 
+function loadSeasonRecommendation() {
+    """Load season recommendation data and update the UI"""
+    console.log('Loading season recommendation...');
+
+    fetch(`/api/season-recommendation?season=${encodeURIComponent(currentSeason)}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Season recommendation loaded:', data);
+
+            if (data.success && data.recommendation) {
+                recommendationData = data;
+                updateRecommendationWidget(data);
+                updateAdaptiveStrategyDescription(data.recommendation);
+            } else {
+                console.error('Failed to load recommendation:', data.error);
+                hideRecommendationWidget();
+            }
+        })
+        .catch(error => {
+            console.error('Error loading season recommendation:', error);
+            hideRecommendationWidget();
+        });
+}
+
+function updateRecommendationWidget(data) {
+    """Update the recommendation widget with loaded data"""
+    const widget = document.getElementById('recommendationWidget');
+    const rec = data.recommendation;
+    const guidance = data.switch_guidance;
+    const historical = data.historical_context;
+
+    // Update main info
+    document.getElementById('recommendationTitle').textContent =
+        `Strategy Recommendation: ${rec.recommended_strategy.toUpperCase()}`;
+    document.getElementById('recommendationSubtitle').textContent =
+        `Based on ${rec.total_matches} matches this season`;
+
+    // Update confidence badge
+    const confidenceBadge = document.getElementById('confidenceBadge');
+    confidenceBadge.textContent = rec.confidence_level.charAt(0).toUpperCase() + rec.confidence_level.slice(1) + ' Confidence';
+    confidenceBadge.className = `px-3 py-1 rounded-full text-sm font-medium text-white ${getConfidenceColor(rec.confidence_level)}`;
+
+    // Update current season stats
+    document.getElementById('seasonMatches').textContent = rec.total_matches;
+    document.getElementById('seasonLowScoring').textContent = `${rec.low_scoring_percentage.toFixed(1)}%`;
+    document.getElementById('seasonAvgGoals').textContent = rec.goals_per_game_avg.toFixed(1);
+
+    // Update recommendation
+    document.getElementById('recommendedStrategy').textContent = rec.recommended_strategy.toUpperCase() + ' Strategy';
+    document.getElementById('expectedImprovement').textContent =
+        `Expected improvement: +${rec.expected_points_improvement.toFixed(2)} pts/game`;
+
+    // Update switch timing
+    document.getElementById('switchAction').textContent = guidance.action_recommended.replace('_', ' ').toUpperCase();
+    document.getElementById('nextReview').textContent = `Next review: Week ${guidance.next_review_week}`;
+
+    // Update detailed recommendation
+    document.getElementById('recommendationReason').textContent = rec.recommendation_reason;
+    document.getElementById('timingGuidance').textContent = guidance.timing_message;
+
+    // Update historical context if available
+    if (historical && historical.similar_seasons && historical.similar_seasons.length > 0) {
+        const contextDiv = document.getElementById('historicalContext');
+        const similarText = historical.similar_seasons.slice(0, 3).map(s =>
+            `${s.season} (${s.percentage.toFixed(1)}% low-scoring, ${s.optimal_strategy} optimal)`
+        ).join('; ');
+        document.getElementById('historicalSimilar').textContent = `Similar seasons: ${similarText}`;
+        contextDiv.classList.remove('hidden');
+    }
+
+    // Show the widget
+    widget.classList.remove('hidden');
+}
+
+function getConfidenceColor(confidence) {
+    """Get CSS color class for confidence level"""
+    switch(confidence) {
+        case 'high': return 'bg-green-600';
+        case 'moderate': return 'bg-yellow-600';
+        case 'early': return 'bg-blue-600';
+        default: return 'bg-gray-600';
+    }
+}
+
+function hideRecommendationWidget() {
+    """Hide the recommendation widget if data loading fails"""
+    document.getElementById('recommendationWidget').classList.add('hidden');
+}
+
+function updateAdaptiveStrategyDescription(recommendation) {
+    """Update the adaptive strategy description based on current recommendation"""
+    const currentStrategy = recommendation.recommended_strategy;
+    const confidence = recommendation.confidence_level;
+    const percentage = recommendation.low_scoring_percentage;
+
+    strategyDescriptions.adaptive = `Currently recommending ${currentStrategy.toUpperCase()} strategy based on ${percentage.toFixed(1)}% low-scoring matches this season. Confidence: ${confidence}. Automatically adapts between 1-0 and 2-1 predictions based on real-time scoring patterns.`;
+}
+
 // Initialize custom predictions functionality
 document.addEventListener('DOMContentLoaded', function() {
     setupEventListeners();
     setupCustomPredictions();
     loadFixtures(currentGameweek);
     loadSeasonPerformance();
+    loadSeasonRecommendation(); // Load recommendation data
 });
 </script>
 {% endblock %}

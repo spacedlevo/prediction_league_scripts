@@ -392,6 +392,37 @@ tail -f logs/script_$(date +%Y%m%d).log
 - **Interactive setup** - Browser-based authorization flow
 - **Secure storage** - Tokens safely stored in keys.json
 
+### Automated Predictions System (Dual-File Generation)
+```bash
+# Test automated predictions generation (checks for upcoming gameweeks)
+./venv/bin/python scripts/prediction_league/automated_predictions.py
+
+# The script automatically runs hourly via scheduler when deadline is within 36 hours
+# Creates predictions based on odds data (favorite wins 2-1 strategy)
+```
+
+**System Features:**
+- **Dual-File Upload** - Automatically writes predictions to two Dropbox locations:
+  * `/predictions_league/odds-api/predictions{gameweek}.txt` (new file creation)
+  * `/predictions_league/Predictions/2025_26/gameweek{gameweek}.txt` (append/create logic)
+- **Intelligent Content Management** - Downloads existing gameweek files and appends new predictions
+- **UK Timezone Notifications** - Uses pytz for accurate BST/GMT deadline display in Pushover notifications
+- **Error Recovery** - Continues operation if one upload location fails
+- **Gameweek Validation** - Only runs when deadline is within 36 hours
+- **Duplicate Prevention** - Database tracking prevents multiple runs within 1-hour window
+
+**Prediction Logic:**
+- **Odds-Based Strategy** - Analyzes home/away odds to determine favorite
+- **Consistent Format** - "Tom Levin" header with team capitalization
+- **Scoreline Strategy** - Favorite wins 2-1, underdog wins 1-2, default 1-1 for missing odds
+- **Fixture Integration** - Uses SQL query to fetch gameweek fixtures with odds data
+
+**Scheduler Integration:**
+- **Hourly Execution** - Runs automatically every hour via master scheduler
+- **Deadline-Based Activation** - Only processes when gameweek deadline approaches
+- **Notification System** - Sends predictions and fixture lists via Pushover
+- **Database Tracking** - Updates last_update table to trigger automated uploads
+
 ### Pulse API System (Match Data Collection)
 ```bash
 # Test pulse API data collection with sample data
@@ -491,7 +522,7 @@ echo "DEBUG_MODE=true" >> scripts/scheduler/scheduler_config.conf
 - **Every Minute**: fetch_results.py, monitor_and_upload.py (with 10s sequencing)
 - **Every 15 Minutes**: clean_predictions_dropbox.py
 - **Every 30 Minutes**: fetch_fixtures_gameweeks.py
-- **Every Hour**: automated_predictions.py
+- **Every Hour**: automated_predictions.py (dual-file upload with UK timezone notifications)
 - **Daily 7 AM**: fetch_fpl_data.py, fetch_odds.py
 - **Daily 8 AM**: fetch_pulse_data.py
 - **Weekly Sundays 9 AM**: fetch_football_data.py (NEW - September 2025)

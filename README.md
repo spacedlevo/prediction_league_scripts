@@ -26,8 +26,11 @@ A comprehensive automated system for managing Fantasy Premier League predictions
 ### 📱 **Dropbox Integration**
 - **OAuth2 Authentication**: Secure token management with auto-refresh
 - **Prediction Processing**: Automatic cleaning and processing of prediction files
+- **Dual-File Upload**: Automated predictions written to both odds-api and main gameweek files
+- **Append/Create Logic**: Intelligent handling of existing gameweek predictions with content preservation
 - **File Monitoring**: Change detection and processing of updated predictions
 - **Multiple Format Support**: Text file parsing with team name recognition
+- **UK Timezone Display**: Automatic BST/GMT conversion for deadline notifications
 
 ### 🗄️ **Database Management**
 - **SQLite Backend**: Lightweight, reliable data storage
@@ -165,7 +168,7 @@ A comprehensive automated system for managing Fantasy Premier League predictions
 
 ### Prediction Management
 - **`scripts/prediction_league/clean_predictions_dropbox.py`** - Dropbox integration
-- **`scripts/prediction_league/automated_predictions.py`** - Automated prediction generation
+- **`scripts/prediction_league/automated_predictions.py`** - Automated prediction generation with dual-file upload
 - **`scripts/prediction_league/setup_dropbox_oauth.py`** - OAuth2 setup helper
 
 ### Database Operations

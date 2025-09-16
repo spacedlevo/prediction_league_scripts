@@ -29,7 +29,9 @@
       "WebFetch(domain:the-odds-api.com)",
       "Bash(lsof:*)",
       "Bash(xargs kill:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(pgrep:*)",
+      "Bash(../venv/bin/python -c \"import app\")"
     ],
     "deny": [],
     "ask": []
