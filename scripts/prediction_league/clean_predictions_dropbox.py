@@ -91,9 +91,14 @@ def update_keys_file(config, logger):
             os.fsync(temp_file.fileno())
             temp_file.close()
             
-            # Atomic move to replace original file
+            # Atomic move to replace original file, preserving permissions
+            # Capture original file permissions before replacing
+            original_stat = os.stat(keys_file)
             shutil.move(temp_file.name, keys_file)
-            logger.info("Successfully updated keys.json with new Dropbox token")
+            # Restore original permissions and ownership
+            os.chmod(keys_file, original_stat.st_mode)
+            os.chown(keys_file, original_stat.st_uid, original_stat.st_gid)
+            logger.info("Successfully updated keys.json with new Dropbox token (permissions preserved)")
             return True
             
         except Exception as e:

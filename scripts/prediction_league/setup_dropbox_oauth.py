@@ -49,9 +49,14 @@ def save_config(config):
         os.fsync(temp_file.fileno())
         temp_file.close()
         
-        # Atomic move to replace original file
+        # Atomic move to replace original file, preserving permissions
+        # Capture original file permissions before replacing
+        original_stat = os.stat(keys_file)
         shutil.move(temp_file.name, keys_file)
-        print("✅ Successfully updated keys.json")
+        # Restore original permissions and ownership
+        os.chmod(keys_file, original_stat.st_mode)
+        os.chown(keys_file, original_stat.st_uid, original_stat.st_gid)
+        print("✅ Successfully updated keys.json (permissions preserved)")
         return True
         
     except Exception as e:
