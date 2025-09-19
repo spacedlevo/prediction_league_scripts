@@ -38,6 +38,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import pytz
 import logging
+import argparse
 
 # Configuration
 CURRENT_SEASON = "2025/2026"
@@ -50,6 +51,15 @@ def load_config():
     """Load API keys and configuration"""
     with open(keys_file, 'r') as f:
         return json.load(f)
+
+def parse_arguments():
+    """Parse command line arguments"""
+    parser = argparse.ArgumentParser(description='Automated predictions script with intelligent strategy recommendations')
+    parser.add_argument('--force', action='store_true',
+                       help='Force run the script ignoring all checks (deadline, existing files, recent processing)')
+    parser.add_argument('--gameweek', type=int,
+                       help='Force specific gameweek (requires --force)')
+    return parser.parse_args()
 
 def setup_logging():
     """Setup file-based logging for this script"""
@@ -492,8 +502,13 @@ def check_already_processed(table_name, within_hours=1, logger=None):
 
 def main():
     """Main execution function"""
+    args = parse_arguments()
     logger = setup_logging()
-    logger.info("Starting automated predictions script")
+
+    if args.force:
+        logger.info("Starting automated predictions script in FORCE mode - bypassing all checks")
+    else:
+        logger.info("Starting automated predictions script")
 
     # Load configuration
     try:
@@ -501,63 +516,91 @@ def main():
     except Exception as e:
         logger.error(f"Error loading configuration: {e}")
         return
-    
-    # Get next gameweek
-    gameweek, deadline_timestamp = fetch_next_gameweek(logger)
-    if not gameweek:
-        logger.info("No upcoming gameweek found, exiting")
+
+    # Check if gameweek specified without force mode
+    if args.gameweek and not args.force:
+        logger.error("--gameweek requires --force mode. Use --force --gameweek N")
         return
 
-    # Check if deadline is within 36 hours
-    if not is_within_36_hours(deadline_timestamp, logger):
-        logger.info("Deadline not within 36 hours, exiting")
-        return
+    # Get gameweek (either forced or next upcoming)
+    if args.force and args.gameweek:
+        gameweek = args.gameweek
+        deadline_timestamp = None
+        logger.info(f"Force mode: Using specified gameweek {gameweek}")
+    else:
+        gameweek, deadline_timestamp = fetch_next_gameweek(logger)
+        if not gameweek:
+            logger.info("No upcoming gameweek found, exiting")
+            return
+
+    # Check if deadline is within 36 hours (skip if force mode)
+    if not args.force:
+        if not is_within_36_hours(deadline_timestamp, logger):
+            logger.info("Deadline not within 36 hours, exiting")
+            return
+    else:
+        logger.info("Force mode: Skipping deadline check")
     
-    # Check if predictions file already exists
+    # Check if predictions file already exists (skip if force mode)
     predictions_file = f"/predictions_league/odds-api/predictions{gameweek}.txt"
-    if check_file_exists_dropbox(predictions_file, config, logger):
-        logger.info("Predictions file already exists, skipping predictions creation")
-    else:
-        # Check if we've already processed predictions recently
-        if check_already_processed("predictions", within_hours=1, logger=logger):
+    should_create_predictions = True
+
+    if not args.force:
+        if check_file_exists_dropbox(predictions_file, config, logger):
+            logger.info("Predictions file already exists, skipping predictions creation")
+            should_create_predictions = False
+        elif check_already_processed("predictions", within_hours=1, logger=logger):
             logger.info("Predictions already processed recently, skipping")
-        else:
-            # Get odds data and create predictions
-            odds_data = get_gameweek_odds(gameweek, logger)
-            if odds_data:
-                predictions_string = create_predictions_string(odds_data, logger)
-                
-                # Upload to Dropbox odds-api folder
-                upload_success = upload_to_dropbox(predictions_string, gameweek, config, logger)
-                
-                # Also append/create predictions in the main gameweek file
-                append_success = append_or_create_gameweek_predictions(predictions_string, gameweek, config, logger)
-                
-                if upload_success or append_success:
-                    if upload_success and append_success:
-                        logger.info("Successfully uploaded to both odds-api and gameweek predictions files")
-                    elif upload_success:
-                        logger.warning("Successfully uploaded to odds-api file, but failed to update gameweek predictions file")
-                    elif append_success:
-                        logger.warning("Successfully updated gameweek predictions file, but failed to upload to odds-api file")
-
-                    update_last_update_table("predictions", logger)
-
-                    # Send predictions via Pushover
-                    send_pushover_message(predictions_string, config, logger)
-                else:
-                    logger.error("Failed to upload predictions to both locations, skipping notifications")
-            else:
-                logger.warning("No odds data found for gameweek")
-    
-    # Check if we should send fixtures notification
-    if check_already_processed("send_fixtures", within_hours=24, logger=logger):
-        logger.info("Fixtures notification already sent recently, skipping")
+            should_create_predictions = False
     else:
+        logger.info("Force mode: Skipping file existence and recent processing checks")
+
+    if should_create_predictions:
+        # Get odds data and create predictions
+        odds_data = get_gameweek_odds(gameweek, logger)
+        if odds_data:
+            predictions_string = create_predictions_string(odds_data, logger)
+
+            # Upload to Dropbox odds-api folder
+            upload_success = upload_to_dropbox(predictions_string, gameweek, config, logger)
+
+            # Also append/create predictions in the main gameweek file
+            append_success = append_or_create_gameweek_predictions(predictions_string, gameweek, config, logger)
+
+            if upload_success or append_success:
+                if upload_success and append_success:
+                    logger.info("Successfully uploaded to both odds-api and gameweek predictions files")
+                elif upload_success:
+                    logger.warning("Successfully uploaded to odds-api file, but failed to update gameweek predictions file")
+                elif append_success:
+                    logger.warning("Successfully updated gameweek predictions file, but failed to upload to odds-api file")
+
+                update_last_update_table("predictions", logger)
+
+                # Send predictions via Pushover
+                send_pushover_message(predictions_string, config, logger)
+            else:
+                logger.error("Failed to upload predictions to both locations, skipping notifications")
+        else:
+            logger.warning("No odds data found for gameweek")
+    
+    # Check if we should send fixtures notification (skip check if force mode)
+    should_send_fixtures = True
+
+    if not args.force:
+        if check_already_processed("send_fixtures", within_hours=24, logger=logger):
+            logger.info("Fixtures notification already sent recently, skipping")
+            should_send_fixtures = False
+    else:
+        logger.info("Force mode: Skipping fixtures notification recent processing check")
+
+    if should_send_fixtures and deadline_timestamp:
         # Send fixtures notification
         fixtures_string = create_fixtures_string(gameweek, deadline_timestamp, logger)
         if send_pushover_message(fixtures_string, config, logger):
             update_last_update_table("send_fixtures", logger)
+    elif should_send_fixtures and not deadline_timestamp:
+        logger.info("Force mode: Skipping fixtures notification (no deadline timestamp available)")
 
     logger.info("Automated predictions script completed")
 
