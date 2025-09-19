@@ -37,6 +37,7 @@ import sqlite3 as sql
 from datetime import datetime, timezone
 from pathlib import Path
 import pytz
+import logging
 
 # Configuration
 CURRENT_SEASON = "2025/2026"
@@ -51,16 +52,33 @@ def load_config():
         return json.load(f)
 
 def setup_logging():
-    """Simple print-based logging for this script"""
-    def log(message):
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(f"{timestamp} - {message}")
-    return log
+    """Setup file-based logging for this script"""
+    # Create logs directory if it doesn't exist
+    logs_dir = Path(__file__).parent.parent.parent / "logs"
+    logs_dir.mkdir(exist_ok=True)
+
+    # Create log filename with current date
+    log_filename = f"automated_predictions_{datetime.now().strftime('%Y%m%d')}.log"
+    log_path = logs_dir / log_filename
+
+    # Configure logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_path),
+            logging.StreamHandler()  # Also log to console
+        ]
+    )
+
+    logger = logging.getLogger(__name__)
+    logger.info(f"Logging initialized - log file: {log_path}")
+    return logger
 
 def get_current_season_recommendation(season=CURRENT_SEASON, logger=None):
     """Get the current recommended strategy for the season from the recommendation system"""
     if not logger:
-        logger = setup_logging()
+        logger = logging.getLogger(__name__)
 
     try:
         conn = sql.connect(db_path)
@@ -80,15 +98,15 @@ def get_current_season_recommendation(season=CURRENT_SEASON, logger=None):
 
         if result:
             strategy, confidence, percentage = result
-            logger(f"Retrieved season recommendation: {strategy} strategy (confidence: {confidence}, {percentage:.1f}% low-scoring)")
+            logger.info(f"Retrieved season recommendation: {strategy} strategy (confidence: {confidence}, {percentage:.1f}% low-scoring)")
             return strategy
         else:
-            logger(f"No recommendation found for season {season}, using default 2-1 strategy")
+            logger.info(f"No recommendation found for season {season}, using default 2-1 strategy")
             return '2-1'
 
     except Exception as e:
-        logger(f"Error retrieving season recommendation: {e}")
-        logger("Falling back to default 2-1 strategy")
+        logger.error(f"Error retrieving season recommendation: {e}")
+        logger.info("Falling back to default 2-1 strategy")
         return '2-1'
 
 def fetch_next_gameweek(logger):
@@ -113,14 +131,14 @@ def fetch_next_gameweek(logger):
             # Convert to UK timezone (UTC+0 for simplicity, could add proper BST/GMT handling)
             uk_deadline = deadline_dt.replace(tzinfo=timezone.utc)
             deadline_timestamp = int(uk_deadline.timestamp())
-            logger(f"Next gameweek: {gameweek}, deadline: {uk_deadline}")
+            logger.info(f"Next gameweek: {gameweek}, deadline: {uk_deadline}")
             return gameweek, deadline_timestamp
         else:
-            logger("No upcoming gameweeks found")
+            logger.info("No upcoming gameweeks found")
             return None, None
-            
+
     except Exception as e:
-        logger(f"Error fetching next gameweek: {e}")
+        logger.error(f"Error fetching next gameweek: {e}")
         return None, None
     finally:
         conn.close()
@@ -133,14 +151,14 @@ def is_within_36_hours(deadline_timestamp, logger):
     now = datetime.now().timestamp()
     hours_until_deadline = (deadline_timestamp - now) / 3600
     
-    logger(f"Hours until deadline: {hours_until_deadline:.2f}")
-    
+    logger.info(f"Hours until deadline: {hours_until_deadline:.2f}")
+
     # Check if deadline is in the future and within 36 hours
     is_future = deadline_timestamp > now
     is_within_window = 0 < hours_until_deadline <= 36
-    
+
     result = is_future and is_within_window
-    logger(f"Within 36 hours: {result}")
+    logger.info(f"Within 36 hours: {result}")
     
     return result
 
@@ -157,12 +175,12 @@ def get_gameweek_odds(gameweek, logger):
         
         cursor.execute(sql_query, (CURRENT_SEASON, gameweek))
         results = cursor.fetchall()
-        
-        logger(f"Found {len(results)} fixtures with odds for gameweek {gameweek}")
+
+        logger.info(f"Found {len(results)} fixtures with odds for gameweek {gameweek}")
         return results
-        
+
     except Exception as e:
-        logger(f"Error fetching odds data: {e}")
+        logger.error(f"Error fetching odds data: {e}")
         return []
     finally:
         conn.close()
@@ -173,7 +191,7 @@ def create_predictions_string(odds_data, logger):
 
     # Get current season's recommended strategy
     recommended_strategy = get_current_season_recommendation(CURRENT_SEASON, logger)
-    logger(f"Using {recommended_strategy} strategy for automated predictions")
+    logger.info(f"Using {recommended_strategy} strategy for automated predictions")
 
     for row in odds_data:
         home_team, away_team, home_odds, away_odds = row[:4]
@@ -203,7 +221,7 @@ def create_predictions_string(odds_data, logger):
         predictions.append(prediction)
 
     result = "\n".join(predictions)
-    logger(f"Created {recommended_strategy} strategy predictions for {len(odds_data)} fixtures")
+    logger.info(f"Created {recommended_strategy} strategy predictions for {len(odds_data)} fixtures")
     return result
 
 def check_file_exists_dropbox(file_path, config, logger):
@@ -225,11 +243,11 @@ def check_file_exists_dropbox(file_path, config, logger):
         )
         
         exists = response.status_code == 200
-        logger(f"File {file_path} exists in Dropbox: {exists}")
+        logger.info(f"File {file_path} exists in Dropbox: {exists}")
         return exists
-        
+
     except Exception as e:
-        logger(f"Error checking Dropbox file: {e}")
+        logger.error(f"Error checking Dropbox file: {e}")
         return False
 
 def download_dropbox_file(file_path, config, logger):
@@ -247,14 +265,14 @@ def download_dropbox_file(file_path, config, logger):
         
         if response.status_code == 200:
             content = response.content.decode('utf-8')
-            logger(f"Successfully downloaded file: {file_path}")
+            logger.info(f"Successfully downloaded file: {file_path}")
             return content
         else:
-            logger(f"Failed to download {file_path}: {response.status_code} - {response.text}")
+            logger.error(f"Failed to download {file_path}: {response.status_code} - {response.text}")
             return None
-            
+
     except Exception as e:
-        logger(f"Error downloading {file_path}: {e}")
+        logger.error(f"Error downloading {file_path}: {e}")
         return None
 
 def upload_to_dropbox(predictions_string, gameweek, config, logger):
@@ -279,14 +297,14 @@ def upload_to_dropbox(predictions_string, gameweek, config, logger):
         )
         
         if response.status_code == 200:
-            logger(f"Successfully uploaded predictions to Dropbox: {file_path}")
+            logger.info(f"Successfully uploaded predictions to Dropbox: {file_path}")
             return True
         else:
-            logger(f"Failed to upload to Dropbox: {response.status_code} - {response.text}")
+            logger.error(f"Failed to upload to Dropbox: {response.status_code} - {response.text}")
             return False
-            
+
     except Exception as e:
-        logger(f"Error uploading to Dropbox: {e}")
+        logger.error(f"Error uploading to Dropbox: {e}")
         return False
 
 def append_or_create_gameweek_predictions(predictions_string, gameweek, config, logger):
@@ -300,11 +318,11 @@ def append_or_create_gameweek_predictions(predictions_string, gameweek, config, 
         if check_file_exists_dropbox(file_path, config, logger):
             existing_content = download_dropbox_file(file_path, config, logger)
             if existing_content is None:
-                logger(f"Failed to download existing file content for {file_path}")
+                logger.error(f"Failed to download existing file content for {file_path}")
                 return False
-            logger(f"Downloaded existing content from {file_path}")
+            logger.info(f"Downloaded existing content from {file_path}")
         else:
-            logger(f"File {file_path} doesn't exist, will create new file")
+            logger.info(f"File {file_path} doesn't exist, will create new file")
         
         # Combine existing content with new predictions
         if existing_content:
@@ -333,14 +351,14 @@ def append_or_create_gameweek_predictions(predictions_string, gameweek, config, 
         )
         
         if response.status_code == 200:
-            logger(f"Successfully updated gameweek predictions file: {file_path}")
+            logger.info(f"Successfully updated gameweek predictions file: {file_path}")
             return True
         else:
-            logger(f"Failed to update gameweek predictions file: {response.status_code} - {response.text}")
+            logger.error(f"Failed to update gameweek predictions file: {response.status_code} - {response.text}")
             return False
-            
+
     except Exception as e:
-        logger(f"Error updating gameweek predictions file: {e}")
+        logger.error(f"Error updating gameweek predictions file: {e}")
         return False
 
 def fetch_fixtures(gameweek, logger):
@@ -366,11 +384,11 @@ def fetch_fixtures(gameweek, logger):
         """, (gameweek, CURRENT_SEASON))
         
         fixtures = cursor.fetchall()
-        logger(f"Found {len(fixtures)} fixtures for gameweek {gameweek}")
+        logger.info(f"Found {len(fixtures)} fixtures for gameweek {gameweek}")
         return fixtures
-        
+
     except Exception as e:
-        logger(f"Error fetching fixtures: {e}")
+        logger.error(f"Error fetching fixtures: {e}")
         return []
     finally:
         conn.close()
@@ -405,14 +423,14 @@ def send_pushover_message(message, config, logger):
         response = requests.post(url, data=data)
         
         if response.status_code == 200:
-            logger("Successfully sent Pushover notification")
+            logger.info("Successfully sent Pushover notification")
             return True
         else:
-            logger(f"Failed to send Pushover notification: {response.status_code} - {response.text}")
+            logger.error(f"Failed to send Pushover notification: {response.status_code} - {response.text}")
             return False
-            
+
     except Exception as e:
-        logger(f"Error sending Pushover message: {e}")
+        logger.error(f"Error sending Pushover message: {e}")
         return False
 
 def update_last_update_table(table_name, logger):
@@ -431,10 +449,10 @@ def update_last_update_table(table_name, logger):
         """, (table_name, now, timestamp))
         
         conn.commit()
-        logger(f"Updated last_update table for '{table_name}'")
-        
+        logger.info(f"Updated last_update table for '{table_name}'")
+
     except Exception as e:
-        logger(f"Error updating last_update table: {e}")
+        logger.error(f"Error updating last_update table: {e}")
     finally:
         conn.close()
 
@@ -458,16 +476,16 @@ def check_already_processed(table_name, within_hours=1, logger=None):
             
             recently_processed = hours_since <= within_hours
             if logger:
-                logger(f"Last {table_name}: {hours_since:.2f} hours ago, recently processed: {recently_processed}")
+                logger.info(f"Last {table_name}: {hours_since:.2f} hours ago, recently processed: {recently_processed}")
             return recently_processed
         else:
             if logger:
-                logger(f"No previous {table_name} record found")
+                logger.info(f"No previous {table_name} record found")
             return False
-            
+
     except Exception as e:
         if logger:
-            logger(f"Error checking {table_name} status: {e}")
+            logger.error(f"Error checking {table_name} status: {e}")
         return False
     finally:
         conn.close()
@@ -475,34 +493,34 @@ def check_already_processed(table_name, within_hours=1, logger=None):
 def main():
     """Main execution function"""
     logger = setup_logging()
-    logger("Starting automated predictions script")
-    
+    logger.info("Starting automated predictions script")
+
     # Load configuration
     try:
         config = load_config()
     except Exception as e:
-        logger(f"Error loading configuration: {e}")
+        logger.error(f"Error loading configuration: {e}")
         return
     
     # Get next gameweek
     gameweek, deadline_timestamp = fetch_next_gameweek(logger)
     if not gameweek:
-        logger("No upcoming gameweek found, exiting")
+        logger.info("No upcoming gameweek found, exiting")
         return
-    
+
     # Check if deadline is within 36 hours
     if not is_within_36_hours(deadline_timestamp, logger):
-        logger("Deadline not within 36 hours, exiting")
+        logger.info("Deadline not within 36 hours, exiting")
         return
     
     # Check if predictions file already exists
     predictions_file = f"/predictions_league/odds-api/predictions{gameweek}.txt"
     if check_file_exists_dropbox(predictions_file, config, logger):
-        logger("Predictions file already exists, skipping predictions creation")
+        logger.info("Predictions file already exists, skipping predictions creation")
     else:
         # Check if we've already processed predictions recently
         if check_already_processed("predictions", within_hours=1, logger=logger):
-            logger("Predictions already processed recently, skipping")
+            logger.info("Predictions already processed recently, skipping")
         else:
             # Get odds data and create predictions
             odds_data = get_gameweek_odds(gameweek, logger)
@@ -517,31 +535,31 @@ def main():
                 
                 if upload_success or append_success:
                     if upload_success and append_success:
-                        logger("Successfully uploaded to both odds-api and gameweek predictions files")
+                        logger.info("Successfully uploaded to both odds-api and gameweek predictions files")
                     elif upload_success:
-                        logger("Successfully uploaded to odds-api file, but failed to update gameweek predictions file")
+                        logger.warning("Successfully uploaded to odds-api file, but failed to update gameweek predictions file")
                     elif append_success:
-                        logger("Successfully updated gameweek predictions file, but failed to upload to odds-api file")
-                    
+                        logger.warning("Successfully updated gameweek predictions file, but failed to upload to odds-api file")
+
                     update_last_update_table("predictions", logger)
-                    
+
                     # Send predictions via Pushover
                     send_pushover_message(predictions_string, config, logger)
                 else:
-                    logger("Failed to upload predictions to both locations, skipping notifications")
+                    logger.error("Failed to upload predictions to both locations, skipping notifications")
             else:
-                logger("No odds data found for gameweek")
+                logger.warning("No odds data found for gameweek")
     
     # Check if we should send fixtures notification
     if check_already_processed("send_fixtures", within_hours=24, logger=logger):
-        logger("Fixtures notification already sent recently, skipping")
+        logger.info("Fixtures notification already sent recently, skipping")
     else:
         # Send fixtures notification
         fixtures_string = create_fixtures_string(gameweek, deadline_timestamp, logger)
         if send_pushover_message(fixtures_string, config, logger):
             update_last_update_table("send_fixtures", logger)
-    
-    logger("Automated predictions script completed")
+
+    logger.info("Automated predictions script completed")
 
 if __name__ == "__main__":
     main()
