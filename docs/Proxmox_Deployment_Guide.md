@@ -243,8 +243,15 @@ vim keys.json
 
 **Secure the keys file:**
 ```bash
+# For single-user development setup
 chmod 600 keys.json
+
+# For multi-user production setup (recommended)
+chmod 640 keys.json                    # Owner read/write, group read
+chgrp predictionleague keys.json       # Set group ownership
 ```
+
+**Important Note (Sept 2025):** The scripts now preserve file permissions when updating Dropbox tokens. Previously, `clean_predictions_dropbox.py` and `setup_dropbox_oauth.py` would reset permissions to 600, breaking group access.
 
 ### 5.2 Setup Dropbox OAuth2
 
@@ -602,10 +609,21 @@ pip install missing_package
 
 **Permission Errors:**
 ```bash
-# Fix file permissions
+# Fix script permissions
 chmod 755 ~/projects/prediction_league_script/scripts/**/*.py
-chmod 600 ~/projects/prediction_league_script/keys.json
+
+# Fix keys.json permissions (choose appropriate level)
+chmod 600 ~/projects/prediction_league_script/keys.json  # Single user
+# OR
+chmod 640 ~/projects/prediction_league_script/keys.json  # Multi-user with group
+chgrp predictionleague ~/projects/prediction_league_script/keys.json
 ```
+
+**Keys.json Permission Issues (Sept 2025 Fix):**
+If you notice keys.json permissions changing unexpectedly:
+- This was caused by token refresh scripts resetting permissions to 600
+- Fixed in Sept 2025: scripts now preserve original permissions
+- Set desired permissions once and they will be maintained
 
 **Database Lock Errors:**
 ```bash

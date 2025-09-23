@@ -272,10 +272,11 @@ def update_recommendation_database(cursor, recommendation, logger):
 def update_last_update_table(cursor, logger):
     """Update the last_update table to trigger automated uploads"""
     try:
+        current_time = datetime.now()
         cursor.execute('''
-            INSERT OR REPLACE INTO last_update (table_name, timestamp)
-            VALUES ('season_recommendations', ?)
-        ''', (datetime.now().isoformat(),))
+            INSERT OR REPLACE INTO last_update (table_name, updated, timestamp)
+            VALUES ('season_recommendations', ?, ?)
+        ''', (current_time.isoformat(), current_time.timestamp()))
 
         cursor.connection.commit()
         logger.info("Updated last_update table for automated upload")

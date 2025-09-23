@@ -388,17 +388,24 @@ tail -f logs/script_$(date +%Y%m%d).log
 
 **OAuth2 Features:**
 - **Auto-refresh tokens** - No manual token management needed
-- **Legacy token migration** - Seamless upgrade from old tokens  
+- **Legacy token migration** - Seamless upgrade from old tokens
 - **Interactive setup** - Browser-based authorization flow
 - **Secure storage** - Tokens safely stored in keys.json
+- **Permission Preservation** - Scripts maintain file permissions when updating tokens (Sep 2025 fix)
 
 ### Automated Predictions System (Dual-File Generation)
 ```bash
 # Test automated predictions generation (checks for upcoming gameweeks)
 ./venv/bin/python scripts/prediction_league/automated_predictions.py
 
+# Force run bypassing all checks (development/testing)
+./venv/bin/python scripts/prediction_league/automated_predictions.py --force
+
+# Force run with specific gameweek
+./venv/bin/python scripts/prediction_league/automated_predictions.py --force --gameweek 5
+
 # The script automatically runs hourly via scheduler when deadline is within 36 hours
-# Creates predictions based on odds data (favorite wins 2-1 strategy)
+# Creates predictions based on intelligent strategy recommendations (1-0 vs 2-1)
 ```
 
 **System Features:**
@@ -826,6 +833,25 @@ python -c "import pytz; print('pytz installed successfully')"
 - Ensure virtual environment includes all dependencies
 - Working directory must be set to webapp directory
 - Config.json must be accessible with correct timezone setting
+
+### Keys.json Permission Configuration
+Critical for multi-user production environments where scripts run under different users:
+
+```bash
+# Set appropriate permissions for group access
+chmod 640 keys.json                    # Owner read/write, group read
+chgrp predictionleague keys.json       # Set group ownership
+
+# Verify permissions
+ls -la keys.json
+# Should show: -rw-r----- 1 user predictionleague
+```
+
+**Permission Preservation (Sept 2025 Fix):**
+- Scripts now preserve original file permissions when updating Dropbox tokens
+- `clean_predictions_dropbox.py` (runs every 15 minutes) maintains group permissions
+- `setup_dropbox_oauth.py` (manual setup) preserves permissions during token refresh
+- Prevents automatic reset to 0600 (owner-only) permissions
 
 ## Summary
 

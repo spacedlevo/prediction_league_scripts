@@ -43,7 +43,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Error Handling**: Graceful handling when one location fails, continues if at least one upload succeeds
   - **Enhanced Logging**: Detailed logging shows success/failure status for both upload locations
 
+- **Automated Predictions Force Mode** - Added CLI arguments to bypass all safety checks for testing and emergency use
+  - **Force Flag**: `--force` bypasses deadline, file existence, and recent processing checks
+  - **Gameweek Override**: `--gameweek N` allows forcing specific gameweek (requires --force)
+  - **Safety Validation**: Prevents `--gameweek` usage without `--force` flag
+  - **Complete Logging**: All force mode actions clearly logged with proper file-based logging
+  - **Strategy Preservation**: Force mode still uses intelligent 1-0 strategy from database
+  - **Use Cases**: Development testing, emergency prediction generation, historical analysis
+
+- **Enhanced Logging System** - Upgraded automated_predictions.py from print-based to proper file logging
+  - **File-Based Logs**: Creates `logs/automated_predictions_YYYYMMDD.log` files
+  - **Dual Output**: Logs to both file and console for monitoring
+  - **Proper Log Levels**: INFO, WARNING, ERROR levels with timestamps
+  - **Project Consistency**: Follows established logging patterns from other scripts
+
 ### Fixed
+- **Season Recommendations Database Update** - Fixed `update_season_recommendations.py` not populating the "updated" column in last_update table
+  - **Issue**: Script was only inserting into `table_name` and `timestamp` columns, ignoring the `updated` column
+  - **Impact**: Database upload monitoring couldn't detect season recommendation changes
+  - **Solution**: Modified `update_last_update_table()` to populate all three columns: `table_name`, `updated` (ISO format), and `timestamp` (Unix timestamp)
+  - **Result**: Season recommendation updates now properly trigger automated database uploads
+
+- **Keys.json Permission Preservation** - Fixed scripts that were resetting file permissions during token updates
+  - **Issue**: `clean_predictions_dropbox.py` and `setup_dropbox_oauth.py` were changing keys.json permissions to 0600 (owner-only) when refreshing Dropbox tokens
+  - **Impact**: Broke group read access for `predictionleague` group on production servers
+  - **Solution**: Modified both scripts to preserve original file permissions and ownership after atomic file updates
+  - **Implementation**: Added `os.stat()` capture before `shutil.move()` and `os.chmod()`/`os.chown()` restoration after
+  - **Files Modified**: `scripts/prediction_league/clean_predictions_dropbox.py`, `scripts/prediction_league/setup_dropbox_oauth.py`
+  - **Production Ready**: Scripts now maintain 640 permissions (owner rw, group r) for multi-user access
+
 - **JavaScript Syntax Errors in Predictions Template** - Fixed critical syntax errors preventing predictions page from loading
   - **Issue**: Used Python-style docstrings (`"""`) in JavaScript functions causing "Unexpected string" errors
   - **Solution**: Replaced Python docstrings with proper JavaScript comments (`//`) in all recommendation functions
