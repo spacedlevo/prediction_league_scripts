@@ -7,7 +7,8 @@ based on odds data using the intelligent season recommendation system. It upload
 predictions to Dropbox and sends notifications via Pushover.
 
 FUNCTIONALITY:
-- Checks if next gameweek deadline is within 36 hours
+- **PREDICTIONS**: Generated when deadline is within 12 hours
+- **FIXTURES**: Notification sent when deadline is within 36 hours
 - Uses intelligent season recommendations to determine optimal strategy (1-0 vs 2-1)
 - Generates predictions based on current season analysis:
   * 1-0 strategy when >47% matches are low-scoring
@@ -17,6 +18,12 @@ FUNCTIONALITY:
   * /predictions_league/Predictions/2025_26/gameweek{gameweek}.txt (append/create)
 - Sends notifications via Pushover API with UK timezone conversion
 - Prevents duplicate runs using database tracking
+
+TIMING LOGIC:
+- Script runs hourly via scheduler but uses different timing windows:
+  * Predictions: Only generated within 12 hours of deadline
+  * Fixtures: Notification sent within 36 hours of deadline
+- This allows fixtures list to be sent earlier while predictions remain close to deadline
 
 INTELLIGENT STRATEGY INTEGRATION:
 - Queries season_recommendations table for current optimal strategy
@@ -153,14 +160,33 @@ def fetch_next_gameweek(logger):
     finally:
         conn.close()
 
-def is_within_36_hours(deadline_timestamp, logger):
-    """Check if deadline is within the next 36 hours"""
+def is_within_12_hours(deadline_timestamp, logger):
+    """Check if deadline is within the next 12 hours (for predictions generation)"""
     if not deadline_timestamp:
         return False
-        
+
     now = datetime.now().timestamp()
     hours_until_deadline = (deadline_timestamp - now) / 3600
-    
+
+    logger.info(f"Hours until deadline: {hours_until_deadline:.2f}")
+
+    # Check if deadline is in the future and within 12 hours
+    is_future = deadline_timestamp > now
+    is_within_window = 0 < hours_until_deadline <= 12
+
+    result = is_future and is_within_window
+    logger.info(f"Within 12 hours (predictions): {result}")
+
+    return result
+
+def is_within_36_hours(deadline_timestamp, logger):
+    """Check if deadline is within the next 36 hours (for fixtures notification)"""
+    if not deadline_timestamp:
+        return False
+
+    now = datetime.now().timestamp()
+    hours_until_deadline = (deadline_timestamp - now) / 3600
+
     logger.info(f"Hours until deadline: {hours_until_deadline:.2f}")
 
     # Check if deadline is in the future and within 36 hours
@@ -168,8 +194,8 @@ def is_within_36_hours(deadline_timestamp, logger):
     is_within_window = 0 < hours_until_deadline <= 36
 
     result = is_future and is_within_window
-    logger.info(f"Within 36 hours: {result}")
-    
+    logger.info(f"Within 36 hours (fixtures): {result}")
+
     return result
 
 def get_gameweek_odds(gameweek, logger):
@@ -533,11 +559,13 @@ def main():
             logger.info("No upcoming gameweek found, exiting")
             return
 
-    # Check if deadline is within 36 hours (skip if force mode)
+    # Check if deadline is within 12 hours for predictions (skip if force mode)
     if not args.force:
-        if not is_within_36_hours(deadline_timestamp, logger):
-            logger.info("Deadline not within 36 hours, exiting")
-            return
+        if not is_within_12_hours(deadline_timestamp, logger):
+            logger.info("Deadline not within 12 hours for predictions, checking fixtures only")
+            # Don't return here - we might still need to send fixtures notification
+        else:
+            logger.info("Deadline within 12 hours - predictions will be generated")
     else:
         logger.info("Force mode: Skipping deadline check")
     
@@ -555,7 +583,8 @@ def main():
     else:
         logger.info("Force mode: Skipping file existence and recent processing checks")
 
-    if should_create_predictions:
+    # Only create predictions if within 12-hour window (or force mode)
+    if should_create_predictions and (args.force or is_within_12_hours(deadline_timestamp, logger)):
         # Get odds data and create predictions
         odds_data = get_gameweek_odds(gameweek, logger)
         if odds_data:
@@ -584,12 +613,15 @@ def main():
         else:
             logger.warning("No odds data found for gameweek")
     
-    # Check if we should send fixtures notification (skip check if force mode)
+    # Check if we should send fixtures notification (requires 36-hour window, skip check if force mode)
     should_send_fixtures = True
 
     if not args.force:
         if check_already_processed("send_fixtures", within_hours=24, logger=logger):
             logger.info("Fixtures notification already sent recently, skipping")
+            should_send_fixtures = False
+        elif not is_within_36_hours(deadline_timestamp, logger):
+            logger.info("Deadline not within 36 hours for fixtures notification, skipping")
             should_send_fixtures = False
     else:
         logger.info("Force mode: Skipping fixtures notification recent processing check")
