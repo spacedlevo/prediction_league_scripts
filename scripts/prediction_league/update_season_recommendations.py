@@ -273,10 +273,11 @@ def update_last_update_table(cursor, logger):
     """Update the last_update table to trigger automated uploads"""
     try:
         current_time = datetime.now()
+        formatted_time = current_time.strftime("%d-%m-%Y %H:%M:%S")
         cursor.execute('''
             INSERT OR REPLACE INTO last_update (table_name, updated, timestamp)
             VALUES ('season_recommendations', ?, ?)
-        ''', (current_time.isoformat(), current_time.timestamp()))
+        ''', (formatted_time, current_time.timestamp()))
 
         cursor.connection.commit()
         logger.info("Updated last_update table for automated upload")
