@@ -385,7 +385,7 @@ def upload_to_dropbox(predictions_string, gameweek, config, logger):
 
 def append_or_create_gameweek_predictions(predictions_string, gameweek, config, logger):
     """Append predictions to the main gameweek predictions file or create it if it doesn't exist"""
-    file_path = f"/predictions_league/Predictions/2025_26/gameweek{gameweek}.txt"
+    file_path = f"/predictions_league/2025_26/gameweek{gameweek}.txt"
     
     try:
         existing_content = ""
