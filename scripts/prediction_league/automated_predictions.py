@@ -46,6 +46,8 @@ from pathlib import Path
 import pytz
 import logging
 import argparse
+import subprocess
+import sys
 
 # Configuration
 CURRENT_SEASON = "2025/2026"
@@ -198,17 +200,55 @@ def is_within_36_hours(deadline_timestamp, logger):
 
     return result
 
+def update_odds_data(logger):
+    """Update odds data by calling the fetch_odds.py script"""
+    logger.info("Updating odds data before generating predictions...")
+
+    try:
+        # Path to the fetch_odds.py script
+        fetch_odds_script = Path(__file__).parent.parent / "odds-api" / "fetch_odds.py"
+
+        # Path to the virtual environment python
+        venv_python = Path(__file__).parent.parent.parent / "venv" / "bin" / "python"
+
+        # Run the fetch_odds.py script with --include-totals for comprehensive data
+        result = subprocess.run(
+            [str(venv_python), str(fetch_odds_script), "--include-totals"],
+            capture_output=True,
+            text=True,
+            timeout=300  # 5 minute timeout
+        )
+
+        if result.returncode == 0:
+            logger.info("Successfully updated odds data")
+            # Log any output from the odds script
+            if result.stdout:
+                logger.info(f"Odds update output: {result.stdout.strip()}")
+            return True
+        else:
+            logger.error(f"Failed to update odds data (exit code {result.returncode})")
+            if result.stderr:
+                logger.error(f"Odds update error: {result.stderr.strip()}")
+            return False
+
+    except subprocess.TimeoutExpired:
+        logger.error("Odds update timed out after 5 minutes")
+        return False
+    except Exception as e:
+        logger.error(f"Error updating odds data: {e}")
+        return False
+
 def get_gameweek_odds(gameweek, logger):
     """Get odds data for the specified gameweek using the SQL file"""
     conn = sql.connect(db_path)
     cursor = conn.cursor()
-    
+
     try:
         # Read the SQL query from file
         sql_file = Path(__file__).parent / "SQL" / "gameweek_odds.sql"
         with open(sql_file, 'r') as f:
             sql_query = f.read()
-        
+
         cursor.execute(sql_query, (CURRENT_SEASON, gameweek))
         results = cursor.fetchall()
 
@@ -585,6 +625,11 @@ def main():
 
     # Only create predictions if within 12-hour window (or force mode)
     if should_create_predictions and (args.force or is_within_12_hours(deadline_timestamp, logger)):
+        # Update odds data before generating predictions
+        odds_update_success = update_odds_data(logger)
+        if not odds_update_success:
+            logger.warning("Failed to update odds data, but continuing with existing data")
+
         # Get odds data and create predictions
         odds_data = get_gameweek_odds(gameweek, logger)
         if odds_data:
