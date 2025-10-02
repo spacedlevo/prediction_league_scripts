@@ -14,7 +14,8 @@ CHANGE DETECTION:
 UPLOAD BEHAVIOR:
 - Triggers on any database table modification since last upload
 - Uploads entire database.db file via SFTP to PythonAnywhere
-- Updates "uploaded" timestamp after successful uploads
+- Updates "uploaded" timestamp ONLY after successful uploads
+- Does NOT update timestamp if upload fails or does not occur
 - Includes fallback health check uploads every 30 minutes
 
 SCHEDULER INTEGRATION:
@@ -32,7 +33,7 @@ import logging
 import paramiko
 import argparse
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Tuple, Optional
 import os
@@ -74,7 +75,7 @@ def setup_logging(test_mode: bool = False) -> logging.Logger:
 def acquire_lock() -> Optional[int]:
     """Prevent multiple instances from running simultaneously"""
     lock_file = tempfile.gettempdir() + "/database_monitor.lock"
-    
+
     try:
         fd = os.open(lock_file, os.O_CREAT | os.O_TRUNC | os.O_RDWR)
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -82,7 +83,6 @@ def acquire_lock() -> Optional[int]:
     except (OSError, IOError):
         # Check if it's a stale lock (older than 10 minutes)
         try:
-            import stat
             if os.path.exists(lock_file):
                 file_stat = os.stat(lock_file)
                 age_seconds = time.time() - file_stat.st_mtime
@@ -154,33 +154,34 @@ def has_database_changes(cursor: sql.Cursor, logger: logging.Logger) -> bool:
         
         last_upload = cursor.fetchone()
         if not last_upload:
-            logger.info("No previous upload found - upload needed")
+            logger.info("→ No previous upload found - first upload needed")
             return True
-        
+
         last_upload_timestamp = parse_timestamp(last_upload[0])
-        logger.debug(f"Last upload timestamp: {last_upload_timestamp}")
-        
+        last_upload_time = datetime.fromtimestamp(last_upload_timestamp).strftime('%Y-%m-%d %H:%M:%S')
+        logger.info(f"→ Last upload: {last_upload_time}")
+
         # Get all non-uploaded table updates
         cursor.execute("""
-            SELECT table_name, timestamp FROM last_update 
+            SELECT table_name, timestamp FROM last_update
             WHERE table_name != 'uploaded'
             ORDER BY timestamp DESC
         """)
-        
+
         all_changes = cursor.fetchall()
         changes = []
-        
+
         for table_name, timestamp_value in all_changes:
             parsed_timestamp = parse_timestamp(timestamp_value)
             if parsed_timestamp > last_upload_timestamp:
                 changes.append((table_name, parsed_timestamp))
-        
+
         if changes:
-            change_list = [f"{change[0]} ({datetime.fromtimestamp(change[1]).strftime('%H:%M:%S')})" for change in changes]
-            logger.info(f"Database changes detected: {', '.join(change_list)}")
+            change_list = [f"{change[0]} (at {datetime.fromtimestamp(change[1]).strftime('%H:%M:%S')})" for change in changes]
+            logger.info(f"→ Changes detected in {len(changes)} table(s): {', '.join(change_list)}")
             return True
-        
-        logger.debug("No database changes detected")
+
+        logger.info("→ No database changes since last upload")
         return False
         
     except Exception as e:
@@ -192,27 +193,27 @@ def last_upload_older_than_30_minutes(cursor: sql.Cursor, logger: logging.Logger
     """Check if last upload was more than 30 minutes ago"""
     try:
         cursor.execute("""
-            SELECT timestamp FROM last_update 
-            WHERE table_name = 'uploaded' 
+            SELECT timestamp FROM last_update
+            WHERE table_name = 'uploaded'
             ORDER BY timestamp DESC LIMIT 1
         """)
-        
+
         last_upload = cursor.fetchone()
         if not last_upload:
-            logger.info("No previous upload found - health check upload needed")
+            logger.info("→ No previous upload found - health check upload needed")
             return True
-        
+
         last_upload_timestamp = parse_timestamp(last_upload[0])
         current_timestamp = datetime.now().timestamp()
         time_diff_minutes = (current_timestamp - last_upload_timestamp) / 60
-        
+
         if time_diff_minutes > 30:
-            logger.info(f"Last upload was {time_diff_minutes:.1f} minutes ago - health check upload needed")
+            logger.info(f"→ Health check: Last upload was {time_diff_minutes:.1f} minutes ago (>30 min threshold)")
             return True
-        
-        logger.debug(f"Last upload was {time_diff_minutes:.1f} minutes ago - no health check needed")
+
+        logger.info(f"→ Health check: Last upload was {time_diff_minutes:.1f} minutes ago (<30 min threshold)")
         return False
-        
+
     except Exception as e:
         logger.error(f"Error checking upload timestamp: {e}")
         return True  # Default to upload if we can't check
@@ -283,63 +284,24 @@ def upload_to_pythonanywhere(config: dict, logger: logging.Logger, dry_run: bool
             ssh.close()
 
 
-def prepare_upload_timestamp(cursor: sql.Cursor, conn: sql.Connection, logger: logging.Logger) -> Tuple[bool, Optional[float]]:
-    """Update the uploaded timestamp BEFORE upload, return previous timestamp for rollback"""
+def update_upload_timestamp(cursor: sql.Cursor, conn: sql.Connection, logger: logging.Logger) -> bool:
+    """Update the uploaded timestamp AFTER successful upload"""
     try:
-        # Get current upload timestamp for rollback
-        cursor.execute("""
-            SELECT timestamp FROM last_update 
-            WHERE table_name = 'uploaded' 
-            ORDER BY timestamp DESC LIMIT 1
-        """)
-        
-        previous_row = cursor.fetchone()
-        previous_timestamp = parse_timestamp(previous_row[0]) if previous_row else None
-        
-        # Set new timestamp
         now = datetime.now()
         new_timestamp = now.timestamp()
         formatted_time = now.strftime("%d-%m-%Y. %H:%M:%S")
-        
+
         cursor.execute("""
-            INSERT OR REPLACE INTO last_update (table_name, updated, timestamp) 
+            INSERT OR REPLACE INTO last_update (table_name, updated, timestamp)
             VALUES (?, ?, ?)
         """, ("uploaded", formatted_time, new_timestamp))
-        
-        conn.commit()
-        logger.info(f"Prepared upload timestamp: {formatted_time}")
-        return True, previous_timestamp
-        
-    except Exception as e:
-        logger.error(f"Failed to prepare upload timestamp: {e}")
-        conn.rollback()
-        return False, None
 
-
-def rollback_upload_timestamp(cursor: sql.Cursor, conn: sql.Connection, logger: logging.Logger, previous_timestamp: Optional[float]) -> bool:
-    """Rollback upload timestamp to previous value after failed upload"""
-    try:
-        if previous_timestamp is None:
-            # Delete the uploaded record if there was no previous timestamp
-            cursor.execute("DELETE FROM last_update WHERE table_name = 'uploaded'")
-            logger.info("Rolled back upload timestamp (removed record)")
-        else:
-            # Restore previous timestamp
-            previous_datetime = datetime.fromtimestamp(previous_timestamp)
-            formatted_time = previous_datetime.strftime("%d-%m-%Y. %H:%M:%S")
-            
-            cursor.execute("""
-                INSERT OR REPLACE INTO last_update (table_name, updated, timestamp) 
-                VALUES (?, ?, ?)
-            """, ("uploaded", formatted_time, previous_timestamp))
-            
-            logger.info(f"Rolled back upload timestamp to: {formatted_time}")
-        
         conn.commit()
+        logger.info(f"Updated upload timestamp: {formatted_time}")
         return True
-        
+
     except Exception as e:
-        logger.error(f"Failed to rollback upload timestamp: {e}")
+        logger.error(f"Failed to update upload timestamp: {e}")
         conn.rollback()
         return False
 
@@ -349,12 +311,14 @@ def main_process(args: argparse.Namespace, logger: logging.Logger) -> int:
     try:
         # Load configuration
         config = load_config()
-        logger.info("Configuration loaded successfully")
-        
+        logger.info("═" * 60)
+        logger.info("DATABASE UPLOAD MONITOR")
+        logger.info("═" * 60)
+
         # Connect to database
         conn = sql.connect(DB_PATH)
         cursor = conn.cursor()
-        logger.debug("Database connection established")
+        logger.info(f"Database: {DB_PATH.name} ({DB_PATH.stat().st_size / 1024 / 1024:.2f} MB)")
         
         try:
             # Determine if upload is needed
@@ -366,45 +330,41 @@ def main_process(args: argparse.Namespace, logger: logging.Logger) -> int:
                 logger.info("Force mode enabled - uploading regardless of changes")
             
             if not upload_needed:
-                logger.debug("No upload needed")
+                logger.info("No upload performed: No database changes detected and last upload was within 30 minutes")
                 return 0  # Success - no action required
-            
-            logger.info(f"Upload needed: {reason}")
+
+            logger.info(f"Upload triggered: {reason.replace('_', ' ').title()}")
             
             if args.dry_run:
                 # In dry run mode, don't update timestamps
                 upload_success = upload_to_pythonanywhere(config, logger, args.dry_run)
                 if upload_success:
-                    logger.info("Dry run completed successfully")
+                    logger.info(f"✓ Dry run completed - would have uploaded due to: {reason.replace('_', ' ')}")
+                    logger.info("✓ No timestamp update in dry-run mode")
                     return 0  # Success
                 else:
-                    logger.error("Dry run upload simulation failed")
+                    logger.error("✗ Dry run upload simulation failed")
                     return 1  # Failure
             else:
-                # Phase 1: Prepare upload timestamp (update before upload)
-                timestamp_prepared, previous_timestamp = prepare_upload_timestamp(cursor, conn, logger)
-                
-                if not timestamp_prepared:
-                    logger.error("Failed to prepare upload timestamp - aborting upload")
-                    return 1  # Failure
-                
-                # Phase 2: Perform upload with rollback capability
+                # Perform upload
                 upload_success = upload_to_pythonanywhere(config, logger, args.dry_run)
-                
+
                 if upload_success:
-                    logger.info(f"Database upload completed successfully (reason: {reason})")
-                    return 0  # Success - timestamp already updated before upload
+                    # Only update timestamp after successful upload
+                    timestamp_updated = update_upload_timestamp(cursor, conn, logger)
+
+                    if timestamp_updated:
+                        logger.info(f"✓ Upload completed successfully due to: {reason.replace('_', ' ')}")
+                        logger.info("✓ Timestamp updated - future uploads will use this as baseline")
+                        return 0  # Success
+                    else:
+                        logger.error("✗ Upload succeeded but failed to update timestamp")
+                        logger.error("✗ WARNING: This may cause repeated uploads on next run")
+                        return 1  # Partial failure
                 else:
-                    # Upload failed - rollback the timestamp
-                    logger.error("Database upload failed - rolling back timestamp")
-                    rollback_success = rollback_upload_timestamp(cursor, conn, logger, previous_timestamp)
-                    
-                    if not rollback_success:
-                        logger.error("Failed to rollback timestamp after upload failure")
-                        return 1  # Failure with rollback failure
-                    
-                    logger.info("Upload timestamp rolled back successfully")
-                    return 1  # Failure but rollback succeeded
+                    logger.error("✗ Upload failed - timestamp NOT updated")
+                    logger.error(f"✗ Upload will be retried on next run due to: {reason.replace('_', ' ')}")
+                    return 1  # Failure
                 
         finally:
             conn.close()

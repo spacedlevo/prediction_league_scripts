@@ -58,6 +58,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Project Consistency**: Follows established logging patterns from other scripts
 
 ### Fixed
+- **Database Upload Timestamp Logic** - Simplified and improved `monitor_and_upload.py` timestamp update logic
+  - **Issue**: Complex prepare/rollback system was unnecessary and could lead to inconsistent states
+  - **Impact**: Upload timestamps might be updated before upload completed, causing potential tracking issues
+  - **Solution**: Simplified to only update `last_update` table **after** successful uploads
+  - **Removed**: `prepare_upload_timestamp()` and `rollback_upload_timestamp()` functions
+  - **Added**: Single `update_upload_timestamp()` function that runs only after successful upload
+  - **Result**: Clean flow - upload → verify success → update timestamp; no updates if upload fails or doesn't occur
+  - **Enhanced Logging**: Added comprehensive status indicators showing exactly when/why uploads occur or are skipped
+
 - **Season Recommendations Database Update** - Fixed `update_season_recommendations.py` not populating the "updated" column in last_update table
   - **Issue**: Script was only inserting into `table_name` and `timestamp` columns, ignoring the `updated` column
   - **Impact**: Database upload monitoring couldn't detect season recommendation changes

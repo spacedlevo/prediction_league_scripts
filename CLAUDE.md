@@ -369,10 +369,12 @@ tail -f logs/script_$(date +%Y%m%d).log
 
 **Upload System Features:**
 - **Change Detection** - Monitors last_update table for database modifications
-- **Automatic Uploads** - Triggers on any table changes since last upload  
+- **Automatic Uploads** - Triggers on any table changes since last upload
 - **Health Check** - Fallback uploads every 30 minutes if no changes detected
 - **Transaction Integrity** - Fixed Aug 2025: Scripts now properly update timestamps after database changes
 - **Smart Timestamps** - Fixed Sep 2025: Scripts only update timestamps when actual data changes occur (no more unnecessary uploads)
+- **Simplified Upload Logic** - Fixed Oct 2025: Timestamp only updates AFTER successful upload, not before
+- **Enhanced Logging** - Clear indicators showing exactly when/why uploads occur or are skipped
 
 ### Dropbox OAuth2 System
 ```bash
@@ -592,6 +594,48 @@ DEBUG_MODE=false
    - **Result**: Frequent unnecessary database uploads with no actual changes
    - **Fix**: Modified scripts to only update timestamps when actual data changes occur
    - **Impact**: Reduced database upload frequency, more efficient change detection
+
+6. **Upload Timestamp Logic Simplification (October 2025)**
+   - **Issue**: Complex prepare/rollback system in `monitor_and_upload.py` was updating timestamps before upload completed
+   - **Result**: Risk of inconsistent state if upload failed after timestamp update
+   - **Fix**: Simplified to single `update_upload_timestamp()` function that runs ONLY after successful upload
+   - **Removed Functions**: `prepare_upload_timestamp()` and `rollback_upload_timestamp()`
+   - **Impact**: Clean flow: upload → verify success → update timestamp; no updates if upload fails or doesn't occur
+   - **Enhanced Logging**: Added comprehensive status indicators (→, ✓, ✗) showing exactly when/why uploads occur or are skipped
+
+### Upload System Logging Examples
+
+**No Upload Needed (Typical Output):**
+```
+════════════════════════════════════════════════════════════
+DATABASE UPLOAD MONITOR
+════════════════════════════════════════════════════════════
+Database: database.db (14.32 MB)
+→ Last upload: 2025-10-02 15:41:46
+→ No database changes since last upload
+→ Health check: Last upload was 0.6 minutes ago (<30 min threshold)
+No upload performed: No database changes detected and last upload was within 30 minutes
+```
+
+**Upload with Changes Detected:**
+```
+Database: database.db (14.32 MB)
+→ Last upload: 2025-10-02 15:39:08
+→ Changes detected in 1 table(s): test_table (at 15:41:20)
+Upload triggered: Database Changes
+Uploading database (15015936 bytes)...
+Database upload successful
+✓ Upload completed successfully due to: database changes
+✓ Timestamp updated - future uploads will use this as baseline
+```
+
+**Dry Run Mode:**
+```
+Upload triggered: Forced
+DRY RUN: Would upload database to PythonAnywhere
+✓ Dry run completed - would have uploaded due to: forced
+✓ No timestamp update in dry-run mode
+```
 
 ### Verification Steps
 ```bash
