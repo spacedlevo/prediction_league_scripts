@@ -10,10 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Pulse API Data Quality Fix Flag** - Added `--fix-team-ids` flag to correct historical team_id inconsistencies
   - **Fix Mode**: `--fix-team-ids` drops and recreates all pulse API tables with proper foreign key constraints
-  - **Automatic Re-fetch**: Automatically fetches all finished fixtures to repopulate with corrected team_id mappings
+  - **Multi-Season Support**: Automatically detects and processes ALL seasons with pulse_ids (ignores --season argument)
+  - **Automatic Re-fetch**: Fetches all finished fixtures across all seasons to repopulate with corrected team_id mappings
   - **Data Quality Resolution**: Fixes GW1 data where team_id stored Pulse IDs instead of database team_ids
   - **Safety Features**: Dry-run support, comprehensive logging, validation to prevent conflicting flags
   - **Database Schema**: Recreates tables with explicit foreign key constraints to teams(team_id)
+  - **Progress Tracking**: Shows per-season progress and overall summary statistics
   - **Usage**: `./venv/bin/python scripts/pulse_api/fetch_pulse_data.py --fix-team-ids [--dry-run]`
 
 ### Added

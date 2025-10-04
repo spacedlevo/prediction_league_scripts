@@ -34,7 +34,8 @@ DATA QUALITY FIX:
 The --fix-team-ids flag addresses historical inconsistencies where early gameweeks
 stored Pulse API team IDs instead of database team_ids in the match_events table.
 This flag drops and recreates all pulse API tables with proper foreign key constraints,
-then re-fetches all data with correct team_id mappings.
+then automatically fetches ALL seasons with pulse_ids and repopulates with correct
+team_id mappings. The --season argument is ignored when using --fix-team-ids.
 """
 
 import json
@@ -836,8 +837,6 @@ def test_with_sample_data(args: argparse.Namespace, logger: logging.Logger) -> N
 
 def main_process(args: argparse.Namespace, logger: logging.Logger) -> None:
     """Main processing logic"""
-    logger.info(f"Starting pulse API data collection for season {args.season}...")
-
     # Connect to database
     conn = sql.connect(DB_PATH)
     cursor = conn.cursor()
@@ -862,41 +861,81 @@ def main_process(args: argparse.Namespace, logger: logging.Logger) -> None:
         if not team_mapping:
             logger.warning("No team mappings found - pulse team IDs won't be mapped to database team_id")
 
-        # Get processing statistics
-        get_processing_stats(cursor, args.season, logger)
+        # When using --fix-team-ids, fetch ALL seasons with pulse_ids
+        if args.fix_team_ids:
+            logger.info("FIX MODE: Fetching all seasons with pulse_ids...")
+            cursor.execute("SELECT DISTINCT season FROM fixtures WHERE pulse_id IS NOT NULL ORDER BY season")
+            seasons = [row[0] for row in cursor.fetchall()]
+            logger.info(f"Found {len(seasons)} seasons with pulse_ids: {', '.join(seasons)}")
+        else:
+            seasons = [args.season]
+            logger.info(f"Starting pulse API data collection for season {args.season}...")
 
-        # Handle force-refresh: clear existing data first
-        if args.force_refresh:
-            if args.dry_run:
-                logger.info("DRY RUN: Would clear all existing pulse data for season")
-            else:
-                clear_existing_pulse_data(cursor, conn, args.season, logger)
+        # Process each season
+        all_stats = {
+            'fixtures_processed': 0,
+            'officials_inserted': 0,
+            'team_list_inserted': 0,
+            'events_inserted': 0,
+            'fixtures_failed': 0
+        }
 
-        # Find fixtures needing pulse data
-        # If fix-team-ids mode, force fetch all fixtures to repopulate
-        force_all_mode = args.force_all or args.force_refresh or args.fix_team_ids
-        fixtures_to_process = get_fixtures_needing_pulse_data(
-            cursor, args.season, force_all_mode, logger
-        )
+        for season in seasons:
+            logger.info(f"\n{'='*60}")
+            logger.info(f"Processing season: {season}")
+            logger.info(f"{'='*60}")
 
-        if not fixtures_to_process:
-            logger.info("No fixtures need pulse data processing")
-            return
+            # Get processing statistics
+            get_processing_stats(cursor, season, logger)
 
-        # Fetch pulse data from API
-        pulse_data = fetch_pulse_data_batch(
-            fixtures_to_process, logger, args.max_workers, args.delay
-        )
+            # Handle force-refresh: clear existing data first
+            if args.force_refresh:
+                if args.dry_run:
+                    logger.info(f"DRY RUN: Would clear all existing pulse data for season {season}")
+                else:
+                    clear_existing_pulse_data(cursor, conn, season, logger)
 
-        if not pulse_data:
-            logger.warning("No pulse data was successfully fetched")
-            return
+            # Find fixtures needing pulse data
+            # If fix-team-ids mode, force fetch all fixtures to repopulate
+            force_all_mode = args.force_all or args.force_refresh or args.fix_team_ids
+            fixtures_to_process = get_fixtures_needing_pulse_data(
+                cursor, season, force_all_mode, logger
+            )
 
-        # Save sample data for testing/debugging
-        save_sample_data(pulse_data, logger)
+            if not fixtures_to_process:
+                logger.info(f"No fixtures need pulse data processing for season {season}")
+                continue
 
-        # Process data and insert into database
-        stats = process_pulse_data(cursor, conn, pulse_data, team_mapping, logger, args.dry_run)
+            # Fetch pulse data from API
+            pulse_data = fetch_pulse_data_batch(
+                fixtures_to_process, logger, args.max_workers, args.delay
+            )
+
+            if not pulse_data:
+                logger.warning(f"No pulse data was successfully fetched for season {season}")
+                continue
+
+            # Save sample data for testing/debugging
+            save_sample_data(pulse_data, logger)
+
+            # Process data and insert into database
+            stats = process_pulse_data(cursor, conn, pulse_data, team_mapping, logger, args.dry_run)
+
+            # Accumulate stats
+            for key in all_stats:
+                all_stats[key] += stats[key]
+
+            logger.info(f"Season {season} completed: {stats}")
+
+        # Final summary
+        logger.info("\n" + "="*60)
+        logger.info("OVERALL SUMMARY")
+        logger.info("="*60)
+        logger.info(f"Total fixtures processed: {all_stats['fixtures_processed']}")
+        logger.info(f"Total officials inserted: {all_stats['officials_inserted']}")
+        logger.info(f"Total team list entries: {all_stats['team_list_inserted']}")
+        logger.info(f"Total events inserted: {all_stats['events_inserted']}")
+        logger.info(f"Total fixtures failed: {all_stats['fixtures_failed']}")
 
         if not args.dry_run:
             # Update last_update table to trigger automated upload
@@ -907,7 +946,7 @@ def main_process(args: argparse.Namespace, logger: logging.Logger) -> None:
             logger.info(f"Cleaning up old sample files, keeping latest {args.cleanup_count}...")
             cleanup_old_sample_files(keep_count=args.cleanup_count, logger=logger)
 
-        logger.info(f"Pulse API data collection completed successfully: {stats}")
+        logger.info(f"Pulse API data collection completed successfully")
 
     except Exception as e:
         conn.rollback()

@@ -199,11 +199,14 @@ GROUP BY t.team_name
   ```
 - **Solution (Permanent Fix):** Use `--fix-team-ids` flag to correct data:
   ```bash
-  # Preview the fix
+  # Preview the fix (shows which seasons will be processed)
   ./venv/bin/python scripts/pulse_api/fetch_pulse_data.py --fix-team-ids --dry-run
 
-  # Execute the fix (drops tables and re-fetches all data)
+  # Execute the fix (drops tables and re-fetches ALL seasons with pulse_ids)
   ./venv/bin/python scripts/pulse_api/fetch_pulse_data.py --fix-team-ids
+
+  # Note: --fix-team-ids automatically processes all seasons with pulse_ids
+  # The --season argument is ignored when using this flag
   ```
 - **Status:** Workaround implemented in all analysis scripts; permanent fix available via `--fix-team-ids`
 - **See:** `analysis_reports/DATA_QUALITY_ISSUE_match_events_team_id.md`

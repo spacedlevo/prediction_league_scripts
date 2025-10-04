@@ -452,11 +452,14 @@ tail -f logs/script_$(date +%Y%m%d).log
 # Process specific season
 ./venv/bin/python scripts/pulse_api/fetch_pulse_data.py --season "2024/2025"
 
-# Fix team_id data quality issues (drop tables and re-fetch all data)
+# Fix team_id data quality issues (drop tables and re-fetch all seasons)
 ./venv/bin/python scripts/pulse_api/fetch_pulse_data.py --fix-team-ids
 
-# Preview fix without making changes
+# Preview fix without making changes (shows which seasons will be processed)
 ./venv/bin/python scripts/pulse_api/fetch_pulse_data.py --fix-team-ids --dry-run
+
+# Note: --fix-team-ids automatically processes ALL seasons with pulse_ids
+# The --season argument is ignored when using this flag
 ```
 
 **Pulse API Features:**
