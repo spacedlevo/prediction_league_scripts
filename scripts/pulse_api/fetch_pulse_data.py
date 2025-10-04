@@ -26,7 +26,15 @@ COMMAND LINE OPTIONS:
 - --test: Use cached sample data for development
 - --season: Process specific season (default: current season)
 - --cleanup-count: Number of sample files to keep (default: 10)
+- --force-all: Force fetch all fixtures regardless of existing data
 - --force-refresh: Delete existing pulse data and re-fetch all fixtures
+- --fix-team-ids: Drop tables and re-fetch to fix team_id data quality issues
+
+DATA QUALITY FIX:
+The --fix-team-ids flag addresses historical inconsistencies where early gameweeks
+stored Pulse API team IDs instead of database team_ids in the match_events table.
+This flag drops and recreates all pulse API tables with proper foreign key constraints,
+then re-fetches all data with correct team_id mappings.
 """
 
 import json
@@ -206,16 +214,16 @@ def clear_existing_pulse_data(cursor: sql.Cursor, conn: sql.Connection, season: 
     """Clear all existing pulse data for the specified season"""
     try:
         logger.info(f"Clearing existing pulse data for season {season}...")
-        
+
         # Get all pulse_ids for the season first
         cursor.execute("""
-            SELECT COUNT(DISTINCT f.pulse_id) 
+            SELECT COUNT(DISTINCT f.pulse_id)
             FROM fixtures f
             LEFT JOIN match_events me ON f.pulse_id = me.pulseid
             WHERE f.season = ? AND me.pulseid IS NOT NULL
         """, (season,))
         count_before = cursor.fetchone()[0]
-        
+
         # Delete from all pulse API tables for fixtures in this season
         cursor.execute("""
             DELETE FROM match_events WHERE pulseid IN (
@@ -223,30 +231,111 @@ def clear_existing_pulse_data(cursor: sql.Cursor, conn: sql.Connection, season: 
             )
         """, (season,))
         events_deleted = cursor.rowcount
-        
+
         cursor.execute("""
             DELETE FROM team_list WHERE pulseid IN (
                 SELECT pulse_id FROM fixtures WHERE season = ? AND pulse_id IS NOT NULL
             )
         """, (season,))
         team_list_deleted = cursor.rowcount
-        
+
         cursor.execute("""
             DELETE FROM match_officials WHERE pulseid IN (
                 SELECT pulse_id FROM fixtures WHERE season = ? AND pulse_id IS NOT NULL
             )
         """, (season,))
         officials_deleted = cursor.rowcount
-        
+
         conn.commit()
-        
+
         logger.info(f"Cleared pulse data for season {season}: "
                    f"{officials_deleted} officials, {team_list_deleted} team list entries, "
                    f"{events_deleted} events from {count_before} fixtures")
-        
+
     except Exception as e:
         conn.rollback()
         logger.error(f"Error clearing pulse data for season {season}: {e}")
+        raise
+
+
+def drop_and_recreate_pulse_tables(cursor: sql.Cursor, conn: sql.Connection, logger: logging.Logger) -> None:
+    """Drop and recreate all pulse API tables to fix data quality issues"""
+    try:
+        logger.info("Dropping existing pulse API tables...")
+
+        # Get counts before dropping
+        cursor.execute("SELECT COUNT(*) FROM match_events")
+        events_count = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM team_list")
+        team_list_count = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM match_officials")
+        officials_count = cursor.fetchone()[0]
+
+        logger.info(f"Removing {events_count} match events, {team_list_count} team list entries, "
+                   f"{officials_count} match officials")
+
+        # Drop existing tables
+        cursor.execute("DROP TABLE IF EXISTS match_events")
+        cursor.execute("DROP TABLE IF EXISTS team_list")
+        cursor.execute("DROP TABLE IF EXISTS match_officials")
+
+        # Recreate tables with proper structure
+        cursor.execute("""
+            CREATE TABLE match_officials (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                matchOfficialID INTEGER NOT NULL,
+                pulseid INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                role TEXT,
+                FOREIGN KEY (pulseid) REFERENCES fixtures(pulse_id)
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE team_list (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                pulseid INTEGER NOT NULL,
+                team_id INTEGER,
+                person_id INTEGER,
+                player_name TEXT NOT NULL,
+                match_shirt_number INTEGER,
+                is_captain BOOLEAN,
+                position TEXT NOT NULL,
+                is_starting BOOLEAN,
+                FOREIGN KEY (pulseid) REFERENCES fixtures(pulse_id),
+                FOREIGN KEY (team_id) REFERENCES teams(team_id)
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE match_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                pulseid INTEGER NOT NULL,
+                person_id INTEGER,
+                team_id INTEGER,
+                assist_id INTEGER,
+                event_type TEXT NOT NULL,
+                event_time TEXT NOT NULL,
+                FOREIGN KEY (pulseid) REFERENCES fixtures(pulse_id),
+                FOREIGN KEY (team_id) REFERENCES teams(team_id)
+            )
+        """)
+
+        # Create indexes
+        cursor.execute("CREATE INDEX idx_match_officials_pulseid ON match_officials(pulseid)")
+        cursor.execute("CREATE INDEX idx_team_list_pulseid ON team_list(pulseid)")
+        cursor.execute("CREATE INDEX idx_team_list_team_id ON team_list(team_id)")
+        cursor.execute("CREATE INDEX idx_match_events_pulseid ON match_events(pulseid)")
+        cursor.execute("CREATE INDEX idx_match_events_team_id ON match_events(team_id)")
+        cursor.execute("CREATE INDEX idx_match_events_event_type ON match_events(event_type)")
+
+        conn.commit()
+
+        logger.info("Successfully dropped and recreated pulse API tables with proper foreign keys")
+
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Error dropping and recreating pulse tables: {e}")
         raise
 
 
@@ -300,11 +389,11 @@ def has_existing_pulse_data(cursor: sql.Cursor, pulse_id: int) -> bool:
         cursor.execute("""
             SELECT COUNT(*) FROM match_events WHERE pulseid = ?
         """, (pulse_id,))
-        
+
         count = cursor.fetchone()[0]
         return count > 0
-        
-    except Exception as e:
+
+    except Exception:
         return False
 
 
@@ -421,7 +510,7 @@ def fetch_pulse_data_batch(pulse_ids: List[Tuple[int, int, str]], logger: loggin
     failed_fetches = []
     
     def fetch_single(pulse_info: Tuple[int, int, str]) -> Tuple[int, Optional[Dict[str, Any]]]:
-        pulse_id, fixture_id, gameweek = pulse_info
+        pulse_id, _fixture_id, _gameweek = pulse_info
         data = fetch_pulse_data(pulse_id, logger, delay)
         return pulse_id, data
     
@@ -748,65 +837,78 @@ def test_with_sample_data(args: argparse.Namespace, logger: logging.Logger) -> N
 def main_process(args: argparse.Namespace, logger: logging.Logger) -> None:
     """Main processing logic"""
     logger.info(f"Starting pulse API data collection for season {args.season}...")
-    
+
     # Connect to database
     conn = sql.connect(DB_PATH)
     cursor = conn.cursor()
-    
+
     try:
+        # Handle fix-team-ids: drop and recreate tables to fix data quality issues
+        if args.fix_team_ids:
+            if args.dry_run:
+                logger.info("DRY RUN: Would drop and recreate pulse API tables to fix team_id data quality issues")
+            else:
+                logger.warning("⚠️  FIX MODE: This will drop and recreate all pulse API tables")
+                logger.warning("⚠️  All match_events, team_list, and match_officials data will be deleted")
+                logger.warning("⚠️  Data will be re-fetched with corrected team_id mappings")
+                drop_and_recreate_pulse_tables(cursor, conn, logger)
+                logger.info("✓ Tables recreated successfully - proceeding to fetch all data")
+
         # Initialize database schema
         create_indexes_and_constraints(cursor, logger)
-        
+
         # Load team mapping
         team_mapping = load_team_mapping(cursor, logger)
         if not team_mapping:
             logger.warning("No team mappings found - pulse team IDs won't be mapped to database team_id")
-        
+
         # Get processing statistics
         get_processing_stats(cursor, args.season, logger)
-        
+
         # Handle force-refresh: clear existing data first
         if args.force_refresh:
             if args.dry_run:
                 logger.info("DRY RUN: Would clear all existing pulse data for season")
             else:
                 clear_existing_pulse_data(cursor, conn, args.season, logger)
-        
+
         # Find fixtures needing pulse data
+        # If fix-team-ids mode, force fetch all fixtures to repopulate
+        force_all_mode = args.force_all or args.force_refresh or args.fix_team_ids
         fixtures_to_process = get_fixtures_needing_pulse_data(
-            cursor, args.season, args.force_all or args.force_refresh, logger
+            cursor, args.season, force_all_mode, logger
         )
-        
+
         if not fixtures_to_process:
             logger.info("No fixtures need pulse data processing")
             return
-        
+
         # Fetch pulse data from API
         pulse_data = fetch_pulse_data_batch(
             fixtures_to_process, logger, args.max_workers, args.delay
         )
-        
+
         if not pulse_data:
             logger.warning("No pulse data was successfully fetched")
             return
-        
+
         # Save sample data for testing/debugging
         save_sample_data(pulse_data, logger)
-        
+
         # Process data and insert into database
         stats = process_pulse_data(cursor, conn, pulse_data, team_mapping, logger, args.dry_run)
-        
+
         if not args.dry_run:
             # Update last_update table to trigger automated upload
             update_last_update_table(cursor, conn, logger)
-        
+
         # Clean up old sample files
         if args.cleanup_count > 0:
             logger.info(f"Cleaning up old sample files, keeping latest {args.cleanup_count}...")
             cleanup_old_sample_files(keep_count=args.cleanup_count, logger=logger)
-        
+
         logger.info(f"Pulse API data collection completed successfully: {stats}")
-        
+
     except Exception as e:
         conn.rollback()
         logger.error(f"Error in main process: {e}")
@@ -820,7 +922,7 @@ def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description='Fetch Pulse API data for match officials, team lists, and events'
     )
-    parser.add_argument('--test', action='store_true', 
+    parser.add_argument('--test', action='store_true',
                        help='Run in test mode with sample data')
     parser.add_argument('--dry-run', action='store_true',
                        help='Run without making database changes (shows what would happen)')
@@ -836,22 +938,29 @@ def parse_arguments() -> argparse.Namespace:
                        help='Force fetch all fixtures regardless of existing data')
     parser.add_argument('--force-refresh', action='store_true',
                        help='Delete existing pulse data and re-fetch all fixtures')
+    parser.add_argument('--fix-team-ids', action='store_true',
+                       help='Drop and recreate pulse tables to fix team_id data quality issues, then re-fetch all data')
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_arguments()
-    
+
     # Validate arguments
     if args.force_refresh and args.force_all:
         print("Error: Cannot use both --force-refresh and --force-all together")
         print("Use --force-refresh to clear existing data and re-fetch all fixtures")
         print("Use --force-all to fetch all fixtures without clearing existing data")
         exit(1)
-    
+
+    if args.fix_team_ids and (args.force_refresh or args.force_all):
+        print("Error: --fix-team-ids cannot be used with --force-refresh or --force-all")
+        print("The --fix-team-ids flag automatically handles table recreation and data fetching")
+        exit(1)
+
     logger = setup_logging()
     logger.info("Starting Pulse API data fetch process...")
-    
+
     try:
         if args.test:
             # Test mode with sample data
@@ -859,9 +968,9 @@ if __name__ == "__main__":
         else:
             # Normal operation with API fetching
             main_process(args, logger)
-        
+
         logger.info("Pulse API data fetch process completed successfully")
-        
+
     except KeyboardInterrupt:
         logger.info("Process interrupted by user")
     except Exception as e:

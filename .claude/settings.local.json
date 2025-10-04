@@ -33,7 +33,11 @@
       "Bash(pgrep:*)",
       "Bash(../venv/bin/python -c \"import app\")",
       "Bash(DEBUG_MODE=true ENABLE_UPDATE_RECOMMENDATIONS=true ./master_scheduler.sh)",
-      "Bash(../../venv/bin/python:*)"
+      "Bash(../../venv/bin/python:*)",
+      "Bash(paste:*)",
+      "Bash(sort:*)",
+      "Read(///**)",
+      "Bash(awk:*)"
     ],
     "deny": [],
     "ask": []

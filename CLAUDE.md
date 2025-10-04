@@ -451,6 +451,12 @@ tail -f logs/script_$(date +%Y%m%d).log
 
 # Process specific season
 ./venv/bin/python scripts/pulse_api/fetch_pulse_data.py --season "2024/2025"
+
+# Fix team_id data quality issues (drop tables and re-fetch all data)
+./venv/bin/python scripts/pulse_api/fetch_pulse_data.py --fix-team-ids
+
+# Preview fix without making changes
+./venv/bin/python scripts/pulse_api/fetch_pulse_data.py --fix-team-ids --dry-run
 ```
 
 **Pulse API Features:**
@@ -462,6 +468,7 @@ tail -f logs/script_$(date +%Y%m%d).log
 - **Database Integration** - Uses existing tables: match_officials, team_list, match_events
 - **Team Mapping** - Maps pulse team IDs to database team_id for proper relationships
 - **Sample Management** - Automatic cleanup of old sample files with configurable retention
+- **Data Quality Fix** - `--fix-team-ids` flag to correct historical team_id inconsistencies
 
 **Data Collected:**
 - **Match Officials** - Referees and linesmen for each match
