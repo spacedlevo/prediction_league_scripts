@@ -15,6 +15,7 @@
 # - fetch_odds.py: Daily at 7 AM (hour = 7, minute = 0)
 # - fetch_pulse_data.py: Daily at 8 AM (hour = 8, minute = 0)
 # - fetch_football_data.py: Weekly on Sundays at 9 AM
+# - verify_predictions_from_messages.py: Daily at 11 AM (hour = 11, minute = 0)
 #
 # KEY IMPROVEMENTS:
 # - Eliminated complex second-based timing windows that caused missed executions
@@ -229,6 +230,14 @@ if [[ $(date +%u) -eq 7 ]] && [[ $current_hour -eq 10 ]] && [[ $current_minute -
     fi
 fi
 
+# Daily at 11 AM (Prediction verification from messages)
+if [[ $current_hour -eq 11 ]] && [[ $current_minute -eq 0 ]]; then
+    if [[ "$ENABLE_VERIFY_PREDICTIONS" == "true" ]]; then
+        run_script "scripts/analysis/verify_predictions_from_messages.py" "verify_predictions" &
+        log "DEBUG" "Triggered verify_predictions_from_messages (daily 11 AM)"
+    fi
+fi
+
 # Wait for background processes to complete
 wait
 
@@ -249,7 +258,7 @@ fi
 if [[ "${DEBUG_MODE:-false}" == "true" ]]; then
     log "DEBUG" "Configuration status:"
     log "DEBUG" "  ENABLE_FETCH_RESULTS: $ENABLE_FETCH_RESULTS"
-    log "DEBUG" "  ENABLE_MONITOR_UPLOAD: $ENABLE_MONITOR_UPLOAD"  
+    log "DEBUG" "  ENABLE_MONITOR_UPLOAD: $ENABLE_MONITOR_UPLOAD"
     log "DEBUG" "  ENABLE_CLEAN_PREDICTIONS: $ENABLE_CLEAN_PREDICTIONS"
     log "DEBUG" "  ENABLE_FETCH_FIXTURES: $ENABLE_FETCH_FIXTURES"
     log "DEBUG" "  ENABLE_AUTOMATED_PREDICTIONS: $ENABLE_AUTOMATED_PREDICTIONS"
@@ -258,6 +267,7 @@ if [[ "${DEBUG_MODE:-false}" == "true" ]]; then
     log "DEBUG" "  ENABLE_FETCH_PULSE_DATA: $ENABLE_FETCH_PULSE_DATA"
     log "DEBUG" "  ENABLE_FETCH_FOOTBALL_DATA: $ENABLE_FETCH_FOOTBALL_DATA"
     log "DEBUG" "  ENABLE_UPDATE_RECOMMENDATIONS: $ENABLE_UPDATE_RECOMMENDATIONS"
+    log "DEBUG" "  ENABLE_VERIFY_PREDICTIONS: $ENABLE_VERIFY_PREDICTIONS"
     
     # Log timing conditions that might prevent execution
     log "DEBUG" "Timing analysis:"

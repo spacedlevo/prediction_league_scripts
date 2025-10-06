@@ -96,14 +96,14 @@ check_config_status() {
         
         # Count enabled scripts
         local enabled_count=0
-        for script in FETCH_RESULTS MONITOR_UPLOAD CLEAN_PREDICTIONS FETCH_FIXTURES AUTOMATED_PREDICTIONS FETCH_FPL_DATA FETCH_ODDS; do
+        for script in FETCH_RESULTS MONITOR_UPLOAD CLEAN_PREDICTIONS FETCH_FIXTURES AUTOMATED_PREDICTIONS FETCH_FPL_DATA FETCH_ODDS VERIFY_PREDICTIONS; do
             local var_name="ENABLE_${script}"
             local value="${!var_name:-not set}"
             if [[ "$value" == "true" ]]; then
                 ((enabled_count++))
             fi
         done
-        echo "  Enabled scripts: $enabled_count/7"
+        echo "  Enabled scripts: $enabled_count/8"
     else
         print_status "WARN" "Configuration file not found - using defaults"
     fi
@@ -152,7 +152,7 @@ check_log_status() {
         fi
         
         # Check individual script logs
-        local scripts=("fetch_results" "monitor_and_upload" "clean_predictions" "fetch_fixtures" "automated_predictions" "fetch_fpl_data" "fetch_odds")
+        local scripts=("fetch_results" "monitor_and_upload" "clean_predictions" "fetch_fixtures" "automated_predictions" "fetch_fpl_data" "fetch_odds" "verify_predictions")
         local log_count=0
         
         for script in "${scripts[@]}"; do

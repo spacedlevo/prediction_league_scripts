@@ -198,25 +198,30 @@ def dashboard():
         
         # Get players with identical predictions for current and next gameweeks
         identical_predictions = get_players_with_identical_predictions(cursor)
-        
+
+        # Get verification mismatches
+        verification_mismatches = get_verification_mismatches(cursor)
+
         conn.close()
-        
-        return render_template('dashboard.html', 
-                             stats=stats, 
+
+        return render_template('dashboard.html',
+                             stats=stats,
                              recent_updates=recent_updates,
                              missing_predictions=missing_predictions,
                              predictions_progress=predictions_progress,
                              identical_predictions=identical_predictions,
+                             verification_mismatches=verification_mismatches,
                              page_title='Dashboard')
     
     except Exception as e:
         flash(f'Error loading dashboard: {e}', 'error')
-        return render_template('dashboard.html', 
-                             stats={}, 
+        return render_template('dashboard.html',
+                             stats={},
                              recent_updates=[],
                              missing_predictions={'current': {}, 'next': {}},
                              predictions_progress={'current': {}, 'next': {}},
                              identical_predictions={'current': {}, 'next': {}},
+                             verification_mismatches={},
                              page_title='Dashboard')
 
 
@@ -1857,8 +1862,54 @@ def get_players_with_identical_predictions(cursor) -> Dict:
     except Exception as e:
         print(f"Error getting identical predictions: {e}")
         identical_data = {'current': {}, 'next': {}}
-    
+
     return identical_data
+
+
+def get_verification_mismatches(cursor) -> Dict:
+    """Get prediction verification mismatches grouped by gameweek"""
+    mismatches = {}
+
+    try:
+        # Get score mismatches from verification table
+        cursor.execute("""
+            SELECT
+                f.gameweek,
+                p.player_name,
+                ht.team_name || ' vs ' || at.team_name as fixture,
+                pv.db_home_goals || '-' || pv.db_away_goals as db_score,
+                pv.message_home_goals || '-' || pv.message_away_goals as message_score,
+                pv.verified_at
+            FROM prediction_verification pv
+            JOIN players p ON pv.player_id = p.player_id
+            JOIN fixtures f ON pv.fixture_id = f.fixture_id
+            JOIN teams ht ON f.home_teamid = ht.team_id
+            JOIN teams at ON f.away_teamid = at.team_id
+            WHERE pv.category = 'Score Mismatch'
+            AND f.season = '2025/2026'
+            ORDER BY f.gameweek DESC, p.player_name
+        """)
+
+        results = cursor.fetchall()
+
+        for row in results:
+            gameweek = row[0]
+            if gameweek not in mismatches:
+                mismatches[gameweek] = []
+
+            mismatches[gameweek].append({
+                'player_name': row[1],
+                'fixture': row[2],
+                'db_score': row[3],
+                'message_score': row[4],
+                'verified_at': row[5]
+            })
+
+    except Exception as e:
+        print(f"Error getting verification mismatches: {e}")
+        mismatches = {}
+
+    return mismatches
 
 
 def get_dashboard_stats(cursor) -> Dict:

@@ -865,6 +865,134 @@ case 'smart-goals':
     break;
 ```
 
+## Prediction Verification System (October 2025)
+
+### Overview
+
+Automated verification system that compares predictions in the database against WhatsApp messages and text files in Dropbox, identifying discrepancies and ensuring data accuracy.
+
+### Features
+
+**Data Sources:**
+- All `.txt` files in `/Messages` Dropbox folder
+- WhatsApp chat exports (`.zip` files containing `_chat.txt`)
+- Database predictions table
+
+**Verification Categories:**
+- **Matches**: Same player/fixture/score in both database and messages
+- **Score Mismatches**: Same player/fixture, different scores
+- **In Messages Only**: Predictions found in messages but not in database
+- **In Database Only**: Predictions in database but not found in messages
+
+### Database Schema
+
+**Table: `prediction_verification`**
+```sql
+CREATE TABLE prediction_verification (
+    verification_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    category TEXT NOT NULL,
+    player_id INTEGER,
+    fixture_id INTEGER,
+    db_home_goals INTEGER,
+    db_away_goals INTEGER,
+    message_home_goals INTEGER,
+    message_away_goals INTEGER,
+    verified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (player_id) REFERENCES players(player_id),
+    FOREIGN KEY (fixture_id) REFERENCES fixtures(fixture_id)
+);
+
+-- Indexes for performance
+CREATE INDEX idx_verification_category ON prediction_verification(category);
+CREATE INDEX idx_verification_player ON prediction_verification(player_id);
+CREATE INDEX idx_verification_fixture ON prediction_verification(fixture_id);
+```
+
+### Name Alias Mapping
+
+The system handles player name variations between messages and database:
+
+```python
+NAME_ALIASES = {
+    'ed fenna': 'edward fenna',
+    'steven harrison': 'ste harrison',
+    'steve harrison': 'ste harrison',
+    'thomas levin': 'tom levin',
+    'tom levo': 'tom levin',
+    'olly spence-robb': 'olly spence robb',
+}
+```
+
+### Team Order Preservation
+
+Critical fix (October 2025): Teams are extracted based on **position in text**, not alphabetical order, preventing fixtures like "Everton vs Crystal Palace" being reversed to "Crystal Palace vs Everton".
+
+```python
+def extract_teams_from_line(line, teams):
+    """Extract team names from line based on their position in the text"""
+    team_positions = []
+    for team in teams:
+        if team in line:
+            pos = line.find(team)
+            team_positions.append((pos, team))
+    # Sort by position in text (earliest first)
+    team_positions.sort(key=lambda x: x[0])
+    return [team for pos, team in team_positions]
+```
+
+### Running Verification
+
+```bash
+# Run full verification
+./venv/bin/python scripts/analysis/verify_predictions_from_messages.py
+
+# Verify specific gameweek
+./venv/bin/python scripts/analysis/verify_predictions_from_messages.py --gameweek 7
+
+# Verify specific player
+./venv/bin/python scripts/analysis/verify_predictions_from_messages.py --player "Chris Hart"
+```
+
+### Output
+
+**Database Table:**
+- Results saved to `prediction_verification` table
+- Table is cleared and repopulated on each run
+- Supports SQL queries for analysis
+
+**CSV Report:**
+- Backup report: `analysis_reports/prediction_verification_YYYYMMDD_HHMMSS.csv`
+- Contains: Category, Player, Gameweek, Fixture, DB Score, Message Score
+
+**Console Summary:**
+- Match count, mismatch count
+- Detailed list of any score mismatches
+- List of predictions only in messages
+
+### Common Issues Fixed
+
+1. **Player Name Mismatches**: Name aliases resolve variations like "Ed Fenna" → "Edward Fenna"
+2. **Team Order Reversal**: Text position-based extraction maintains correct home/away order
+3. **Prediction Attribution**: Unrecognized player names no longer cause predictions to be attributed to wrong players
+
+### Example Query
+
+```sql
+-- Find all score mismatches
+SELECT
+    p.player_name,
+    f.gameweek,
+    ht.team_name || ' vs ' || at.team_name as fixture,
+    pv.db_home_goals || '-' || pv.db_away_goals as db_score,
+    pv.message_home_goals || '-' || pv.message_away_goals as message_score
+FROM prediction_verification pv
+JOIN players p ON pv.player_id = p.player_id
+JOIN fixtures f ON pv.fixture_id = f.fixture_id
+JOIN teams ht ON f.home_teamid = ht.team_id
+JOIN teams at ON f.away_teamid = at.team_id
+WHERE pv.category = 'Score Mismatch';
+```
+
 ## Production Deployment
 
 ### Critical Dependencies for Production

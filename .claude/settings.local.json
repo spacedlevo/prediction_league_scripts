@@ -37,7 +37,18 @@
       "Bash(paste:*)",
       "Bash(sort:*)",
       "Read(///**)",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "Bash(current_hour=11)",
+      "Bash(ENABLE_VERIFY_PREDICTIONS=true)",
+      "Bash(if [[ $current_hour -eq 11 ]])",
+      "Bash([[ $current_minute -eq 0 ]])",
+      "Bash(then echo \"✓ Verification script would trigger at 11:00 AM\")",
+      "Bash(else echo \"✗ Verification script would not trigger\")",
+      "Bash(fi)",
+      "Bash(bash:*)",
+      "Bash(for script in FETCH_RESULTS MONITOR_UPLOAD CLEAN_PREDICTIONS FETCH_FIXTURES AUTOMATED_PREDICTIONS FETCH_FPL_DATA FETCH_ODDS VERIFY_PREDICTIONS)",
+      "Bash(do var_name=\"ENABLE_$script\")",
+      "Bash(done)"
     ],
     "deny": [],
     "ask": []

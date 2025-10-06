@@ -48,6 +48,15 @@ A comprehensive automated system for managing Fantasy Premier League predictions
 - **Real-Time Performance**: Live strategy comparison with accuracy tracking and exact scores
 - **Custom Testing**: Manual score input with instant validation and points calculation
 
+### 🔍 **Prediction Verification System**
+- **Automated Validation**: Compares database predictions against WhatsApp messages and text files
+- **Name Alias Resolution**: Handles player name variations (Ed Fenna → Edward Fenna, Steven Harrison → Ste Harrison)
+- **Team Order Preservation**: Text position-based extraction maintains correct home/away order
+- **Multiple Data Sources**: Parses `.txt` files and WhatsApp `.zip` exports from Dropbox
+- **Database Storage**: Results saved to queryable `prediction_verification` table
+- **Verification Categories**: Matches, Score Mismatches, In Messages Only, In Database Only
+- **CSV Backup**: Timestamped reports for historical tracking
+
 ### 🔧 **Production Ready**
 - **Comprehensive Logging**: Daily log files with detailed operation tracking
 - **Error Handling**: Graceful failure recovery and retry logic

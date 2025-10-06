@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Prediction Verification System** - Automated comparison of database predictions against WhatsApp messages and text files
+  - **Database Table**: New `prediction_verification` table stores verification results with player_id, fixture_id, and score comparisons
+  - **Name Alias Mapping**: Handles player name variations (e.g., "Ed Fenna" → "Edward Fenna", "Steven Harrison" → "Ste Harrison")
+  - **Team Order Preservation**: Critical fix - extracts teams based on text position, not alphabetical order
+  - **Multiple Data Sources**: Parses `.txt` files and WhatsApp `.zip` exports from Dropbox `/Messages` folder
+  - **Verification Categories**: Matches, Score Mismatches, In Messages Only, In Database Only
+  - **Output Formats**: Database table (queryable), CSV report (backup), console summary
+  - **Command Options**: `--gameweek N` and `--player "Name"` filters for targeted verification
+  - **Performance**: Indexed table for fast category, player, and fixture lookups
+  - **Usage**: `./venv/bin/python scripts/analysis/verify_predictions_from_messages.py`
+
 - **Pulse API Data Quality Fix Flag** - Added `--fix-team-ids` flag to correct historical team_id inconsistencies
   - **Fix Mode**: `--fix-team-ids` drops and recreates all pulse API tables with proper foreign key constraints
   - **Multi-Season Support**: Automatically detects and processes ALL seasons with pulse_ids (ignores --season argument)

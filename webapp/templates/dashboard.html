@@ -327,6 +327,48 @@
     </div>
     {% endif %}
     
+    <!-- Verification Mismatches Alert -->
+    {% if verification_mismatches %}
+    <div class="mb-6">
+        <div class="bg-white shadow rounded-lg">
+            <div class="px-6 py-4 border-b border-gray-200 bg-red-50">
+                <h3 class="text-lg font-medium text-red-900 flex items-center">
+                    <span class="text-xl mr-2">⚠️</span>
+                    Prediction Verification Issues
+                </h3>
+            </div>
+            <div class="p-6">
+                <div class="space-y-4">
+                    {% for gameweek, mismatches in verification_mismatches.items() %}
+                    <div class="border-l-4 border-red-500 pl-4">
+                        <h4 class="text-sm font-semibold text-red-900 mb-2">Gameweek {{ gameweek }}</h4>
+                        <div class="bg-red-50 rounded-lg p-3">
+                            <ul class="space-y-2 text-sm">
+                                {% for mismatch in mismatches %}
+                                <li class="flex flex-col">
+                                    <div class="flex justify-between items-start">
+                                        <span class="font-medium text-red-800">{{ mismatch.player_name }}</span>
+                                        <span class="text-xs text-gray-500">{{ mismatch.fixture }}</span>
+                                    </div>
+                                    <div class="mt-1 flex items-center space-x-2 text-xs">
+                                        <span class="text-gray-600">Database:</span>
+                                        <span class="font-mono bg-white px-2 py-1 rounded">{{ mismatch.db_score }}</span>
+                                        <span class="text-gray-400">→</span>
+                                        <span class="text-gray-600">Messages:</span>
+                                        <span class="font-mono bg-white px-2 py-1 rounded">{{ mismatch.message_score }}</span>
+                                    </div>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Identical Predictions Alerts -->
     {% if identical_predictions.current.gameweek or identical_predictions.next.gameweek %}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
