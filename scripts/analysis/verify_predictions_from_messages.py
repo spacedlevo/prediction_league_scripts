@@ -727,6 +727,48 @@ def generate_reports(results, fixtures, cursor, logger):
     print(f"Full report saved to: {csv_file}")
     print("="*70 + "\n")
 
+def create_verification_table(cursor, logger):
+    """Create prediction_verification table if it doesn't exist"""
+    try:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS prediction_verification (
+                verification_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                category TEXT NOT NULL,
+                player_id INTEGER,
+                fixture_id INTEGER,
+                db_home_goals INTEGER,
+                db_away_goals INTEGER,
+                message_home_goals INTEGER,
+                message_away_goals INTEGER,
+                verified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (player_id) REFERENCES players(player_id),
+                FOREIGN KEY (fixture_id) REFERENCES fixtures(fixture_id)
+            )
+        """)
+
+        # Create indexes if they don't exist
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_verification_category
+            ON prediction_verification(category)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_verification_player
+            ON prediction_verification(player_id)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_verification_fixture
+            ON prediction_verification(fixture_id)
+        """)
+
+        logger.debug("Verification table and indexes created/verified")
+        return True
+
+    except Exception as e:
+        logger.error(f"Error creating verification table: {e}")
+        return False
+
 def main(gameweek_filter=None, player_filter=None):
     """Main execution function"""
     logger = setup_logging()
@@ -745,6 +787,12 @@ def main(gameweek_filter=None, player_filter=None):
         # Load database data
         conn = sql.connect(db_path)
         cursor = conn.cursor()
+
+        # Create verification table if it doesn't exist
+        if not create_verification_table(cursor, logger):
+            logger.error("Failed to create verification table")
+            conn.close()
+            return
 
         teams, players, fixtures = load_database_data(cursor, logger)
         db_predictions = load_database_predictions(cursor, logger)
