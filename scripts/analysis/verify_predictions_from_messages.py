@@ -28,6 +28,8 @@ import logging
 import argparse
 import zipfile
 import io
+import glob
+import os
 from datetime import datetime
 from pathlib import Path
 from collections import defaultdict
@@ -616,6 +618,30 @@ def get_fixture_id_from_teams(home_team, away_team, gameweek, cursor):
     result = cursor.fetchone()
     return result[0] if result else None
 
+def cleanup_old_reports(keep_count=5, logger=None):
+    """Keep only the latest N verification report files, remove older ones"""
+    pattern = reports_dir / "prediction_verification_*.csv"
+    files = list(glob.glob(str(pattern)))
+
+    if len(files) <= keep_count:
+        if logger:
+            logger.debug(f"Only {len(files)} report files found, no cleanup needed")
+        return
+
+    # Sort files by modification time (newest first)
+    files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+
+    # Remove files beyond the keep_count
+    files_to_remove = files[keep_count:]
+    for file_path in files_to_remove:
+        try:
+            os.remove(file_path)
+            if logger:
+                logger.info(f"Removed old report: {os.path.basename(file_path)}")
+        except Exception as e:
+            if logger:
+                logger.error(f"Error removing {file_path}: {e}")
+
 def generate_reports(results, fixtures, cursor, logger):
     """Generate CSV report, save to database, and print console summary"""
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -670,6 +696,9 @@ def generate_reports(results, fixtures, cursor, logger):
             ])
 
     logger.info(f"CSV report saved to: {csv_file}")
+
+    # Cleanup old report files
+    cleanup_old_reports(keep_count=5, logger=logger)
 
     # Print console summary
     print("\n" + "="*70)
