@@ -491,8 +491,8 @@ def compare_predictions(message_predictions, db_predictions, fixtures, logger):
         'in_database_only': []
     }
 
-    # Process message predictions
-    message_dict = {}
+    # Process message predictions with priority logic applied immediately
+    latest_message_predictions = {}
     for pred in message_predictions:
         fixture_info, swapped = match_prediction_to_fixture(pred, fixtures, logger)
         if fixture_info:
@@ -504,47 +504,45 @@ def compare_predictions(message_predictions, db_predictions, fixtures, logger):
 
             # Adjust goals if teams were swapped
             if swapped:
-                message_dict[key] = {
+                current_pred = {
                     **pred,
                     'home_goals': pred['away_goals'],
                     'away_goals': pred['home_goals'],
                     'gameweek': fixture_info['gameweek']
                 }
             else:
-                message_dict[key] = {
+                current_pred = {
                     **pred,
                     'gameweek': fixture_info['gameweek']
                 }
 
-    # Keep only latest prediction per player/fixture with priority logic
-    latest_message_predictions = {}
-    for key, pred in message_dict.items():
-        if key not in latest_message_predictions:
-            latest_message_predictions[key] = pred
-        else:
-            existing = latest_message_predictions[key]
-
-            # Priority 1: Predictions with scores beat predictions without scores
-            pred_has_score = pred.get('has_score', False)
-            existing_has_score = existing.get('has_score', False)
-
-            if pred_has_score and not existing_has_score:
-                # New prediction has score, existing doesn't - use new
-                latest_message_predictions[key] = pred
-            elif not pred_has_score and existing_has_score:
-                # Existing has score, new doesn't - keep existing
-                pass
+            # Apply priority logic immediately
+            if key not in latest_message_predictions:
+                latest_message_predictions[key] = current_pred
             else:
-                # Both have scores or both don't - use timestamp
-                pred_timestamp = pred.get('timestamp')
-                existing_timestamp = existing.get('timestamp')
+                existing = latest_message_predictions[key]
 
-                if pred_timestamp and existing_timestamp:
-                    if pred_timestamp > existing_timestamp:
-                        latest_message_predictions[key] = pred
-                elif pred_timestamp:
-                    # New has timestamp, existing doesn't
-                    latest_message_predictions[key] = pred
+                # Priority 1: Predictions with scores beat predictions without scores
+                pred_has_score = current_pred.get('has_score', False)
+                existing_has_score = existing.get('has_score', False)
+
+                if pred_has_score and not existing_has_score:
+                    # New prediction has score, existing doesn't - use new
+                    latest_message_predictions[key] = current_pred
+                elif not pred_has_score and existing_has_score:
+                    # Existing has score, new doesn't - keep existing
+                    pass
+                else:
+                    # Both have scores or both don't - use timestamp
+                    pred_timestamp = current_pred.get('timestamp')
+                    existing_timestamp = existing.get('timestamp')
+
+                    if pred_timestamp and existing_timestamp:
+                        if pred_timestamp > existing_timestamp:
+                            latest_message_predictions[key] = current_pred
+                    elif pred_timestamp:
+                        # New has timestamp, existing doesn't
+                        latest_message_predictions[key] = current_pred
 
     # Compare
     all_keys = set(latest_message_predictions.keys()) | set(db_predictions.keys())
