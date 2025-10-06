@@ -46,6 +46,7 @@ NAME_ALIASES = {
     'thomas levin': 'tom levin',
     'tom levo': 'tom levin',
     'olly spence-robb': 'olly spence robb',
+    'colin turner': 'col turner',
 }
 
 # Paths
