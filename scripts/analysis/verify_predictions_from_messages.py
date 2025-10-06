@@ -231,6 +231,7 @@ def parse_whatsapp_messages(content, teams, players, logger):
     predictions = []
     lines = content.split('\n')
     current_player = None
+    current_timestamp = None
 
     # WhatsApp message pattern: [date, time] Player: prediction
     whatsapp_pattern = r'\[(\d{2}/\d{2}/\d{4}), (\d{2}:\d{2}:\d{2})\] ([^:]+): (.+)'
@@ -239,6 +240,14 @@ def parse_whatsapp_messages(content, teams, players, logger):
         match = re.match(whatsapp_pattern, line)
         if match:
             date_str, time_str, player_name, message = match.groups()
+
+            # Parse timestamp
+            try:
+                # Format: DD/MM/YYYY, HH:MM:SS - we'll use just HH:MM for consistency
+                timestamp_str = f"{date_str}, {time_str[:5]}"  # Strip seconds
+                current_timestamp = datetime.strptime(timestamp_str, "%d/%m/%Y, %H:%M")
+            except:
+                current_timestamp = None
 
             # Check if player name is in our database (with alias support)
             player_lower = player_name.strip().lower()
@@ -255,18 +264,27 @@ def parse_whatsapp_messages(content, teams, players, logger):
                 # Extract scores
                 scores = find_scores(message_clean)
 
-                if len(found_teams) == 2 and len(scores) >= 2:
+                if len(found_teams) == 2:
+                    home_goals = scores[0] if len(scores) >= 1 else None
+                    away_goals = scores[1] if len(scores) >= 2 else None
+
+                    # Skip Tom Levin/Thomas Levin predictions without scores
+                    if current_player.lower() in ['tom levin', 'thomas levin']:
+                        if home_goals is None or away_goals is None:
+                            logger.debug(f"Skipping {current_player} WhatsApp prediction without score: {found_teams[0]} vs {found_teams[1]}")
+                            continue
+
                     prediction = {
                         'player': current_player,
                         'home_team': found_teams[0],
                         'away_team': found_teams[1],
-                        'home_goals': scores[0],
-                        'away_goals': scores[1],
-                        'date': date_str,
-                        'time': time_str
+                        'home_goals': home_goals,
+                        'away_goals': away_goals,
+                        'timestamp': current_timestamp,
+                        'has_score': home_goals is not None and away_goals is not None
                     }
                     predictions.append(prediction)
-                    logger.debug(f"WhatsApp prediction: {current_player} - {found_teams[0]} {scores[0]}-{scores[1]} {found_teams[1]}")
+                    logger.debug(f"WhatsApp prediction: {current_player} - {found_teams[0]} {home_goals}-{away_goals} {found_teams[1]} (timestamp: {current_timestamp})")
         else:
             # Handle continuation lines (predictions spanning multiple lines)
             if current_player and line.strip():
@@ -275,20 +293,37 @@ def parse_whatsapp_messages(content, teams, players, logger):
 
                 scores = find_scores(line)
 
-                if len(found_teams) == 2 and len(scores) >= 2:
+                if len(found_teams) == 2:
+                    home_goals = scores[0] if len(scores) >= 1 else None
+                    away_goals = scores[1] if len(scores) >= 2 else None
+
+                    # Skip Tom Levin/Thomas Levin predictions without scores
+                    if current_player.lower() in ['tom levin', 'thomas levin']:
+                        if home_goals is None or away_goals is None:
+                            logger.debug(f"Skipping {current_player} WhatsApp continuation without score: {found_teams[0]} vs {found_teams[1]}")
+                            continue
+
                     prediction = {
                         'player': current_player,
                         'home_team': found_teams[0],
                         'away_team': found_teams[1],
-                        'home_goals': scores[0],
-                        'away_goals': scores[1],
-                        'date': 'continuation',
-                        'time': ''
+                        'home_goals': home_goals,
+                        'away_goals': away_goals,
+                        'timestamp': current_timestamp,  # Use timestamp from last parsed message
+                        'has_score': home_goals is not None and away_goals is not None
                     }
                     predictions.append(prediction)
-                    logger.debug(f"WhatsApp continuation: {current_player} - {found_teams[0]} {scores[0]}-{scores[1]} {found_teams[1]}")
+                    logger.debug(f"WhatsApp continuation: {current_player} - {found_teams[0]} {home_goals}-{away_goals} {found_teams[1]}")
 
     return predictions
+
+def parse_timestamp(timestamp_str):
+    """Parse timestamp string to datetime object"""
+    try:
+        # Format: DD/MM/YYYY, HH:MM
+        return datetime.strptime(timestamp_str, "%d/%m/%Y, %H:%M")
+    except:
+        return None
 
 def parse_standard_text_file(content, teams, players, logger):
     """
@@ -296,12 +331,15 @@ def parse_standard_text_file(content, teams, players, logger):
     Example:
     Graham Kay
 
+    02/10/2025, 07:39
+
     Bournemouth 2 v 1 Fulham
     Leeds 1 v 2 Spurs
     """
     predictions = []
     lines = content.lower().splitlines()
     current_player = None
+    current_timestamp = None
 
     for line in lines:
         line = line.strip()
@@ -312,6 +350,16 @@ def parse_standard_text_file(content, teams, players, logger):
         normalized_line = NAME_ALIASES.get(line, line)
         if normalized_line in [p.lower() for p in players]:
             current_player = next((p for p in players if p.lower() == normalized_line), None)
+            current_timestamp = None  # Reset timestamp for new player
+            continue
+
+        # Check if line is a timestamp (format: DD/MM/YYYY, HH:MM)
+        timestamp_pattern = r'(\d{2}/\d{2}/\d{4}),?\s*(\d{2}:\d{2})'
+        timestamp_match = re.match(timestamp_pattern, line)
+        if timestamp_match and current_player:
+            timestamp_str = f"{timestamp_match.group(1)}, {timestamp_match.group(2)}"
+            current_timestamp = parse_timestamp(timestamp_str)
+            logger.debug(f"Found timestamp for {current_player}: {timestamp_str}")
             continue
 
         # Process prediction lines
@@ -322,18 +370,26 @@ def parse_standard_text_file(content, teams, players, logger):
             scores = find_scores(line)
 
             if len(found_teams) == 2:
-                home_goals = scores[0] if len(scores) >= 1 else 9
-                away_goals = scores[1] if len(scores) >= 2 else 9
+                home_goals = scores[0] if len(scores) >= 1 else None
+                away_goals = scores[1] if len(scores) >= 2 else None
+
+                # Skip Tom Levin/Thomas Levin predictions without scores
+                if current_player.lower() in ['tom levin', 'thomas levin']:
+                    if home_goals is None or away_goals is None:
+                        logger.debug(f"Skipping {current_player} prediction without score: {found_teams[0]} vs {found_teams[1]}")
+                        continue
 
                 prediction = {
                     'player': current_player,
                     'home_team': found_teams[0],
                     'away_team': found_teams[1],
                     'home_goals': home_goals,
-                    'away_goals': away_goals
+                    'away_goals': away_goals,
+                    'timestamp': current_timestamp,
+                    'has_score': home_goals is not None and away_goals is not None
                 }
                 predictions.append(prediction)
-                logger.debug(f"Standard prediction: {current_player} - {found_teams[0]} {home_goals}-{away_goals} {found_teams[1]}")
+                logger.debug(f"Standard prediction: {current_player} - {found_teams[0]} {home_goals}-{away_goals} {found_teams[1]} (timestamp: {current_timestamp})")
 
     return predictions
 
@@ -460,15 +516,35 @@ def compare_predictions(message_predictions, db_predictions, fixtures, logger):
                     'gameweek': fixture_info['gameweek']
                 }
 
-    # Keep only latest prediction per player/fixture
+    # Keep only latest prediction per player/fixture with priority logic
     latest_message_predictions = {}
     for key, pred in message_dict.items():
         if key not in latest_message_predictions:
             latest_message_predictions[key] = pred
         else:
-            # Keep the one with later date if available
-            if pred.get('date') and pred['date'] != 'continuation':
+            existing = latest_message_predictions[key]
+
+            # Priority 1: Predictions with scores beat predictions without scores
+            pred_has_score = pred.get('has_score', False)
+            existing_has_score = existing.get('has_score', False)
+
+            if pred_has_score and not existing_has_score:
+                # New prediction has score, existing doesn't - use new
                 latest_message_predictions[key] = pred
+            elif not pred_has_score and existing_has_score:
+                # Existing has score, new doesn't - keep existing
+                pass
+            else:
+                # Both have scores or both don't - use timestamp
+                pred_timestamp = pred.get('timestamp')
+                existing_timestamp = existing.get('timestamp')
+
+                if pred_timestamp and existing_timestamp:
+                    if pred_timestamp > existing_timestamp:
+                        latest_message_predictions[key] = pred
+                elif pred_timestamp:
+                    # New has timestamp, existing doesn't
+                    latest_message_predictions[key] = pred
 
     # Compare
     all_keys = set(latest_message_predictions.keys()) | set(db_predictions.keys())
@@ -479,25 +555,28 @@ def compare_predictions(message_predictions, db_predictions, fixtures, logger):
 
         if message_pred and db_pred:
             # Both exist - check if scores match
-            if (message_pred['home_goals'] == db_pred['home_goals'] and
-                message_pred['away_goals'] == db_pred['away_goals']):
-                results['matches'].append({
-                    'player': db_pred['player'],
-                    'gameweek': db_pred['gameweek'],
-                    'home_team': db_pred['home_team'],
-                    'away_team': db_pred['away_team'],
-                    'score': f"{db_pred['home_goals']}-{db_pred['away_goals']}"
-                })
-            else:
-                results['score_mismatches'].append({
-                    'player': db_pred['player'],
-                    'gameweek': db_pred['gameweek'],
-                    'home_team': db_pred['home_team'],
-                    'away_team': db_pred['away_team'],
-                    'db_score': f"{db_pred['home_goals']}-{db_pred['away_goals']}",
-                    'message_score': f"{message_pred['home_goals']}-{message_pred['away_goals']}"
-                })
-        elif message_pred:
+            # Only compare if message prediction has scores
+            if message_pred.get('has_score'):
+                if (message_pred['home_goals'] == db_pred['home_goals'] and
+                    message_pred['away_goals'] == db_pred['away_goals']):
+                    results['matches'].append({
+                        'player': db_pred['player'],
+                        'gameweek': db_pred['gameweek'],
+                        'home_team': db_pred['home_team'],
+                        'away_team': db_pred['away_team'],
+                        'score': f"{db_pred['home_goals']}-{db_pred['away_goals']}"
+                    })
+                else:
+                    results['score_mismatches'].append({
+                        'player': db_pred['player'],
+                        'gameweek': db_pred['gameweek'],
+                        'home_team': db_pred['home_team'],
+                        'away_team': db_pred['away_team'],
+                        'db_score': f"{db_pred['home_goals']}-{db_pred['away_goals']}",
+                        'message_score': f"{message_pred['home_goals']}-{message_pred['away_goals']}"
+                    })
+        elif message_pred and message_pred.get('has_score'):
+            # Only report if message prediction has scores
             results['in_messages_only'].append({
                 'player': message_pred['player'],
                 'gameweek': message_pred.get('gameweek', 'unknown'),

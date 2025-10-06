@@ -869,14 +869,19 @@ case 'smart-goals':
 
 ### Overview
 
-Automated verification system that compares predictions in the database against WhatsApp messages and text files in Dropbox, identifying discrepancies and ensuring data accuracy.
+Automated verification system that compares predictions in the database against WhatsApp messages and text files in Dropbox, identifying discrepancies and ensuring data accuracy. Uses timestamp-based priority logic to determine the latest prediction when duplicates exist.
 
 ### Features
 
 **Data Sources:**
-- All `.txt` files in `/Messages` Dropbox folder
-- WhatsApp chat exports (`.zip` files containing `_chat.txt`)
+- All `.txt` files in `/Messages` Dropbox folder (with timestamp support: `DD/MM/YYYY, HH:MM`)
+- WhatsApp chat exports (`.zip` files containing `_chat.txt` with `[DD/MM/YYYY, HH:MM:SS]` timestamps)
 - Database predictions table
+
+**Timestamp-Based Priority Logic:**
+1. **Predictions with scores take priority** over predictions without scores
+2. When both have scores (or both don't), **latest timestamp wins**
+3. **Tom Levin/Thomas Levin predictions without scores are ignored** (fixture-only messages)
 
 **Verification Categories:**
 - **Matches**: Same player/fixture/score in both database and messages
@@ -969,11 +974,32 @@ def extract_teams_from_line(line, teams):
 - Detailed list of any score mismatches
 - List of predictions only in messages
 
+### Message Format Examples
+
+**Text File Format with Timestamp:**
+```
+Josh Jones
+
+04/10/2025, 20:40
+
+Bournemouth v Fulham              # No score - ignored
+Leeds v Spurs                      # No score - ignored
+Aston Villa 2-0 Burnley           # HAS SCORE - used
+Everton 1-2 Crystal Palace        # HAS SCORE - used
+```
+
+**WhatsApp Format:**
+```
+[09/10/2025, 14:02:35] Josh Jones: Brighton 0 - 2 Wolves
+[09/10/2025, 14:03:12] Josh Jones: Man City 3 - 0 Brentford
+```
+
 ### Common Issues Fixed
 
 1. **Player Name Mismatches**: Name aliases resolve variations like "Ed Fenna" → "Edward Fenna"
 2. **Team Order Reversal**: Text position-based extraction maintains correct home/away order
 3. **Prediction Attribution**: Unrecognized player names no longer cause predictions to be attributed to wrong players
+4. **Timestamp Priority**: Predictions with scores take priority; latest timestamp wins when both have/lack scores (Oct 2025)
 
 ### Example Query
 

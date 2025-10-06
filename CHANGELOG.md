@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Database Table**: New `prediction_verification` table stores verification results with player_id, fixture_id, and score comparisons
   - **Name Alias Mapping**: Handles player name variations (e.g., "Ed Fenna" → "Edward Fenna", "Steven Harrison" → "Ste Harrison")
   - **Team Order Preservation**: Critical fix - extracts teams based on text position, not alphabetical order
+  - **Timestamp-Based Priority Logic** (Oct 2025): Intelligent duplicate handling with score priority
+    - **Score Priority**: Predictions with scores take precedence over those without
+    - **Timestamp Support**: Parses `DD/MM/YYYY, HH:MM` format from text files and `[DD/MM/YYYY, HH:MM:SS]` from WhatsApp
+    - **Latest Wins**: When both have scores (or both don't), the most recent timestamp is used
+    - **Smart Filtering**: Tom Levin/Thomas Levin fixture-only messages (without scores) are automatically ignored
   - **Multiple Data Sources**: Parses `.txt` files and WhatsApp `.zip` exports from Dropbox `/Messages` folder
   - **Verification Categories**: Matches, Score Mismatches, In Messages Only, In Database Only
   - **Output Formats**: Database table (queryable), CSV report (backup), console summary
