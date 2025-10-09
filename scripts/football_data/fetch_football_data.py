@@ -270,7 +270,7 @@ def process_match_data(cursor, match_data, team_mapping, logger):
     return processed_count > 0
 
 def update_last_update_table(cursor, logger):
-    """Update last_update table if changes were made"""
+    """Update last_update table to track when script ran"""
     dt = datetime.now()
     now = dt.strftime("%d-%m-%Y %H:%M:%S")
     timestamp = dt.timestamp()
@@ -278,7 +278,7 @@ def update_last_update_table(cursor, logger):
         "INSERT OR REPLACE INTO last_update (table_name, updated, timestamp) VALUES (?, ?, ?)",
         ("football_stats", now, timestamp)
     )
-    logger.info("Updated last_update table")
+    logger.info("Updated last_update table for football_stats")
 
 def main_fetch(args, logger):
     """Main fetch logic"""
@@ -325,13 +325,16 @@ def main_fetch(args, logger):
         
         # Process match data
         changes_made = process_match_data(cursor, match_data, team_mapping, logger)
-        
+
+        # Always update last_update table when script runs successfully
+        update_last_update_table(cursor, logger)
+
         if changes_made:
-            update_last_update_table(cursor, logger)
             conn.commit()
             logger.info("Changes committed to database")
         else:
-            logger.info("No changes made to database")
+            conn.commit()  # Commit the timestamp update even if no data changed
+            logger.info("No data changes, but timestamp updated")
         
         # Report current statistics
         cursor.execute("SELECT COUNT(*) FROM football_stats WHERE Season = '25/26'")

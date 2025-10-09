@@ -52,7 +52,8 @@
       "Bash(for i in {1..3})",
       "Bash(do sleep:*)",
       "Bash(/dev/null)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(/home/levo/Documents/projects/prediction_league_script/venv/bin/python -c \"import sqlite3; conn = sqlite3.connect(''data/database.db''); cursor = conn.cursor(); cursor.execute(''SELECT gameweek, deadline_dttm FROM gameweeks WHERE next_gameweek = 1''); print(cursor.fetchone()); conn.close()\")"
     ],
     "deny": [],
     "ask": []

@@ -720,6 +720,17 @@ def cleanup_old_reports(keep_count=5, logger=None):
             if logger:
                 logger.error(f"Error removing {file_path}: {e}")
 
+def update_last_update_table(cursor, logger):
+    """Update last_update table to track verification runs"""
+    dt = datetime.now()
+    now = dt.strftime("%d-%m-%Y %H:%M:%S")
+    timestamp = dt.timestamp()
+    cursor.execute(
+        "INSERT OR REPLACE INTO last_update (table_name, updated, timestamp) VALUES (?, ?, ?)",
+        ("prediction_verification", now, timestamp)
+    )
+    logger.info("Updated last_update table for prediction_verification")
+
 def generate_reports(results, fixtures, cursor, logger):
     """Generate CSV report, save to database, and print console summary"""
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -909,6 +920,9 @@ def main(gameweek_filter=None, player_filter=None):
 
         # Generate reports and save to database
         generate_reports(results, fixtures, cursor, logger)
+
+        # Update last_update table to track when verification ran
+        update_last_update_table(cursor, logger)
 
         # Commit database changes
         conn.commit()

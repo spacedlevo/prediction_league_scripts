@@ -498,16 +498,168 @@ def update_last_update_table(cursor, logger):
         dt = datetime.now()
         now = dt.strftime("%d-%m-%Y %H:%M:%S")
         timestamp = dt.timestamp()
-        
+
         cursor.execute("""
-            INSERT OR REPLACE INTO last_update (table_name, updated, timestamp) 
+            INSERT OR REPLACE INTO last_update (table_name, updated, timestamp)
             VALUES ('cleaned_predictions', ?, ?)
         """, (now, timestamp))
-        
+
         logger.info("Updated last_update table for 'cleaned_predictions'")
-        
+
     except Exception as e:
         logger.error(f"Error updating last_update table: {e}")
+
+def get_next_gameweek_deadline(cursor, logger):
+    """Get the next gameweek number and deadline timestamp"""
+    try:
+        cursor.execute("""
+            SELECT gameweek, deadline_dttm
+            FROM gameweeks
+            WHERE next_gameweek = 1
+            LIMIT 1
+        """)
+
+        result = cursor.fetchone()
+        if result:
+            gameweek, deadline_str = result
+            # Convert deadline string to timestamp (database stores UTC)
+            deadline_dt = datetime.fromisoformat(deadline_str.replace('Z', ''))
+            deadline_timestamp = deadline_dt.timestamp()
+            logger.debug(f"Next gameweek: {gameweek}, deadline: {deadline_dt}")
+            return gameweek, deadline_timestamp
+        else:
+            logger.debug("No next gameweek found")
+            return None, None
+
+    except Exception as e:
+        logger.error(f"Error fetching next gameweek deadline: {e}")
+        return None, None
+
+def check_missing_predictions(gameweek, cursor, logger):
+    """Get list of players with missing predictions (9-9 scores) for the gameweek"""
+    try:
+        cursor.execute("""
+            SELECT DISTINCT pl.player_name
+            FROM predictions p
+            JOIN players pl ON p.player_id = pl.player_id
+            JOIN fixtures f ON p.fixture_id = f.fixture_id
+            WHERE f.gameweek = ?
+            AND f.season = ?
+            AND p.home_goals = 9
+            AND p.away_goals = 9
+            AND pl.active = 1
+            ORDER BY pl.player_name
+        """, (gameweek, CURRENT_SEASON_DB))
+
+        missing_players = [row[0] for row in cursor.fetchall()]
+        logger.debug(f"Found {len(missing_players)} players with missing predictions for gameweek {gameweek}")
+        return missing_players
+
+    except Exception as e:
+        logger.error(f"Error checking missing predictions: {e}")
+        return []
+
+def has_notification_been_sent(gameweek, cursor, logger):
+    """Check if missing predictions notification has been sent for this gameweek"""
+    try:
+        # Get the notification timestamp for missing predictions
+        cursor.execute("""
+            SELECT timestamp FROM last_update
+            WHERE table_name = 'missing_predictions_notification'
+            ORDER BY timestamp DESC LIMIT 1
+        """)
+
+        result = cursor.fetchone()
+        if not result:
+            logger.debug("No previous missing predictions notification found")
+            return False
+
+        notification_timestamp = result[0]
+
+        # Get the deadline for current gameweek
+        cursor.execute("""
+            SELECT deadline_dttm FROM gameweeks
+            WHERE gameweek = ? AND next_gameweek = 1
+        """, (gameweek,))
+
+        deadline_result = cursor.fetchone()
+        if not deadline_result:
+            logger.debug("Could not find deadline for current gameweek")
+            return False
+
+        deadline_str = deadline_result[0]
+        deadline_dt = datetime.fromisoformat(deadline_str.replace('Z', ''))
+        current_deadline_timestamp = deadline_dt.timestamp()
+
+        # Get the deadline for previous gameweek
+        cursor.execute("""
+            SELECT deadline_dttm FROM gameweeks
+            WHERE gameweek = ?
+            ORDER BY deadline_dttm DESC LIMIT 1
+        """, (gameweek - 1,))
+
+        prev_result = cursor.fetchone()
+        if prev_result:
+            prev_deadline_str = prev_result[0]
+            prev_deadline_dt = datetime.fromisoformat(prev_deadline_str.replace('Z', ''))
+            prev_deadline_timestamp = prev_deadline_dt.timestamp()
+        else:
+            # If no previous gameweek, use a very old timestamp
+            prev_deadline_timestamp = 0
+
+        # Check if notification was sent between last deadline and current deadline
+        if prev_deadline_timestamp < notification_timestamp < current_deadline_timestamp:
+            logger.debug(f"Notification already sent for gameweek {gameweek}")
+            return True
+
+        logger.debug(f"Notification not yet sent for gameweek {gameweek}")
+        return False
+
+    except Exception as e:
+        logger.error(f"Error checking if notification was sent: {e}")
+        return False
+
+def send_pushover_notification(message, config, logger):
+    """Send notification via Pushover API"""
+    try:
+        url = "https://api.pushover.net/1/messages.json"
+        data = {
+            "token": config["PUSHOVER_TOKEN"],
+            "user": config["PUSHOVER_USER"],
+            "message": message,
+        }
+
+        response = requests.post(url, data=data)
+
+        if response.status_code == 200:
+            logger.info("Successfully sent Pushover notification")
+            return True
+        else:
+            logger.error(f"Failed to send Pushover notification: {response.status_code} - {response.text}")
+            return False
+
+    except Exception as e:
+        logger.error(f"Error sending Pushover message: {e}")
+        return False
+
+def log_notification_sent(cursor, logger):
+    """Log that missing predictions notification was sent"""
+    try:
+        dt = datetime.now()
+        now = dt.strftime("%d-%m-%Y %H:%M:%S")
+        timestamp = dt.timestamp()
+
+        cursor.execute("""
+            INSERT OR REPLACE INTO last_update (table_name, updated, timestamp)
+            VALUES ('missing_predictions_notification', ?, ?)
+        """, (now, timestamp))
+
+        logger.info("Logged missing predictions notification in last_update table")
+        return True
+
+    except Exception as e:
+        logger.error(f"Error logging notification timestamp: {e}")
+        return False
 
 def extract_gameweek_from_filename(filename):
     """Extract gameweek number from filename like 'gameweek3.txt'"""
@@ -734,7 +886,57 @@ def main(dry_run=False, specific_gameweek=None):
             logger.info(f"DRY RUN: Would have processed {processed_count} files")
         else:
             logger.info("No files required processing")
-            
+
+        # Check for missing predictions and send notification if needed
+        if not dry_run:
+            logger.info("Checking for missing predictions...")
+            gameweek, deadline_timestamp = get_next_gameweek_deadline(cursor, logger)
+
+            if gameweek and deadline_timestamp:
+                # Check if deadline is within 60 minutes
+                now_timestamp = datetime.now().timestamp()
+                minutes_until_deadline = (deadline_timestamp - now_timestamp) / 60
+
+                logger.info(f"Gameweek {gameweek} deadline in {minutes_until_deadline:.1f} minutes")
+
+                if 0 < minutes_until_deadline <= 60:
+                    # Check if notification already sent for this gameweek
+                    if has_notification_been_sent(gameweek, cursor, logger):
+                        logger.info(f"Missing predictions notification already sent for gameweek {gameweek}")
+                    else:
+                        # Get list of players with missing predictions
+                        missing_players = check_missing_predictions(gameweek, cursor, logger)
+
+                        if missing_players:
+                            # Build notification message
+                            player_count = len(missing_players)
+                            player_list = "\n".join([f"• {player}" for player in missing_players])
+
+                            message = f"""⚠️ Missing Predictions Alert
+
+Gameweek {gameweek} deadline in {int(minutes_until_deadline)} minutes
+
+Players with missing predictions ({player_count}):
+{player_list}
+
+Please submit predictions ASAP!"""
+
+                            # Send notification
+                            logger.info(f"Sending missing predictions notification for {player_count} players")
+                            if send_pushover_notification(message, config, logger):
+                                # Log notification sent
+                                log_notification_sent(cursor, logger)
+                                conn.commit()
+                                logger.info("Missing predictions notification sent and logged successfully")
+                            else:
+                                logger.error("Failed to send missing predictions notification")
+                        else:
+                            logger.info(f"All players have submitted predictions for gameweek {gameweek}")
+                else:
+                    logger.debug(f"Deadline not within 60-minute window (in {minutes_until_deadline:.1f} minutes)")
+            else:
+                logger.debug("No upcoming gameweek deadline found")
+
     except Exception as e:
         logger.error(f"Error in main execution: {e}")
         if 'conn' in locals():
