@@ -592,8 +592,8 @@ def generate_player_detail_report(ninety_min_results, predictions, player_stats,
 
 def save_markdown_report(content, season, gameweek=None, report_type='summary'):
     """Save markdown report to file"""
-    output_dir = Path(__file__).parent.parent.parent / "analysis_reports"
-    output_dir.mkdir(exist_ok=True)
+    output_dir = Path(__file__).parent.parent.parent / "analysis_reports" / "90min_analysis"
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     # Generate filename
     season_slug = season.replace('/', '_')

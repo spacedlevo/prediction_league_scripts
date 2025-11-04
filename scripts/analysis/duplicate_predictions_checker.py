@@ -32,10 +32,10 @@ from typing import Dict, List, Tuple, Set
 # Paths
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 DB_PATH = PROJECT_ROOT / "data" / "database.db"
-REPORTS_DIR = PROJECT_ROOT / "analysis_reports"
+REPORTS_DIR = PROJECT_ROOT / "analysis_reports" / "duplicate_predictions"
 
 # Create reports directory
-REPORTS_DIR.mkdir(exist_ok=True)
+REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def get_predictions_by_gameweek(cursor: sql.Cursor, season: str, gameweek: int = None) -> Dict:

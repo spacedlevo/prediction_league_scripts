@@ -52,7 +52,7 @@ NAME_ALIASES = {
 # Paths
 db_path = Path(__file__).parent.parent.parent / "data" / "database.db"
 keys_file = Path(__file__).parent.parent.parent / "keys.json"
-reports_dir = Path(__file__).parent.parent.parent / "analysis_reports"
+reports_dir = Path(__file__).parent.parent.parent / "analysis_reports" / "prediction_verification"
 log_dir = Path(__file__).parent.parent.parent / "logs"
 
 # Create directories
