@@ -2,7 +2,7 @@
 
 # === Configuration ===
 REMOTE_USER="predictionleague"
-REMOTE_HOST="192.168.0.103"
+REMOTE_HOST="192.168.0.150"
 REMOTE_PATH="/home/predictionleague/projects/prediction_league_scripts/data/database.db"
 LOCAL_BACKUP_DIR="/home/levo/Documents/projects/prediction_league_script/data/"
 DATE=$(date +"%Y-%m-%d_%H-%M-%S")
