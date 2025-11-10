@@ -15,7 +15,12 @@
       "Bash(/home/levo/Documents/projects/prediction_league_script/CLAUDE_new.md)",
       "Bash(source:*)",
       "Bash(python3:*)",
-      "Bash(python scripts/pulse_api/fetch_pulse_data.py:*)"
+      "Bash(python scripts/pulse_api/fetch_pulse_data.py:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(python scripts/analysis/player_minutes_analysis.py:*)",
+      "Bash(python:*)"
     ],
     "deny": [],
     "ask": []
