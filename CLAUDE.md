@@ -2,6 +2,27 @@
 
 Guidelines for Python development in this hobby project, optimized for simplicity and maintainability.
 
+## Table of Contents
+
+- [Project Philosophy](#project-philosophy)
+- [Quick Start](#quick-start)
+- [Python Best Practices](#python-best-practices-for-hobby-development)
+  - [Function Design](#1-function-design)
+  - [Self-Documenting Code](#2-self-documenting-code)
+  - [Error Handling](#3-error-handling)
+  - [Logging](#4-logging)
+  - [Configuration Management](#5-configuration-management)
+  - [Command Line Interface](#6-command-line-interface)
+  - [Database Operations](#7-database-operations)
+- [Scripts Structure](#scripts-structure)
+- [Testing Approach](#testing-approach)
+- [Comments Policy](#comments-policy)
+- [Development Tools Overview](#development-tools-overview)
+- [Summary](#summary)
+- [Additional Documentation](#additional-documentation)
+
+---
+
 ## Project Philosophy
 
 This is a **hobby project for personal use**, not a commercial application. The development approach prioritizes:
@@ -9,6 +30,63 @@ This is a **hobby project for personal use**, not a commercial application. The 
 - **Readability over performance optimization**
 - **Self-documenting code over extensive comments**
 - **Practical functionality over academic perfection**
+
+---
+
+## Quick Start
+
+### Essential Commands
+```bash
+# Activate virtual environment (ALWAYS do this first)
+source venv/bin/activate
+
+# Test with sample data before live run
+python script.py --test
+
+# Run with live data
+python script.py
+
+# Monitor logs in real-time
+tail -f logs/script_$(date +%Y%m%d).log
+
+# Check database upload status
+./venv/bin/python scripts/database/monitor_and_upload.py --dry-run
+```
+
+### Common Development Workflow
+```bash
+# 1. Activate venv
+source venv/bin/activate
+
+# 2. Test your script with sample data
+python scripts/your_script/script.py --test
+
+# 3. Check logs for errors
+tail -f logs/your_script_$(date +%Y%m%d).log
+
+# 4. Run with live data when ready
+python scripts/your_script/script.py
+
+# 5. Verify database changes
+sqlite3 data/database.db "SELECT * FROM last_update ORDER BY timestamp DESC LIMIT 5;"
+```
+
+### Key Dependencies
+- `requests` - HTTP client for API calls
+- `paramiko` - SSH/SFTP for PythonAnywhere uploads
+- `tqdm` - Progress bars for long operations
+- `pytz` - **REQUIRED** - Timezone handling for UK time display (BST/GMT conversion)
+
+### Master Scheduler Setup
+```bash
+# Single cron entry manages all automated scripts
+* * * * * /path/to/project/scripts/scheduler/master_scheduler.sh
+
+# Monitor scheduler activity
+tail -f logs/scheduler/master_scheduler_$(date +%Y%m%d).log
+```
+
+---
 
 ## Python Best Practices for Hobby Development
 
@@ -310,10 +388,12 @@ def cleanup_old_sample_files(output_dir, keep_count=5):
     files_to_remove = files[keep_count:]
 ```
 
-## Development Tools
+## Development Tools Overview
 
 ### Virtual Environment Usage
+
 **IMPORTANT**: Always use the virtual environment when running Python scripts:
+
 ```bash
 # Activate virtual environment first
 source venv/bin/activate
@@ -327,745 +407,46 @@ python scripts/odds-api/script.py
 ./venv/bin/python scripts/prediction_league/script.py --test
 ```
 
-### Key Dependencies
-The project virtual environment includes:
-- `requests` - HTTP client for API calls
-- `paramiko` - SSH/SFTP for PythonAnywhere uploads  
-- `tqdm` - Progress bars for long operations
-- `pytz` - **REQUIRED** - Timezone handling for UK time display (BST/GMT conversion)
+**Note**: See [Quick Start](#quick-start) section for common commands and key dependencies.
 
-### Recommended Command Line Testing
-```bash
-# Activate venv first
-source venv/bin/activate
+### Automated Systems
 
-# Run with test data first  
-python script.py --test
+This project includes several automated systems:
 
-# Then run with live data
-python script.py
+- **Database Upload System** - Monitors database changes and automatically uploads to PythonAnywhere
+- **Dropbox OAuth2 System** - Manages Dropbox authentication with automatic token refresh
+- **Automated Predictions System** - Generates predictions based on betting odds
+- **Pulse API System** - Collects detailed match data (officials, team lists, events)
+- **Football-Data System** - Maintains historical Premier League data (1993-2025)
+- **Master Scheduler System** - Centralized orchestration of all automated scripts
+- **Predictions Analysis System** - Multi-strategy predictions with performance analysis
+- **Prediction Verification System** - Validates predictions against WhatsApp messages
 
-# Monitor logs
-tail -f logs/script_$(date +%Y%m%d).log
-```
+For detailed documentation on each system, see: **[docs/SYSTEMS.md](docs/SYSTEMS.md)**
 
-### Database Upload System
-```bash
-# Test database upload system
-./venv/bin/python scripts/database/monitor_and_upload.py --test
+### Production Deployment
 
-# Dry run to check logic  
-./venv/bin/python scripts/database/monitor_and_upload.py --dry-run
+For production deployment guides, systemd service configuration, and troubleshooting, see: **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**
 
-# Force upload regardless of changes
-./venv/bin/python scripts/database/monitor_and_upload.py --force
+### Critical System Fixes
 
-# Set up cron for automated uploads (every minute) - DEPRECATED
-# * * * * * cd /path/to/project && ./venv/bin/python scripts/database/monitor_and_upload.py >/dev/null 2>&1
+For historical fixes and changelog, see: **[docs/FIXES_CHANGELOG.md](docs/FIXES_CHANGELOG.md)**
 
-# Use Master Scheduler instead (recommended)
-* * * * * /path/to/project/scripts/scheduler/master_scheduler.sh
-```
+**Recent Fixes Summary:**
 
-**Upload System Features:**
-- **Change Detection** - Monitors last_update table for database modifications
-- **Automatic Uploads** - Triggers on any table changes since last upload
-- **Health Check** - Fallback uploads every 30 minutes if no changes detected
-- **Transaction Integrity** - Fixed Aug 2025: Scripts now properly update timestamps after database changes
-- **Smart Timestamps** - Fixed Sep 2025: Scripts only update timestamps when actual data changes occur (no more unnecessary uploads)
-- **Simplified Upload Logic** - Fixed Oct 2025: Timestamp only updates AFTER successful upload, not before
-- **Enhanced Logging** - Clear indicators showing exactly when/why uploads occur or are skipped
+- **Nov 2025**: Upload timestamp visibility on PythonAnywhere
+- **Oct 2025**: Upload timestamp logic simplification
+- **Sep 2025**: Unnecessary timestamp updates fixed
+- **Aug 2025**: Transaction ordering bugs, missing fixtures timestamps, timezone conversion fixes
 
-### Dropbox OAuth2 System
-```bash
-# Set up Dropbox OAuth2 tokens (first-time or when expired)
-./venv/bin/python scripts/prediction_league/setup_dropbox_oauth.py
-
-# Test Dropbox prediction cleaning
-./venv/bin/python scripts/prediction_league/clean_predictions_dropbox.py --dry-run
-
-# Process specific gameweek
-./venv/bin/python scripts/prediction_league/clean_predictions_dropbox.py --gameweek 3
-```
-
-**OAuth2 Features:**
-- **Auto-refresh tokens** - No manual token management needed
-- **Legacy token migration** - Seamless upgrade from old tokens
-- **Interactive setup** - Browser-based authorization flow
-- **Secure storage** - Tokens safely stored in keys.json
-- **Permission Preservation** - Scripts maintain file permissions when updating tokens (Sep 2025 fix)
-
-### Automated Predictions System (Dual-File Generation)
-```bash
-# Test automated predictions generation (checks for upcoming gameweeks)
-./venv/bin/python scripts/prediction_league/automated_predictions.py
-
-# Force run bypassing all checks (development/testing)
-./venv/bin/python scripts/prediction_league/automated_predictions.py --force
-
-# Force run with specific gameweek
-./venv/bin/python scripts/prediction_league/automated_predictions.py --force --gameweek 5
-
-# The script automatically runs hourly via scheduler when deadline is within 36 hours
-# Creates predictions based on intelligent strategy recommendations (1-0 vs 2-1)
-```
-
-**System Features:**
-- **Dual-File Upload** - Automatically writes predictions to two Dropbox locations:
-  * `/predictions_league/odds-api/predictions{gameweek}.txt` (new file creation)
-  * `/predictions_league/Predictions/2025_26/gameweek{gameweek}.txt` (append/create logic)
-- **Intelligent Content Management** - Downloads existing gameweek files and appends new predictions
-- **UK Timezone Notifications** - Uses pytz for accurate BST/GMT deadline display in Pushover notifications
-- **Error Recovery** - Continues operation if one upload location fails
-- **Gameweek Validation** - Only runs when deadline is within 36 hours
-- **Duplicate Prevention** - Database tracking prevents multiple runs within 1-hour window
-
-**Prediction Logic:**
-- **Odds-Based Strategy** - Analyzes home/away odds to determine favorite
-- **Consistent Format** - "Tom Levin" header with team capitalization
-- **Scoreline Strategy** - Favorite wins 2-1, underdog wins 1-2, default 1-1 for missing odds
-- **Fixture Integration** - Uses SQL query to fetch gameweek fixtures with odds data
-
-**Scheduler Integration:**
-- **Hourly Execution** - Runs automatically every hour via master scheduler
-- **Deadline-Based Activation** - Only processes when gameweek deadline approaches
-- **Notification System** - Sends predictions and fixture lists via Pushover
-- **Database Tracking** - Updates last_update table to trigger automated uploads
-
-### Pulse API System (Match Data Collection)
-```bash
-# Test pulse API data collection with sample data
-./venv/bin/python scripts/pulse_api/fetch_pulse_data.py --test
-
-# Dry run to preview changes without database updates
-./venv/bin/python scripts/pulse_api/fetch_pulse_data.py --dry-run
-
-# Normal operation - collect missing pulse data
-./venv/bin/python scripts/pulse_api/fetch_pulse_data.py
-
-# Sequential processing for gentle API usage
-./venv/bin/python scripts/pulse_api/fetch_pulse_data.py --max-workers 1 --delay 3.0
-
-# Force fetch all fixtures regardless of existing data
-./venv/bin/python scripts/pulse_api/fetch_pulse_data.py --force-all
-
-# Process specific season
-./venv/bin/python scripts/pulse_api/fetch_pulse_data.py --season "2024/2025"
-
-# Fix team_id data quality issues (drop tables and re-fetch all seasons)
-./venv/bin/python scripts/pulse_api/fetch_pulse_data.py --fix-team-ids
-
-# Preview fix without making changes (shows which seasons will be processed)
-./venv/bin/python scripts/pulse_api/fetch_pulse_data.py --fix-team-ids --dry-run
-
-# Note: --fix-team-ids automatically processes ALL seasons with pulse_ids
-# The --season argument is ignored when using this flag
-```
-
-**Pulse API Features:**
-- **Change Detection** - Only fetches data for finished fixtures missing pulse data
-- **Rate Limiting** - Respectful API usage with configurable delays between requests
-- **Error Recovery** - Robust handling of API failures with exponential backoff retry logic
-- **Concurrent Processing** - Optional threading for faster data collection (default: 3 workers)
-- **Smart Caching** - Saves successful responses to avoid re-fetching during development
-- **Database Integration** - Uses existing tables: match_officials, team_list, match_events
-- **Team Mapping** - Maps pulse team IDs to database team_id for proper relationships
-- **Sample Management** - Automatic cleanup of old sample files with configurable retention
-- **Data Quality Fix** - `--fix-team-ids` flag to correct historical team_id inconsistencies
-
-**Data Collected:**
-- **Match Officials** - Referees and linesmen for each match
-- **Team Lists** - Starting lineups and substitutes with positions, shirt numbers, captain status
-- **Match Events** - Goals, cards, substitutions with precise timestamps and player/team details
-
-**Scheduler Integration:**
-- **Daily Collection** - Runs automatically at 8 AM via master scheduler
-- **Change Triggering** - Updates last_update table to trigger automated database uploads
-- **Lock Management** - Prevents multiple concurrent executions
-
-### Football-Data.co.uk System (Historical Match Data)
-```bash
-# Import historical Premier League data (1993-2025)
-./venv/bin/python scripts/football_data/migrate_legacy_data.py --test --force
-
-# Download current season data weekly
-./venv/bin/python scripts/football_data/fetch_football_data.py --dry-run
-
-# Test with sample data
-./venv/bin/python scripts/football_data/fetch_football_data.py --test
-```
-
-**Football-Data System Features:**
-- **Complete Historical Integration** - 12,324 Premier League matches from 1993-2025 (32 seasons, 100% coverage)
-- **Rich Match Data** - Results, statistics, referee info, comprehensive betting odds
-- **Team Mapping** - Complete translation for all 51 historical Premier League teams 
-- **Weekly Updates** - Automated downloads of current season data every Sunday
-- **Change Detection** - Smart updates only when actual data changes occur
-- **Sample Management** - Automatic cleanup with configurable retention (5 files default)
-
-**Data Includes:**
-- **Match Results** - Full-time/half-time scores and results
-- **Team Statistics** - Shots (total/on target), corners, cards, fouls for each team
-- **Official Information** - Referee assignments for each match
-- **Betting Markets** - Home/Draw/Away odds from multiple bookmakers (Bet365, William Hill, etc.)
-- **Advanced Markets** - Over/under goals, Asian handicap, correct score odds
-
-**Scheduler Integration:**
-- **Weekly Collection** - Runs automatically on Sundays at 9 AM via master scheduler
-- **Change Triggering** - Updates last_update table to trigger automated database uploads
-- **Configuration Control** - `ENABLE_FETCH_FOOTBALL_DATA=true/false` in scheduler config
-
-### Master Scheduler System
-```bash
-# Set up automated execution (single cron entry manages everything)
-* * * * * /path/to/project/scripts/scheduler/master_scheduler.sh
-
-# Check scheduler status and configuration
-./venv/bin/python scripts/scheduler/scheduler_status.sh
-
-# Monitor scheduler activity
-tail -f logs/scheduler/master_scheduler_$(date +%Y%m%d).log
-
-# Enable debug mode for detailed timing analysis
-echo "DEBUG_MODE=true" >> scripts/scheduler/scheduler_config.conf
-```
-
-**Scheduler Features (September 2025 Update):**
-- **Centralized Orchestration** - Single cron entry manages all script execution
-- **Intelligent Timing** - Scripts run at optimal intervals based on data requirements
-- **Process Management** - Lock files prevent overlapping executions
-- **Error Handling** - Individual script failures don't affect other scripts
-- **Configurable Control** - Enable/disable individual scripts via configuration
-
-**Execution Schedule:**
-- **Every Minute**: fetch_results.py, monitor_and_upload.py (with 10s sequencing)
-- **Every 15 Minutes**: clean_predictions_dropbox.py
-- **Every 30 Minutes**: fetch_fixtures_gameweeks.py
-- **Every Hour**: automated_predictions.py (dual-file upload with UK timezone notifications)
-- **Daily 7 AM**: fetch_fpl_data.py, fetch_odds.py
-- **Daily 8 AM**: fetch_pulse_data.py
-- **Weekly Sundays 9 AM**: fetch_football_data.py (NEW - September 2025)
-- **Daily 2 AM**: Cleanup old logs and locks
-
-**Configuration Override (scripts/scheduler/scheduler_config.conf):**
-```bash
-# Emergency disable (stops all scripts)
-SCHEDULER_ENABLED=false
-
-# Individual script control
-ENABLE_FETCH_RESULTS=true
-ENABLE_MONITOR_UPLOAD=true
-ENABLE_CLEAN_PREDICTIONS=true
-ENABLE_FETCH_FIXTURES=true
-ENABLE_AUTOMATED_PREDICTIONS=true
-ENABLE_FETCH_FPL_DATA=true
-ENABLE_FETCH_ODDS=true
-ENABLE_FETCH_PULSE_DATA=true
-ENABLE_FETCH_FOOTBALL_DATA=true
-
-# Debug output for timing analysis
-DEBUG_MODE=false
-```
-
-## Critical System Fixes (August 2025 - September 2025)
-
-### Database Upload System Issues Resolved
-
-**Problem**: Remote scheduler wasn't triggering database uploads despite database changes, and upload timestamps weren't being updated properly.
-
-**Root Causes Identified & Fixed:**
-
-1. **Transaction Ordering Bug in fetch_results.py**
-   - **Issue**: `update_last_update_table()` called AFTER `conn.commit()`
-   - **Result**: Timestamp updates executed but never committed to database
-   - **Fix**: Moved timestamp update BEFORE commit for transaction integrity
-   - **Impact**: Results changes now properly trigger upload monitoring
-
-2. **Missing Fixtures Timestamp Updates**
-   - **Issue**: `fetch_fixtures_gameweeks.py` only updated "fixtures_gameweeks" timestamp
-   - **Result**: "fixtures" table changes undetected (9-day timestamp gap)
-   - **Fix**: Now updates both "fixtures" and "fixtures_gameweeks" timestamps when changes occur
-   - **Impact**: Fixture changes now trigger automated uploads
-
-3. **Timezone Conversion Bug in Match Window Detection**
-   - **Issue**: Database stores UTC times but code added +1 hour offset
-   - **Result**: Match window detection failed, preventing results fetching
-   - **Fix**: Database times now correctly treated as UTC without conversion
-   - **Impact**: Results fetching works during match windows
-
-4. **Duplicate Predictions Data**
-   - **Issue**: Fixture matching failed due to team order mismatches
-   - **Result**: Multiple duplicate predictions, some fixtures unmatched
-   - **Fix**: Enhanced fixture matching to try both team orders
-   - **Impact**: Clean prediction data, no duplicates, all fixtures matched
-
-5. **Unnecessary Timestamp Updates (September 2025)**
-   - **Issue**: Scripts updated timestamps even when no data changed
-   - **Result**: Frequent unnecessary database uploads with no actual changes
-   - **Fix**: Modified scripts to only update timestamps when actual data changes occur
-   - **Impact**: Reduced database upload frequency, more efficient change detection
-
-6. **Upload Timestamp Logic Simplification (October 2025)**
-   - **Issue**: Complex prepare/rollback system in `monitor_and_upload.py` was updating timestamps before upload completed
-   - **Result**: Risk of inconsistent state if upload failed after timestamp update
-   - **Fix**: Simplified to single `update_upload_timestamp()` function that runs ONLY after successful upload
-   - **Removed Functions**: `prepare_upload_timestamp()` and `rollback_upload_timestamp()`
-   - **Impact**: Clean flow: upload → verify success → update timestamp; no updates if upload fails or doesn't occur
-   - **Enhanced Logging**: Added comprehensive status indicators (→, ✓, ✗) showing exactly when/why uploads occur or are skipped
-
-### Upload System Logging Examples
-
-**No Upload Needed (Typical Output):**
-```
-════════════════════════════════════════════════════════════
-DATABASE UPLOAD MONITOR
-════════════════════════════════════════════════════════════
-Database: database.db (14.32 MB)
-→ Last upload: 2025-10-02 15:41:46
-→ No database changes since last upload
-→ Health check: Last upload was 0.6 minutes ago (<30 min threshold)
-No upload performed: No database changes detected and last upload was within 30 minutes
-```
-
-**Upload with Changes Detected:**
-```
-Database: database.db (14.32 MB)
-→ Last upload: 2025-10-02 15:39:08
-→ Changes detected in 1 table(s): test_table (at 15:41:20)
-Upload triggered: Database Changes
-Uploading database (15015936 bytes)...
-Database upload successful
-✓ Upload completed successfully due to: database changes
-✓ Timestamp updated - future uploads will use this as baseline
-```
-
-**Dry Run Mode:**
-```
-Upload triggered: Forced
-DRY RUN: Would upload database to PythonAnywhere
-✓ Dry run completed - would have uploaded due to: forced
-✓ No timestamp update in dry-run mode
-```
-
-### Verification Steps
-```bash
-# Check last_update table shows recent timestamps
-sqlite3 data/database.db "SELECT * FROM last_update ORDER BY timestamp DESC LIMIT 5;"
-
-# Test upload detection works
-./venv/bin/python scripts/database/monitor_and_upload.py --dry-run
-
-# Test match window detection
-./venv/bin/python scripts/fpl/fetch_results.py --override --dry-run
-
-# Check for prediction duplicates
-sqlite3 data/database.db "SELECT COUNT(*) FROM predictions p JOIN fixtures f ON p.fixture_id = f.fixture_id WHERE f.season = '2025/2026' GROUP BY f.gameweek;"
-```
-
-## Predictions Analysis System (September 2025)
-
-### Overview
-
-The predictions analysis system provides automated predictions based on betting odds with multiple strategies and comprehensive performance analysis across historical seasons.
-
-### Features
-
-**Core Functionality:**
-- **Automated Predictions**: 7 different strategies for generating scoreline predictions
-- **Multi-Season Analysis**: Performance comparison across historical seasons (2020-2026)
-- **Strategy Performance**: Real-time points calculation and accuracy metrics
-- **Season Selector**: Analyze performance for specific seasons or combined historical data
-- **Smart Goals Strategy**: Advanced strategy combining 1X2 and Over/Under odds
-
-### Database Schema Updates
-
-**Enhanced Over/Under Support:**
-```sql
--- Added to fixture_odds_summary table
-ALTER TABLE fixture_odds_summary ADD COLUMN avg_over_2_5_odds REAL DEFAULT NULL;
-ALTER TABLE fixture_odds_summary ADD COLUMN avg_under_2_5_odds REAL DEFAULT NULL;
-CREATE INDEX IF NOT EXISTS idx_fixture_odds_totals ON fixture_odds_summary(avg_over_2_5_odds, avg_under_2_5_odds);
-```
-
-**Migration Commands:**
-```bash
-# Run database migration for Over/Under odds
-./venv/bin/python scripts/odds-api/migrate_summary_totals.py
-
-# Refresh odds summary to populate totals
-./venv/bin/python scripts/odds-api/fetch_odds.py --test
-```
-
-### Prediction Strategies
-
-**1. Fixed Strategies:**
-- **Fixed (2-1 Favourite)**: Favourite always wins 2-1
-- **Fixed (2-0 Favourite)**: Favourite always wins 2-0 (clean sheet strategy)
-- **Fixed (1-0 Favourite)**: Favourite always wins 1-0 (conservative strategy)
-
-**2. Dynamic Strategies:**
-- **Calibrated**: Variable scorelines based on favourite strength
-  - ≤1.50 odds = 3-0/2-0
-  - 1.51-2.00 = 2-1
-  - 2.01-2.50 = 1-0
-  - >2.50 = 1-1
-- **Home/Away Bias**: Considers venue advantage
-  - Home favourites: 2-0
-  - Away favourites: 2-1
-
-**3. Advanced Strategies:**
-- **Poisson Model**: Mathematical distribution-based predictions (placeholder)
-- **Smart Goals**: Combines 1X2 and Over/Under odds
-  - Short favourite + high goals expected → 2-1 or 3-1
-  - Short favourite + low goals expected → 1-0
-  - Uses fallback values when Over/Under data unavailable
-
-**4. Custom Strategy:**
-- **Manual Entry**: User can enter custom predictions and see point calculations
-
-### Smart Goals Strategy Logic
-
-```python
-# Core logic for Smart Goals strategy
-if favourite_odds <= 1.67:  # Short favourite
-    if goals_market_favours_high:
-        if over_2_5_odds <= 1.70:
-            # Very heavy over 2.5 odds
-            prediction = "3-1" if home_favourite else "1-3"
-        else:
-            # Heavy over 2.5 odds  
-            prediction = "2-1" if home_favourite else "1-2"
-    else:
-        # Under 2.5 favoured
-        prediction = "1-0" if home_favourite else "0-1"
-```
-
-### Multi-Season Data Access
-
-**Data Sources (Prioritized):**
-1. **fixture_odds_summary**: Primary source for recent seasons with complete odds data
-2. **football_stats**: Fallback source for historical data using AvgH/AvgA as 1X2 odds and Avg>2.5/Avg<2.5 for totals
-
-**Supported Seasons:**
-- **2025/2026**: Current season (primary data source)
-- **2024/2025**: Recent season with odds data
-- **2020-2024**: Historical seasons with fallback data
-- **All Seasons**: Combined analysis across all available data
-- **Historical Only**: Excludes current season for baseline comparison
-
-### Webapp API Endpoints
-
-**Core Endpoints:**
-```bash
-# Get fixtures and odds for specific gameweek
-GET /api/predictions/gameweek/{gameweek}
-
-# Get season performance analysis
-GET /api/predictions/season-performance?season={season}
-```
-
-**Authentication Requirements:**
-- **Main predictions page**: Requires login (`@require_auth`)
-- **API endpoints**: Temporarily made public for debugging (remove auth decorators)
-- **Debug endpoint**: Public access for troubleshooting
-
-### Performance Analysis
-
-**Metrics Calculated:**
-- **Total Points**: Sum of all prediction points (2 for exact score, 1 for correct result)
-- **Accuracy Rate**: Percentage of correct results predicted
-- **Correct Results**: Count of matches where result (H/D/A) was correct
-- **Exact Scores**: Count of matches where exact scoreline was predicted
-- **Games Analyzed**: Total fixtures with both odds and results available
-- **Avg Points/Game**: Average points earned per fixture
-
-**Example Performance Results (2025/2026 season, 30 games):**
-- **Smart Goals**: 18 points, 46.7% accuracy, 4 exact scores
-- **Fixed (1-0)**: 18 points, 46.7% accuracy, 4 exact scores  
-- **Calibrated**: 17 points, 46.7% accuracy, 3 exact scores
-
-### Frontend Features
-
-**Strategy Tabs:**
-- Interactive strategy selection with real-time calculations
-- Strategy descriptions explaining prediction logic
-- Points display for completed matches
-
-**Season Selector:**
-- Dropdown for selecting analysis period
-- Options: Individual seasons, all seasons, historical only
-- Real-time performance comparison updates
-
-**Bulk Prediction Tools (Custom Strategy):**
-- Quick-fill options (1-0, 2-1, 1-1, 0-0)
-- Apply score to all fixtures
-- Clear all predictions
-- Real-time points calculation
-
-### Troubleshooting
-
-**Common Issues:**
-1. **"Loading predictions..." hanging**
-   - **Cause**: JavaScript authentication errors or syntax errors
-   - **Fix**: Check browser console for errors, ensure proper login
-
-2. **Season performance 500 errors**
-   - **Cause**: None values in Over/Under odds causing float() errors
-   - **Fix**: Use `fixture.get('over_2_5_odds') or 1.90` instead of default parameters
-
-3. **Duplicate variable declarations**
-   - **Cause**: Multiple `const favouriteOdds` in JavaScript switch cases
-   - **Fix**: Use unique variable names per strategy (e.g., `smartFavouriteOdds`)
-
-**Debug Commands:**
-```bash
-# Test API endpoints directly
-curl http://localhost:5000/debug
-curl http://localhost:5000/api/predictions/gameweek/3
-curl "http://localhost:5000/api/predictions/season-performance?season=2025/2026"
-
-# Check Over/Under odds availability
-sqlite3 data/database.db "SELECT COUNT(*) FROM fixture_odds_summary WHERE avg_over_2_5_odds IS NOT NULL;"
-
-# Verify current gameweek logic
-sqlite3 data/database.db "SELECT gameweek FROM gameweeks WHERE current_gameweek = 1 OR next_gameweek = 1 ORDER BY gameweek ASC LIMIT 1;"
-```
-
-### Development Notes
-
-**JavaScript Error Handling:**
-```javascript
-// Improved error handling for authentication
-fetch('/api/predictions/gameweek/' + gameweek)
-    .then(response => {
-        if (response.status === 200 && response.headers.get('content-type')?.includes('application/json')) {
-            return response.json();
-        } else if (response.url.includes('/login')) {
-            throw new Error('Authentication required - please log in first');
-        }
-        // Handle other errors...
-    })
-```
-
-**Null Value Handling:**
-```python
-# Safe handling of None values in odds data
-over_2_5_odds = float(fixture.get('over_2_5_odds') or 1.90)  # 'or' handles None
-under_2_5_odds = float(fixture.get('under_2_5_odds') or 1.90)
-```
-
-**Variable Scoping:**
-```javascript
-// Avoid duplicate variable declarations in switch cases
-case 'calibrated':
-    const favouriteOdds = Math.min(homeOdds, awayOdds);
-    break;
-case 'smart-goals':
-    const smartFavouriteOdds = Math.min(homeOdds, awayOdds);  // Unique name
-    break;
-```
-
-## Prediction Verification System (October 2025)
-
-### Overview
-
-Automated verification system that compares predictions in the database against WhatsApp messages and text files in Dropbox, identifying discrepancies and ensuring data accuracy. Uses timestamp-based priority logic to determine the latest prediction when duplicates exist.
-
-### Features
-
-**Data Sources:**
-- All `.txt` files in `/Messages` Dropbox folder (with timestamp support: `DD/MM/YYYY, HH:MM`)
-- WhatsApp chat exports (`.zip` files containing `_chat.txt` with `[DD/MM/YYYY, HH:MM:SS]` timestamps)
-- Database predictions table
-
-**Timestamp-Based Priority Logic:**
-1. **Predictions with scores take priority** over predictions without scores
-2. When both have scores (or both don't), **latest timestamp wins**
-3. **Tom Levin/Thomas Levin predictions without scores are ignored** (fixture-only messages)
-
-**Verification Categories:**
-- **Matches**: Same player/fixture/score in both database and messages
-- **Score Mismatches**: Same player/fixture, different scores
-- **In Messages Only**: Predictions found in messages but not in database
-- **In Database Only**: Predictions in database but not found in messages
-
-### Database Schema
-
-**Table: `prediction_verification`**
-```sql
-CREATE TABLE prediction_verification (
-    verification_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    category TEXT NOT NULL,
-    player_id INTEGER,
-    fixture_id INTEGER,
-    db_home_goals INTEGER,
-    db_away_goals INTEGER,
-    message_home_goals INTEGER,
-    message_away_goals INTEGER,
-    verified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (player_id) REFERENCES players(player_id),
-    FOREIGN KEY (fixture_id) REFERENCES fixtures(fixture_id)
-);
-
--- Indexes for performance
-CREATE INDEX idx_verification_category ON prediction_verification(category);
-CREATE INDEX idx_verification_player ON prediction_verification(player_id);
-CREATE INDEX idx_verification_fixture ON prediction_verification(fixture_id);
-```
-
-### Name Alias Mapping
-
-The system handles player name variations between messages and database:
-
-```python
-NAME_ALIASES = {
-    'ed fenna': 'edward fenna',
-    'steven harrison': 'ste harrison',
-    'steve harrison': 'ste harrison',
-    'thomas levin': 'tom levin',
-    'tom levo': 'tom levin',
-    'olly spence-robb': 'olly spence robb',
-}
-```
-
-### Team Order Preservation
-
-Critical fix (October 2025): Teams are extracted based on **position in text**, not alphabetical order, preventing fixtures like "Everton vs Crystal Palace" being reversed to "Crystal Palace vs Everton".
-
-```python
-def extract_teams_from_line(line, teams):
-    """Extract team names from line based on their position in the text"""
-    team_positions = []
-    for team in teams:
-        if team in line:
-            pos = line.find(team)
-            team_positions.append((pos, team))
-    # Sort by position in text (earliest first)
-    team_positions.sort(key=lambda x: x[0])
-    return [team for pos, team in team_positions]
-```
-
-### Running Verification
-
-```bash
-# Run full verification
-./venv/bin/python scripts/analysis/verify_predictions_from_messages.py
-
-# Verify specific gameweek
-./venv/bin/python scripts/analysis/verify_predictions_from_messages.py --gameweek 7
-
-# Verify specific player
-./venv/bin/python scripts/analysis/verify_predictions_from_messages.py --player "Chris Hart"
-```
-
-### Output
-
-**Database Table:**
-- Results saved to `prediction_verification` table
-- Table is cleared and repopulated on each run
-- Supports SQL queries for analysis
-
-**CSV Report:**
-- Backup report: `analysis_reports/prediction_verification_YYYYMMDD_HHMMSS.csv`
-- Contains: Category, Player, Gameweek, Fixture, DB Score, Message Score
-
-**Console Summary:**
-- Match count, mismatch count
-- Detailed list of any score mismatches
-- List of predictions only in messages
-
-### Message Format Examples
-
-**Text File Format with Timestamp:**
-```
-Josh Jones
-
-04/10/2025, 20:40
-
-Bournemouth v Fulham              # No score - ignored
-Leeds v Spurs                      # No score - ignored
-Aston Villa 2-0 Burnley           # HAS SCORE - used
-Everton 1-2 Crystal Palace        # HAS SCORE - used
-```
-
-**WhatsApp Format:**
-```
-[09/10/2025, 14:02:35] Josh Jones: Brighton 0 - 2 Wolves
-[09/10/2025, 14:03:12] Josh Jones: Man City 3 - 0 Brentford
-```
-
-### Common Issues Fixed
-
-1. **Player Name Mismatches**: Name aliases resolve variations like "Ed Fenna" → "Edward Fenna"
-2. **Team Order Reversal**: Text position-based extraction maintains correct home/away order
-3. **Prediction Attribution**: Unrecognized player names no longer cause predictions to be attributed to wrong players
-4. **Timestamp Priority**: Predictions with scores take priority; latest timestamp wins when both have/lack scores (Oct 2025)
-
-### Example Query
-
-```sql
--- Find all score mismatches
-SELECT
-    p.player_name,
-    f.gameweek,
-    ht.team_name || ' vs ' || at.team_name as fixture,
-    pv.db_home_goals || '-' || pv.db_away_goals as db_score,
-    pv.message_home_goals || '-' || pv.message_away_goals as message_score
-FROM prediction_verification pv
-JOIN players p ON pv.player_id = p.player_id
-JOIN fixtures f ON pv.fixture_id = f.fixture_id
-JOIN teams ht ON f.home_teamid = ht.team_id
-JOIN teams at ON f.away_teamid = at.team_id
-WHERE pv.category = 'Score Mismatch';
-```
-
-## Production Deployment
-
-### Critical Dependencies for Production
-When deploying to production servers (Ubuntu/systemd), ensure all dependencies are installed:
-
-```bash
-# Essential timezone dependency (service will fail without this)
-pip install pytz
-
-# Verify installation
-python -c "import pytz; print('pytz installed successfully')"
-```
-
-**Common Production Issues:**
-- **Service fails with exit code 3**: Usually indicates missing `pytz` dependency
-- **Check logs**: `journalctl -u prediction-league.service --no-pager -l`
-- **Test app import**: `python -c "import app"` to verify all dependencies
-
-### Systemd Service Requirements
-- Ensure virtual environment includes all dependencies
-- Working directory must be set to webapp directory
-- Config.json must be accessible with correct timezone setting
-
-### Keys.json Permission Configuration
-Critical for multi-user production environments where scripts run under different users:
-
-```bash
-# Set appropriate permissions for group access
-chmod 640 keys.json                    # Owner read/write, group read
-chgrp predictionleague keys.json       # Set group ownership
-
-# Verify permissions
-ls -la keys.json
-# Should show: -rw-r----- 1 user predictionleague
-```
-
-**Permission Preservation (Sept 2025 Fix):**
-- Scripts now preserve original file permissions when updating Dropbox tokens
-- `clean_predictions_dropbox.py` (runs every 15 minutes) maintains group permissions
-- `setup_dropbox_oauth.py` (manual setup) preserves permissions during token refresh
-- Prevents automatic reset to 0600 (owner-only) permissions
+---
 
 ## Summary
 
 For this hobby project:
+
 1. **Prioritize readability** - Code should tell a story
-2. **Keep functions simple** - One clear purpose per function  
+2. **Keep functions simple** - One clear purpose per function
 3. **Handle errors gracefully** - Always expect things to go wrong
 4. **Log meaningfully** - Help future you understand what happened
 5. **Test with sample data** - Don't waste API calls during development
@@ -1074,3 +455,54 @@ For this hobby project:
 8. **Maintain transaction integrity** - Always update timestamps within the same transaction as data changes
 
 Remember: This is a hobby project. Perfect is the enemy of done. Focus on code that works reliably and can be easily understood and modified months later.
+
+---
+
+## Additional Documentation
+
+### Core Documentation
+
+- **[SYSTEMS.md](docs/SYSTEMS.md)** - Detailed documentation for all automated systems
+- **[DEPLOYMENT.md](docs/DEPLOYMENT.md)** - Production deployment guide and troubleshooting
+- **[FIXES_CHANGELOG.md](docs/FIXES_CHANGELOG.md)** - Historical fixes and system improvements
+
+### Quick Reference
+
+**Common Commands:**
+
+```bash
+# Virtual environment
+source venv/bin/activate
+
+# Test scripts
+python script.py --test
+
+# Monitor logs
+tail -f logs/script_$(date +%Y%m%d).log
+
+# Database upload
+./venv/bin/python scripts/database/monitor_and_upload.py --dry-run
+
+# Scheduler logs
+tail -f logs/scheduler/master_scheduler_$(date +%Y%m%d).log
+```
+
+**Key Files:**
+
+- `keys.json` - API keys and credentials (permissions: 640)
+- `data/database.db` - Main SQLite database
+- `scripts/scheduler/scheduler_config.conf` - Scheduler configuration
+- `logs/` - All log files organized by system
+
+**Useful SQL Queries:**
+
+```sql
+-- Check recent updates
+SELECT * FROM last_update ORDER BY timestamp DESC LIMIT 5;
+
+-- Verify fixtures
+SELECT gameweek, COUNT(*) FROM fixtures WHERE season='2025/2026' GROUP BY gameweek;
+
+-- Check predictions
+SELECT COUNT(*) FROM predictions p JOIN fixtures f ON p.fixture_id = f.fixture_id WHERE f.season='2025/2026';
+```

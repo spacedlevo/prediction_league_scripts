@@ -11,7 +11,11 @@
       "Bash(printf \"Folder Structure:\\n\\n\")",
       "Bash(while read dir)",
       "Bash(sqlite3:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(/home/levo/Documents/projects/prediction_league_script/CLAUDE_new.md)",
+      "Bash(source:*)",
+      "Bash(python3:*)",
+      "Bash(python scripts/pulse_api/fetch_pulse_data.py:*)"
     ],
     "deny": [],
     "ask": []

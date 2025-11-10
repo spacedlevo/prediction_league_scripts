@@ -26,9 +26,9 @@ COMMAND LINE OPTIONS:
 - --test: Use cached sample data for development
 - --season: Process specific season (default: current season)
 - --cleanup-count: Number of sample files to keep (default: 10)
-- --force-all: Force fetch all fixtures regardless of existing data
-- --force-refresh: Delete existing pulse data and re-fetch all fixtures
-- --fix-team-ids: Drop tables and re-fetch to fix team_id data quality issues
+- --force-all: Drop and recreate all pulse tables, then fetch all finished fixtures
+- --force-refresh: Delete existing pulse data for a season and re-fetch all fixtures
+- --fix-team-ids: Drop tables and re-fetch all seasons to fix team_id data quality issues
 
 DATA QUALITY FIX:
 The --fix-team-ids flag addresses historical inconsistencies where early gameweeks
@@ -181,7 +181,8 @@ def create_indexes_and_constraints(cursor: sql.Cursor, logger: logging.Logger) -
                 team_id INTEGER,
                 assist_id INTEGER,
                 event_type TEXT NOT NULL,
-                event_time TEXT NOT NULL,
+                event_time INTEGER NOT NULL,
+                description TEXT,
                 FOREIGN KEY (pulseid) REFERENCES fixtures(pulse_id)
             )
         """)
@@ -316,7 +317,8 @@ def drop_and_recreate_pulse_tables(cursor: sql.Cursor, conn: sql.Connection, log
                 team_id INTEGER,
                 assist_id INTEGER,
                 event_type TEXT NOT NULL,
-                event_time TEXT NOT NULL,
+                event_time INTEGER NOT NULL,
+                description TEXT,
                 FOREIGN KEY (pulseid) REFERENCES fixtures(pulse_id),
                 FOREIGN KEY (team_id) REFERENCES teams(team_id)
             )
@@ -626,21 +628,22 @@ def insert_team_list(cursor: sql.Cursor, pulse_id: int, teams: List[Dict[str, An
         raise
 
 
-def insert_match_events(cursor: sql.Cursor, pulse_id: int, events: List[Dict[str, Any]], 
+def insert_match_events(cursor: sql.Cursor, pulse_id: int, events: List[Dict[str, Any]],
                        team_mapping: Dict[int, int], logger: logging.Logger) -> int:
     """Insert match events data into database"""
     inserted_count = 0
-    
+
     try:
         for event in events:
             person_id = event.get("personId")
             pulse_team_id = event.get("teamId")
             db_team_id = team_mapping.get(pulse_team_id) if pulse_team_id else None
             assist_id = event.get("assistId")
-            
+            description = event.get("description")
+
             cursor.execute("""
-                INSERT INTO match_events (pulseid, event_type, event_time, person_id, team_id, assist_id)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO match_events (pulseid, event_type, event_time, person_id, team_id, assist_id, description)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (
                 pulse_id,
                 event["type"],
@@ -648,12 +651,13 @@ def insert_match_events(cursor: sql.Cursor, pulse_id: int, events: List[Dict[str
                 person_id,
                 db_team_id,
                 assist_id,
+                description,
             ))
             inserted_count += 1
-        
+
         logger.debug(f"Inserted {inserted_count} match events for pulse_id {pulse_id}")
         return inserted_count
-        
+
     except Exception as e:
         logger.error(f"Error inserting match events for pulse_id {pulse_id}: {e}")
         raise
@@ -853,6 +857,17 @@ def main_process(args: argparse.Namespace, logger: logging.Logger) -> None:
                 drop_and_recreate_pulse_tables(cursor, conn, logger)
                 logger.info("✓ Tables recreated successfully - proceeding to fetch all data")
 
+        # Handle force-all: drop and recreate tables before fetching
+        if args.force_all:
+            if args.dry_run:
+                logger.info("DRY RUN: Would drop and recreate pulse API tables before fetching all fixtures")
+            else:
+                logger.warning("⚠️  FORCE ALL MODE: This will drop and recreate all pulse API tables")
+                logger.warning("⚠️  All match_events, team_list, and match_officials data will be deleted")
+                logger.warning("⚠️  Data will be re-fetched from scratch")
+                drop_and_recreate_pulse_tables(cursor, conn, logger)
+                logger.info("✓ Tables recreated successfully - proceeding to fetch all fixtures")
+
         # Initialize database schema
         create_indexes_and_constraints(cursor, logger)
 
@@ -974,7 +989,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument('--cleanup-count', type=int, default=10,
                        help='Number of sample files to keep (0 to disable cleanup)')
     parser.add_argument('--force-all', action='store_true',
-                       help='Force fetch all fixtures regardless of existing data')
+                       help='Drop and recreate all pulse tables, then fetch all finished fixtures')
     parser.add_argument('--force-refresh', action='store_true',
                        help='Delete existing pulse data and re-fetch all fixtures')
     parser.add_argument('--fix-team-ids', action='store_true',
@@ -988,13 +1003,13 @@ if __name__ == "__main__":
     # Validate arguments
     if args.force_refresh and args.force_all:
         print("Error: Cannot use both --force-refresh and --force-all together")
-        print("Use --force-refresh to clear existing data and re-fetch all fixtures")
-        print("Use --force-all to fetch all fixtures without clearing existing data")
+        print("Use --force-refresh to clear existing data and re-fetch all fixtures for a season")
+        print("Use --force-all to drop and recreate all pulse tables, then fetch all fixtures")
         exit(1)
 
     if args.fix_team_ids and (args.force_refresh or args.force_all):
         print("Error: --fix-team-ids cannot be used with --force-refresh or --force-all")
-        print("The --fix-team-ids flag automatically handles table recreation and data fetching")
+        print("The --fix-team-ids flag automatically handles table recreation and fetching all seasons")
         exit(1)
 
     logger = setup_logging()
