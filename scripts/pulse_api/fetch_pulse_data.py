@@ -265,16 +265,34 @@ def drop_and_recreate_pulse_tables(cursor: sql.Cursor, conn: sql.Connection, log
     try:
         logger.info("Dropping existing pulse API tables...")
 
-        # Get counts before dropping
-        cursor.execute("SELECT COUNT(*) FROM match_events")
-        events_count = cursor.fetchone()[0]
-        cursor.execute("SELECT COUNT(*) FROM team_list")
-        team_list_count = cursor.fetchone()[0]
-        cursor.execute("SELECT COUNT(*) FROM match_officials")
-        officials_count = cursor.fetchone()[0]
+        # Check if tables exist and get counts before dropping
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='table' AND name IN ('match_events', 'team_list', 'match_officials')
+        """)
+        existing_tables = {row[0] for row in cursor.fetchall()}
 
-        logger.info(f"Removing {events_count} match events, {team_list_count} team list entries, "
-                   f"{officials_count} match officials")
+        events_count = 0
+        team_list_count = 0
+        officials_count = 0
+
+        if 'match_events' in existing_tables:
+            cursor.execute("SELECT COUNT(*) FROM match_events")
+            events_count = cursor.fetchone()[0]
+
+        if 'team_list' in existing_tables:
+            cursor.execute("SELECT COUNT(*) FROM team_list")
+            team_list_count = cursor.fetchone()[0]
+
+        if 'match_officials' in existing_tables:
+            cursor.execute("SELECT COUNT(*) FROM match_officials")
+            officials_count = cursor.fetchone()[0]
+
+        if existing_tables:
+            logger.info(f"Removing {events_count} match events, {team_list_count} team list entries, "
+                       f"{officials_count} match officials")
+        else:
+            logger.info("No existing pulse API tables found - will create new tables")
 
         # Drop existing tables
         cursor.execute("DROP TABLE IF EXISTS match_events")
