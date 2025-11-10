@@ -114,14 +114,63 @@ def get_substitutions(cursor, pulseid: int) -> Dict[int, List[Tuple[int, str]]]:
     return substitutions
 
 
+def get_send_offs(cursor, pulseid: int) -> Dict[int, int]:
+    """
+    Get send-off events for a match.
+
+    Returns a dict mapping person_id to send-off time (in seconds).
+
+    A player is sent off if:
+    - They receive a straight red card (description = 'R')
+    - They receive a second yellow (description = 'YR')
+    - They receive two yellow cards (description = 'Y') in the same match
+    """
+    # Get all booking events
+    cursor.execute("""
+        SELECT person_id, CAST(event_time AS INTEGER) as time, description
+        FROM match_events
+        WHERE pulseid = ? AND event_type = 'B' AND person_id IS NOT NULL
+        ORDER BY time
+    """, (pulseid,))
+
+    bookings = cursor.fetchall()
+    send_offs = {}
+    yellow_cards = defaultdict(list)  # Track yellow cards per player
+
+    for person_id, time, description in bookings:
+        if description == 'R':
+            # Straight red card
+            if person_id not in send_offs:
+                send_offs[person_id] = time
+        elif description == 'YR':
+            # Second yellow (shown as yellow-red)
+            if person_id not in send_offs:
+                send_offs[person_id] = time
+        elif description == 'Y':
+            # Yellow card - track it
+            yellow_cards[person_id].append(time)
+            # If this is their second yellow, they're sent off
+            if len(yellow_cards[person_id]) >= 2 and person_id not in send_offs:
+                # Send-off time is when they got their second yellow
+                send_offs[person_id] = yellow_cards[person_id][1]
+
+    return send_offs
+
+
 def calculate_player_minutes(cursor, pulseid: int) -> Dict[int, int]:
     """
     Calculate minutes played for each player in a match.
+
+    Accounts for substitutions and send-offs (red cards).
+    Minutes stop counting when a player is:
+    - Substituted off
+    - Sent off (straight red, second yellow, or two yellows)
 
     Returns a dict mapping person_id to minutes played.
     """
     match_duration = get_match_duration(cursor, pulseid)
     substitutions = get_substitutions(cursor, pulseid)
+    send_offs = get_send_offs(cursor, pulseid)
 
     # Get all players who were in the squad
     cursor.execute("""
@@ -134,20 +183,21 @@ def calculate_player_minutes(cursor, pulseid: int) -> Dict[int, int]:
 
     for person_id, is_starting, player_name in cursor.fetchall():
         if is_starting == 1:
-            # Player started - played from 0 until subbed off or end of match
+            # Player started - played from 0 until subbed off, sent off, or end of match
+            end_time = match_duration  # Default to full match
+
+            # Check if they were subbed off
             if person_id in substitutions:
-                # Find when they came off
                 off_events = [t for t, action in substitutions[person_id] if action == 'off']
                 if off_events:
-                    # Player was subbed off
-                    time_off = off_events[0]
-                    minutes_played = time_off / 60
-                else:
-                    # Shouldn't happen but handle it
-                    minutes_played = match_duration / 60
-            else:
-                # Played full match
-                minutes_played = match_duration / 60
+                    end_time = min(end_time, off_events[0])
+
+            # Check if they were sent off
+            if person_id in send_offs:
+                end_time = min(end_time, send_offs[person_id])
+
+            minutes_played = end_time / 60
+
         else:
             # Player was on bench
             if person_id in substitutions:
@@ -155,15 +205,18 @@ def calculate_player_minutes(cursor, pulseid: int) -> Dict[int, int]:
                 if on_events:
                     # Player came on as sub
                     time_on = on_events[0]
+                    end_time = match_duration  # Default to end of match
 
                     # Check if they were later subbed off
                     off_events = [t for t, action in substitutions[person_id] if action == 'off']
                     if off_events:
-                        time_off = off_events[0]
-                        minutes_played = (time_off - time_on) / 60
-                    else:
-                        # Played from sub time to end
-                        minutes_played = (match_duration - time_on) / 60
+                        end_time = min(end_time, off_events[0])
+
+                    # Check if they were sent off
+                    if person_id in send_offs:
+                        end_time = min(end_time, send_offs[person_id])
+
+                    minutes_played = (end_time - time_on) / 60
                 else:
                     # On bench but never used
                     minutes_played = 0
@@ -374,6 +427,10 @@ def analyze_player_game_by_game(cursor, player_name: str, season: str = "2025/20
         player_minutes_dict = calculate_player_minutes(cursor, pulse_id)
         minutes_played = player_minutes_dict.get(person_id, 0)
 
+        # Check if player was sent off in this match
+        send_offs = get_send_offs(cursor, pulse_id)
+        was_sent_off = person_id in send_offs
+
         # Determine opponent
         if player_team_id == cursor.execute("SELECT team_id FROM teams WHERE team_name = ?", (home_team,)).fetchone()[0]:
             opponent = f"vs {away_team}"
@@ -393,13 +450,18 @@ def analyze_player_game_by_game(cursor, player_name: str, season: str = "2025/20
             status = "Unused substitute"
             unused_sub += 1
         elif is_starting == 1:
-            if minutes_played >= 90:
+            if was_sent_off:
+                status = f"Sent off ({minutes_played:.0f}')"
+            elif minutes_played >= 90:
                 status = "Full match"
             else:
                 status = f"Subbed off ({minutes_played:.0f}')"
             starts_count += 1
         else:
-            status = f"Subbed on ({minutes_played:.0f}')"
+            if was_sent_off:
+                status = f"Sent off ({minutes_played:.0f}')"
+            else:
+                status = f"Subbed on ({minutes_played:.0f}')"
             sub_appearances += 1
 
         # Format date
