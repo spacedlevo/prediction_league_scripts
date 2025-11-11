@@ -1,0 +1,219 @@
+================================================================================
+         PREDICTION LEAGUE SCRIPT - SEASON MANAGEMENT OVERVIEW
+================================================================================
+
+CURRENT SEASON: 2025/2026
+
+================================================================================
+                         DATABASE TABLES WITH SEASONS
+================================================================================
+
+TABLE NAME                      | SEASON COLUMN | SCOPE              | RECORDS
+--------------------------------+---------------+--------------------+---------
+fixtures                        | season (TEXT) | All seasons        | 380/season
+results                         | VIA JOIN      | Match outcomes     | Growing
+predictions                     | VIA JOIN      | Player predictions | Dynamic
+fantasy_pl_scores               | VIA JOIN      | Player perf data   | Dynamic
+football_stats                  | Season (TEXT) | Historical 1993+   | 12,324 total
+fpl_players_bootstrap           | season (TEXT) | Player profiles    | Weekly
+season_recommendations          | season (TEXT) | Strategy analysis  | 1/season
+strategy_season_performance     | season (TEXT) | Strategy metrics   | 1+/season
+historical_season_patterns      | season (TEXT) | Comparison data    | 32+ seasons
+gameweeks                       | N/A           | Current season     | ~38 records
+
+
+================================================================================
+                    HARDCODED SEASON CONSTANTS TO UPDATE
+================================================================================
+
+PRIORITY: CRITICAL (System will fail without these)
+----------
+
+Script                          | Line | Current Value        | Format
+--------------------------------+------+----------------------+------------------
+automated_predictions.py        |  53  | CURRENT_SEASON       | "YYYY/YYYY+1"
+clean_predictions_dropbox.py    |  43  | CURRENT_SEASON       | "YYYY_YY"
+clean_predictions_dropbox.py    |  44  | CURRENT_SEASON_DB    | "YYYY/YYYY+1"
+fetch_results.py                |  40  | CURRENT_SEASON       | "YYYY/YYYY+1"
+fetch_fixtures_gameweeks.py     |  49  | CURRENT_SEASON       | "YYYY/YYYY+1"
+fetch_fpl_data.py               |  91  | CURRENT_SEASON       | "YYYY/YYYY+1"
+fetch_football_data.py          |  41  | CURRENT_SEASON       | "YYYY/YYYY+1"
+fetch_football_data.py          |  42  | FOOTBALL_DATA_URL    | URL with XXYY*
+fetch_pulse_api/fetch_data.py   |  59  | CURRENT_SEASON       | "YYYY/YYYY+1"
+
+* Special rule: URL uses mmz4281/XXYY/E0.csv where XXYY = next year's 2 digits
+  Example: 2025/2026 season → URL uses 2526
+
+PRIORITY: HIGH (Functionality breaks without these)
+----------
+
+Script                          | Line | Default Value        | Type
+--------------------------------+------+----------------------+------------------
+setup_season_recommendations.py |  121 | Season hardcoded     | String match
+update_season_recommendations.py| 291 | --season default     | CLI argument
+verify_predictions_from_msgs.py |  38  | CURRENT_SEASON_DB    | "YYYY/YYYY+1"
+
+PRIORITY: LOW (Analysis scripts - optional)
+----------
+
+Script                          | Lines | Type
+--------------------------------+-------+------------------
+migrate_legacy_data.py          |  31   | CURRENT_SEASON
+ninety_minute_analysis.py       | 25,241| Default parameters
+goals_per_gameweek.py           |  23   | Default parameter
+plot_results_charts.py          | 74,209| Query & parameters
+player_minutes_analysis.py      |  512  | Hardcoded query
+
+
+================================================================================
+                        DATA COLLECTION SYSTEMS
+================================================================================
+
+SYSTEM              | SCRIPT                  | FREQUENCY      | SEASON IMPACT
+--------------------+-------------------------+----------------+--------------------
+FPL Fixtures        | fetch_fixtures_gameweeks| Every 30 min   | Needs CURRENT_SEASON
+FPL Results         | fetch_results.py        | Every minute   | Needs CURRENT_SEASON
+FPL Player Data     | fetch_fpl_data.py       | Daily 7 AM     | Needs CURRENT_SEASON
+Football-Data       | fetch_football_data.py  | Weekly Sun 9 AM| Needs SEASON + URL
+Pulse API           | fetch_pulse_data.py     | Daily 8 AM     | Accepts --season arg
+Odds API            | fetch_odds.py           | On demand      | Auto via fixtures
+Predictions         | automated_predictions.py| Every hour     | Uses CURRENT_SEASON
+Season Analysis     | update_recommendations  | Weekly Sun 10AM| Needs SEASON arg
+Prediction Verify   | verify_from_messages.py | Daily 11 AM    | Needs CURRENT_SEASON
+
+
+================================================================================
+                   SEASON TRANSITION CHECKLIST
+================================================================================
+
+BEFORE SEASON STARTS (June-July)
+================================
+[ ] Update 9 CRITICAL CURRENT_SEASON constants
+[ ] Update FOOTBALL_DATA_URL with correct year digits
+[ ] Test scripts with --dry-run flag
+[ ] Verify database queries return correct results
+
+WEEK BEFORE SEASON STARTS
+===========================
+[ ] Run setup_season_recommendations.py
+[ ] Update scheduler config if needed (OFFSEASON_MODE=false)
+[ ] Add new season to historical_season_patterns table (optional)
+
+OPENING DAY OF SEASON
+======================
+[ ] Monitor automation logs for errors
+[ ] Verify fixtures table populated for new season
+[ ] Verify gameweeks table has all 38 weeks
+[ ] Verify predictions generating and uploading
+[ ] Check Dropbox directory structure
+[ ] Verify season_recommendations table updated
+
+
+================================================================================
+                        URL PATTERN REFERENCE
+================================================================================
+
+FOOTBALL-DATA.CO.UK URL CONSTRUCTION:
+
+Base: https://www.football-data.co.uk/mmz4281/{XXYY}/E0.csv
+
+Season    | Next Year | URL Digits | Full URL
+----------+-----------+------------+---------------------------------------------
+2024/2025 | 2025      | 2425       | .../2425/E0.csv
+2025/2026 | 2026      | 2526       | .../2526/E0.csv
+2026/2027 | 2027      | 2627       | .../2627/E0.csv
+2027/2028 | 2028      | 2728       | .../2728/E0.csv
+
+RULE: Use last 2 digits of BOTH years (current year + next year)
+
+
+================================================================================
+                       KEY FILE LOCATIONS
+================================================================================
+
+Database                 /home/levo/Documents/projects/prediction_league_script/data/database.db
+
+Scripts - Data Collection:
+  FPL Fixtures          scripts/fpl/fetch_fixtures_gameweeks.py
+  FPL Results           scripts/fpl/fetch_results.py
+  FPL Players           scripts/fpl/fetch_fpl_data.py
+  Football-Data         scripts/football_data/fetch_football_data.py
+  Pulse API             scripts/pulse_api/fetch_pulse_data.py
+  Odds API              scripts/odds-api/fetch_odds.py
+
+Scripts - Predictions:
+  Automated             scripts/prediction_league/automated_predictions.py
+  Clean/Upload          scripts/prediction_league/clean_predictions_dropbox.py
+
+Scripts - Analysis:
+  Recommendations       scripts/prediction_league/update_season_recommendations.py
+  Setup Recommendations scripts/database/setup_season_recommendations.py
+
+Configuration:
+  Scheduler             scripts/scheduler/scheduler_config.conf
+  Keys/API Credentials  keys.json
+  Web App Config        webapp/config.json
+
+Documentation:
+  This File             docs/SEASON_TRANSITION_GUIDE.md
+  Database Schema       docs/Database_Schema.md
+  Systems Overview      docs/SYSTEMS.md
+
+
+================================================================================
+                        QUICK REFERENCE COMMANDS
+================================================================================
+
+Test a script in dry-run mode:
+  python scripts/fpl/fetch_fixtures_gameweeks.py --dry-run
+  python scripts/prediction_league/automated_predictions.py --dry-run
+
+Check current seasons in database:
+  grep -r "CURRENT_SEASON = " scripts/ | grep -v ".pyc"
+
+Find all hardcoded season strings:
+  grep -r "2025/2026\|2025_26" scripts/ | grep -v ".pyc"
+
+Monitor automation logs:
+  tail -f logs/automated_predictions_*.log
+  tail -f logs/fixtures_gameweeks_*.log
+
+Check database for new season data:
+  SELECT COUNT(*) FROM fixtures WHERE season = '2026/2027';
+  SELECT DISTINCT season FROM fixtures ORDER BY season DESC LIMIT 5;
+
+
+================================================================================
+                        CRITICAL SUCCESS FACTORS
+================================================================================
+
+1. UPDATE ALL 7 CRITICAL CONSTANTS
+   - Missing even one will cause system failures
+   - Always update BOTH the constant AND the football-data URL
+
+2. TEST BEFORE SEASON STARTS
+   - Use --dry-run flags to verify logic
+   - Check database population for accuracy
+
+3. RUN SETUP SCRIPT FOR RECOMMENDATIONS
+   - Needed for strategy analysis to work
+   - Should be done week before season starts
+
+4. MONITOR OPENING GAMEWEEK
+   - First gameweek is critical - verify all systems working
+   - Check logs, database, and Dropbox uploads
+
+5. MAINTAIN SCHEDULER CONFIG
+   - Only disable during off-season (summer break)
+   - Re-enable before new season starts
+
+
+================================================================================
+                     FOR MORE INFORMATION
+================================================================================
+
+See: docs/SEASON_TRANSITION_GUIDE.md for detailed procedures
+See: docs/Database_Schema.md for table relationships
+See: docs/SYSTEMS.md for system architecture
+See: CLAUDE.md for development guidelines
+

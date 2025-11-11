@@ -39,10 +39,13 @@ from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
+# Import centralized configuration
+from scripts.config import CURRENT_SEASON, get_season_dropbox_format, get_season_database_format
+
 # Configuration
-CURRENT_SEASON = "2025_26"
-CURRENT_SEASON_DB = "2025/2026"
-DROPBOX_FOLDER = "/Predictions/2025_26"  # App-sandboxed path (no /Apps prefix needed)
+CURRENT_SEASON = get_season_dropbox_format()  # e.g., "2025_26" for Dropbox paths
+CURRENT_SEASON_DB = get_season_database_format()  # e.g., "2025/2026" for database queries
+DROPBOX_FOLDER = f"/Predictions/{CURRENT_SEASON}"  # App-sandboxed path (no /Apps prefix needed)
 
 # Paths
 db_path = Path(__file__).parent.parent.parent / "data" / "database.db"

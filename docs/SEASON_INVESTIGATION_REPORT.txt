@@ -1,0 +1,314 @@
+================================================================================
+                   SEASON MANAGEMENT INVESTIGATION REPORT
+                         Prediction League Script
+================================================================================
+
+INVESTIGATION DATE: November 11, 2025
+CURRENT SEASON: 2025/2026
+THOROUGHNESS: VERY THOROUGH (Complete inventory of all season-related code)
+
+================================================================================
+                              DELIVERABLES
+================================================================================
+
+Three comprehensive documents have been created:
+
+1. SEASON_INVESTIGATION_SUMMARY.md
+   - Executive summary of findings
+   - Database architecture explanation
+   - Hardcoded constants complete inventory
+   - Data flow diagrams
+   - Recommendations for future development
+   Location: docs/SEASON_INVESTIGATION_SUMMARY.md
+
+2. SEASON_TRANSITION_GUIDE.md
+   - Detailed procedures for new season transitions
+   - Step-by-step timeline (June through opening day)
+   - Complete checklist of what to update
+   - Verification procedures
+   - Troubleshooting common issues
+   Location: docs/SEASON_TRANSITION_GUIDE.md
+
+3. SEASON_MANAGEMENT_OVERVIEW.txt
+   - Quick reference format with tables
+   - At-a-glance summary of all systems
+   - URL pattern reference
+   - Critical success factors
+   - Quick command reference
+   Location: docs/SEASON_MANAGEMENT_OVERVIEW.txt
+
+================================================================================
+                           KEY FINDINGS
+================================================================================
+
+DATABASE TABLES WITH SEASONS: 10 primary tables
+  - Direct season column: fixtures, football_stats, fpl_players_bootstrap, 
+    season_recommendations
+  - Indirect (via JOINs): results, predictions, fantasy_pl_scores, and 3 
+    season analysis tables
+
+HARDCODED SEASON CONSTANTS: 15+ locations
+  - CRITICAL (9 locations): System fails if ANY are missed
+  - HIGH PRIORITY (3 locations): Functionality breaks
+  - LOW PRIORITY (3+ locations): Analysis scripts only
+
+SCRIPTS AFFECTED: 18+ Python scripts across:
+  - Data collection: FPL, Football-Data, Pulse API, Odds API
+  - Predictions: Automated generation and Dropbox uploads
+  - Analysis: Strategy recommendations and verification
+
+CRITICAL DISCOVERY: Football-Data URL pattern
+  - URL uses mmz4281/XXYY/E0.csv where XXYY = both year digits
+  - 2025/2026 season → mmz4281/2526/E0.csv
+  - Must update BOTH the season constant AND the URL
+
+SEASON RECOMMENDATION SYSTEM: NEW in 2025
+  - Analyzes low-scoring match percentage
+  - Recommends strategy (1-0 if >47%, 2-1 if ≤47%)
+  - Current: 52.5% low-scoring → 1-0 strategy
+  - Updated weekly, stored in dedicated tables
+
+================================================================================
+                      CRITICAL SUCCESS FACTORS
+================================================================================
+
+1. UPDATE ALL 9 CRITICAL CONSTANTS
+   - Missing even one constant causes complete system failure
+   - These control data collection for: predictions, fixtures, results, 
+     player data, historical data, and pulse API
+
+2. REMEMBER THE FOOTBALL-DATA URL
+   - Most common mistake: updating CURRENT_SEASON but forgetting URL
+   - URL pattern uses both year digits (e.g., 2526 for 2025/2026)
+   - Failing to update URL = empty CSV data and no historical updates
+
+3. RUN SETUP SCRIPT EARLY
+   - setup_season_recommendations.py must run before gameweek 1 starts
+   - Initializes strategy analysis tables
+   - Run week before season opens
+
+4. TEST BEFORE GOING LIVE
+   - Use --dry-run and --test flags on critical scripts
+   - Verify database gets populated with new season data
+   - Check Dropbox directory structure
+
+5. MONITOR OPENING GAMEWEEK
+   - Most issues appear on first gameweek
+   - Check logs, database entries, and Dropbox uploads
+   - Verify all 9 systems working before final go-live
+
+================================================================================
+                    TRANSITION PROCESS TIMELINE
+================================================================================
+
+JUNE-JULY (Before Season Starts)
+  - Update 9 CRITICAL CURRENT_SEASON constants
+  - Update FOOTBALL_DATA_URL with new year digits
+  - Test scripts with --dry-run
+  Estimated time: 30 minutes
+
+WEEK BEFORE SEASON STARTS
+  - Run setup_season_recommendations.py
+  - Verify scheduler_config.conf has OFFSEASON_MODE=false
+  Estimated time: 10 minutes
+
+OPENING DAY
+  - Monitor logs for errors
+  - Verify database population
+  - Check Dropbox uploads
+  Estimated time: 30 minutes (ongoing monitoring)
+
+TOTAL EFFORT: ~1 hour planning + ongoing monitoring
+
+================================================================================
+                      ALL SCRIPTS REQUIRING UPDATES
+================================================================================
+
+CRITICAL (System fails without these):
+  1. scripts/prediction_league/automated_predictions.py (line 53)
+  2. scripts/prediction_league/clean_predictions_dropbox.py (lines 43-44)
+  3. scripts/fpl/fetch_results.py (line 40)
+  4. scripts/fpl/fetch_fixtures_gameweeks.py (line 49)
+  5. scripts/fpl/fetch_fpl_data.py (line 91)
+  6. scripts/football_data/fetch_football_data.py (lines 41-42) **PLUS URL**
+  7. scripts/pulse_api/fetch_pulse_data.py (line 59)
+
+HIGH PRIORITY (Functionality broken):
+  8. scripts/database/setup_season_recommendations.py (line 121)
+  9. scripts/prediction_league/update_season_recommendations.py (line 291)
+  10. scripts/analysis/verify_predictions_from_messages.py (line 38)
+
+LOW PRIORITY (Analysis only):
+  11. scripts/football_data/migrate_legacy_data.py
+  12. scripts/analysis/ninety_minute_analysis.py
+  13. scripts/analysis/goals_per_gameweek.py
+  14. scripts/analysis/plot_results_charts.py
+  15. scripts/analysis/player_minutes_analysis.py
+
+================================================================================
+                        CONFIGURATION FILES
+================================================================================
+
+SCHEDULER: scripts/scheduler/scheduler_config.conf
+  - OFFSEASON_MODE=false (set to true during summer break only)
+  - All ENABLE_* flags (no changes needed for new season)
+
+KEYS: keys.json
+  - No season-specific settings
+  - API credentials only
+
+WEB APP: webapp/config.json
+  - No season-specific settings
+  - Uses dynamic database queries
+
+================================================================================
+                      SYSTEMS ARCHITECTURE
+================================================================================
+
+DATA COLLECTION:
+  - FPL Fixtures API → fixtures, gameweeks (every 30 min)
+  - FPL Results API → results (every minute after matches)
+  - FPL Player Data → fpl_players_bootstrap, fantasy_pl_scores (daily)
+  - Football-Data API → football_stats (weekly)
+  - Pulse API → match_officials, team_list, match_events (daily)
+  - Odds API → odds, fixture_odds_summary (on-demand)
+
+PREDICTION GENERATION:
+  - season_recommendations table (strategy selection)
+  - automated_predictions.py (1-0 or 2-1 strategy, every hour)
+  - clean_predictions_dropbox.py (upload to Dropbox, every 15 min)
+
+SEASON ANALYSIS:
+  - update_season_recommendations.py (weekly analysis, Sundays 10 AM)
+  - verify_predictions_from_messages.py (accuracy tracking, daily)
+
+================================================================================
+                     COMMON MISTAKES & SOLUTIONS
+================================================================================
+
+MISTAKE 1: Forgetting to Update football-data URL
+  SYMPTOM: Script runs but returns empty CSV, no error
+  FIX: Update both CURRENT_SEASON and FOOTBALL_DATA_URL
+  VERIFY: New URL has correct XXYY digits (e.g., 2627 for 2026/2027)
+
+MISTAKE 2: Updating Only Some Constants
+  SYMPTOM: Some systems work, others fail silently
+  FIX: Update ALL 9 CRITICAL constants, not just a few
+  VERIFY: grep -r "CURRENT_SEASON = " scripts/ | wc -l (should show all)
+
+MISTAKE 3: Wrong Dropbox Directory
+  SYMPTOM: Files upload to wrong season folder
+  FIX: Update BOTH CURRENT_SEASON and CURRENT_SEASON_DB (note underscore vs slash)
+  FILE: clean_predictions_dropbox.py lines 43-44
+
+MISTAKE 4: Forgetting Season Recommendations Setup
+  SYMPTOM: Predictions generate but strategy doesn't adapt
+  FIX: Run setup_season_recommendations.py week before season starts
+  VERIFY: season_recommendations table has entry for new season
+
+MISTAKE 5: Not Monitoring Opening Gameweek
+  SYMPTOM: Discover issues after a week of silent failures
+  FIX: Monitor logs during first gameweek live
+  CHECK: logs/automated_predictions_*.log, logs/fixtures_gameweeks_*.log
+
+================================================================================
+                      VERIFICATION COMMANDS
+================================================================================
+
+Verify all CURRENT_SEASON updated:
+  grep -r "CURRENT_SEASON = " scripts/ | grep -v ".pyc"
+
+Find remaining hardcoded season strings:
+  grep -r "2025/2026\|2025_26" scripts/ | grep -v ".pyc"
+
+Check database for new season:
+  SELECT DISTINCT season FROM fixtures ORDER BY season DESC LIMIT 5;
+
+Verify fixtures count for new season:
+  SELECT COUNT(*) FROM fixtures WHERE season = '2026/2027';
+
+Test critical scripts:
+  python scripts/fpl/fetch_fixtures_gameweeks.py --dry-run
+  python scripts/prediction_league/automated_predictions.py --dry-run
+
+Monitor logs:
+  tail -f logs/automated_predictions_$(date +%Y%m%d).log
+  tail -f logs/fixtures_gameweeks_$(date +%Y%m%d).log
+
+================================================================================
+                        RECOMMENDATIONS
+================================================================================
+
+FOR IMMEDIATE IMPLEMENTATION:
+
+1. Create a season configuration file (config/season.json)
+   - Centralize all season values
+   - Reduce hardcoded constants from 15+ to 1 file
+
+2. Add startup validation
+   - Check all CURRENT_SEASON values match
+   - Validate FOOTBALL_DATA_URL format
+   - Report mismatches before running
+
+3. Make football-data URL dynamic
+   - Calculate from CURRENT_SEASON string
+   - Eliminate manual URL updates
+
+FOR FUTURE CONSIDERATION:
+
+4. Expand command-line flexibility
+   - Add --season argument to more scripts
+   - Allow override at runtime
+
+5. Environmental variables
+   - CURRENT_SEASON as env var for container deployments
+   - Allows easy updates without code changes
+
+6. Automated tests
+   - Test season constants during CI/CD
+   - Verify database queries work with new season
+   - Validate all tables populated correctly
+
+================================================================================
+                         DOCUMENTATION
+================================================================================
+
+Three comprehensive documents created in /docs/:
+
+1. SEASON_INVESTIGATION_SUMMARY.md (8 KB)
+   Complete findings from this investigation
+
+2. SEASON_TRANSITION_GUIDE.md (12 KB)
+   Step-by-step procedures for transitioning to new season
+
+3. SEASON_MANAGEMENT_OVERVIEW.txt (9.8 KB)
+   Quick reference with tables and commands
+
+These documents contain everything needed for smooth season transitions
+and are version-controlled in the project documentation.
+
+================================================================================
+                          FINAL NOTES
+================================================================================
+
+The Prediction League Script demonstrates good architecture for season
+handling despite using hardcoded constants. The database design is flexible,
+using parametrized queries and JOIN operations to avoid hardcoding season
+values except in configuration.
+
+Key strengths:
+- Parametrized SQL queries prevent injection
+- Database normalization supports multi-season queries
+- Intelligent prediction system adapts to season characteristics
+- Modular script design keeps changes localized
+
+Areas for improvement:
+- Centralize season configuration
+- Add validation checks
+- Make URLs dynamic
+- Expand command-line flexibility
+
+The provided documentation is sufficient for reliable season transitions
+with a 30-minute planning window and 1-hour ongoing monitoring.
+
+================================================================================

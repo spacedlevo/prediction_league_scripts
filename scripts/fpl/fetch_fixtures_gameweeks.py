@@ -42,11 +42,13 @@ from pathlib import Path
 from datetime import datetime, timezone, timedelta
 from requests.exceptions import RequestException, Timeout
 
+# Import centralized configuration
+from scripts.config import CURRENT_SEASON
+
 # Gameweek validator integration removed - now handled by master_scheduler
 
 # Configuration
 BASE_URL = "https://fantasy.premierleague.com/api/"
-CURRENT_SEASON = "2025/2026"
 # UK timezone (UTC+0 in summer, UTC+1 in winter - using UTC+0 for simplicity)
 UK_TZ = timezone.utc
 

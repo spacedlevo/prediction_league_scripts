@@ -86,9 +86,11 @@ from tqdm import tqdm
 from requests.exceptions import RequestException, Timeout
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+# Import centralized configuration
+from scripts.config import CURRENT_SEASON
+
 # Configuration
 BASE_URL = "https://fantasy.premierleague.com/api/"
-CURRENT_SEASON = "2025/2026"
 
 # Field mapping between database and FPL API
 BOOTSTRAP_FIELD_MAPPING = {

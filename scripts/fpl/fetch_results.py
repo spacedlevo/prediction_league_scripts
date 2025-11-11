@@ -36,8 +36,10 @@ import os
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
+# Import centralized configuration
+from scripts.config import CURRENT_SEASON
+
 # Configuration
-CURRENT_SEASON = "2025/2026"
 FPL_FIXTURES_URL = "https://fantasy.premierleague.com/api/fixtures/"
 
 # Paths

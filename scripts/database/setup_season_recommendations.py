@@ -12,6 +12,9 @@ from datetime import datetime
 from pathlib import Path
 import logging
 
+# Import centralized configuration
+from scripts.config import CURRENT_SEASON
+
 def setup_logging():
     """Setup basic logging configuration"""
     logging.basicConfig(
@@ -55,7 +58,7 @@ def populate_historical_patterns(cursor, logger):
             'season_classification': 'low_scoring'
         },
         {
-            'season': '2025/2026',
+            'season': CURRENT_SEASON,
             'optimal_strategy': '1-0',
             'strategy_advantage': 0.125,
             'low_scoring_percentage': 52.5,
@@ -118,7 +121,7 @@ def populate_historical_patterns(cursor, logger):
 
 def get_current_season_stats(cursor, logger):
     """Get current season statistics and create initial recommendation"""
-    logger.info("Analyzing current season (2025/2026)...")
+    logger.info(f"Analyzing current season ({CURRENT_SEASON})...")
 
     # Get current season data from fixtures and results
     cursor.execute('''
@@ -129,10 +132,10 @@ def get_current_season_stats(cursor, logger):
             MAX(f.gameweek) as current_gameweek
         FROM fixtures f
         JOIN results r ON f.fixture_id = r.fixture_id
-        WHERE f.season = '2025/2026'
+        WHERE f.season = ?
         AND r.home_goals IS NOT NULL
         AND r.away_goals IS NOT NULL
-    ''')
+    ''', (CURRENT_SEASON,))
 
     result = cursor.fetchone()
     if result and result[0] > 0:
@@ -177,7 +180,7 @@ def get_current_season_stats(cursor, logger):
              expected_points_improvement)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
-            '2025/2026',
+            CURRENT_SEASON,
             current_gameweek or 1,
             total_matches,
             low_scoring,

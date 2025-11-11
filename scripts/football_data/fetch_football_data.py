@@ -37,9 +37,11 @@ from datetime import datetime
 from pathlib import Path
 from io import StringIO
 
+# Import centralized configuration
+from scripts.config import CURRENT_SEASON, get_football_data_url_code
+
 # Configuration
-CURRENT_SEASON = "2025/2026"
-FOOTBALL_DATA_URL = "https://www.football-data.co.uk/mmz4281/2526/E0.csv"
+FOOTBALL_DATA_URL = f"https://www.football-data.co.uk/mmz4281/{get_football_data_url_code()}/E0.csv"
 
 # Paths
 db_path = Path(__file__).parent.parent.parent / "data" / "database.db"

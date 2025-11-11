@@ -14,6 +14,9 @@ import argparse
 from datetime import datetime
 from pathlib import Path
 
+# Import centralized configuration
+from scripts.config import CURRENT_SEASON
+
 def setup_logging():
     """Setup basic logging configuration"""
     logging.basicConfig(
@@ -288,7 +291,7 @@ def update_last_update_table(cursor, logger):
 def main():
     """Main function"""
     parser = argparse.ArgumentParser(description='Update season strategy recommendations')
-    parser.add_argument('--season', default='2025/2026', help='Season to analyze (default: 2025/2026)')
+    parser.add_argument('--season', default=CURRENT_SEASON, help=f'Season to analyze (default: {CURRENT_SEASON})')
     parser.add_argument('--dry-run', action='store_true', help='Show analysis without updating database')
     parser.add_argument('--force-notification', action='store_true', help='Send notification even for minor changes')
     args = parser.parse_args()

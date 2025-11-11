@@ -54,9 +54,11 @@ from requests.exceptions import RequestException, Timeout
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Optional, Tuple, Any
 
+# Import centralized configuration
+from scripts.config import CURRENT_SEASON
+
 # Configuration
 BASE_URL = "https://footballapi.pulselive.com/football/fixtures/{id}"
-CURRENT_SEASON = "2025/2026"
 DEFAULT_DELAY = 2.0  # Seconds between API requests
 MAX_RETRIES = 3
 

@@ -34,8 +34,11 @@ from datetime import datetime
 from pathlib import Path
 from collections import defaultdict
 
+# Import centralized configuration
+from scripts.config import CURRENT_SEASON
+
 # Configuration
-CURRENT_SEASON_DB = "2025/2026"
+CURRENT_SEASON_DB = CURRENT_SEASON
 DROPBOX_MESSAGES_FOLDER = "/Messages"
 
 # Name aliases - map message variations to database names

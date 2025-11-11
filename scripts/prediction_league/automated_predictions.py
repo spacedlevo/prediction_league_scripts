@@ -49,8 +49,8 @@ import argparse
 import subprocess
 import sys
 
-# Configuration
-CURRENT_SEASON = "2025/2026"
+# Import centralized configuration
+from scripts.config import CURRENT_SEASON
 
 # Paths
 db_path = Path(__file__).parent.parent.parent / "data" / "database.db"
