@@ -142,12 +142,98 @@ def convert_date_format(date_str):
     """Convert DD/MM/YYYY to YYYY-MM-DD format"""
     if not date_str:
         return None
-    
+
     try:
         day, month, year = date_str.split('/')
         return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
     except:
         return date_str  # Return original if conversion fails
+
+
+def convert_season_format(short_season):
+    """
+    Convert short season format to full format
+    Examples: "25/26" -> "2025/2026", "99/00" -> "1999/2000"
+    """
+    if not short_season or '/' not in short_season:
+        return None
+
+    try:
+        year1_short, year2_short = short_season.split('/')
+
+        # Determine century based on first year
+        year1_int = int(year1_short)
+        if year1_int >= 93:  # 1993 onwards
+            century = 1900
+        else:
+            century = 2000
+
+        year1 = century + year1_int
+        year2 = year1 + 1
+
+        return f"{year1}/{year2}"
+    except:
+        return None
+
+
+def ensure_fixture_id_column(cursor, logger):
+    """Add fixture_id column to football_stats table if it doesn't exist"""
+    try:
+        # Check if column exists
+        cursor.execute("PRAGMA table_info(football_stats)")
+        columns = [col[1] for col in cursor.fetchall()]
+
+        if 'fixture_id' not in columns:
+            logger.info("Adding fixture_id column to football_stats table...")
+            cursor.execute("ALTER TABLE football_stats ADD COLUMN fixture_id INTEGER")
+            logger.info("fixture_id column added successfully")
+        else:
+            logger.debug("fixture_id column already exists")
+
+        return True
+    except Exception as e:
+        logger.error(f"Failed to add fixture_id column: {e}")
+        return False
+
+
+def lookup_fixture_id(cursor, season_short, home_team_id, away_team_id, logger):
+    """
+    Lookup fixture_id from fixtures table based on season and team IDs
+
+    Args:
+        cursor: Database cursor
+        season_short: Short season format (e.g., "25/26")
+        home_team_id: Home team ID
+        away_team_id: Away team ID
+        logger: Logger instance
+
+    Returns:
+        fixture_id if found, None otherwise
+    """
+    # Convert season format
+    season_full = convert_season_format(season_short)
+    if not season_full:
+        logger.debug(f"Could not convert season format: {season_short}")
+        return None
+
+    try:
+        cursor.execute("""
+            SELECT fixture_id
+            FROM fixtures
+            WHERE season = ?
+            AND home_teamid = ?
+            AND away_teamid = ?
+        """, (season_full, home_team_id, away_team_id))
+
+        result = cursor.fetchone()
+        if result:
+            return result[0]
+        else:
+            logger.debug(f"No fixture found for {season_full}, home: {home_team_id}, away: {away_team_id}")
+            return None
+    except Exception as e:
+        logger.debug(f"Error looking up fixture_id: {e}")
+        return None
 
 def process_match_data(cursor, match_data, team_mapping, logger):
     """Process and insert/update match data"""
@@ -177,20 +263,24 @@ def process_match_data(cursor, match_data, team_mapping, logger):
         
         home_team_id, home_team_db = home_mapping
         away_team_id, away_team_db = away_mapping
-        
+
         # Convert date format
         formatted_date = convert_date_format(date_str)
-        
+
+        # Lookup fixture_id from fixtures table
+        fixture_id = lookup_fixture_id(cursor, "25/26", home_team_id, away_team_id, logger)
+
         # Check if match already exists
         cursor.execute("""
-            SELECT GameID FROM football_stats 
+            SELECT GameID FROM football_stats
             WHERE Date = ? AND home_team_id = ? AND away_team_id = ? AND Season = ?
         """, (formatted_date, home_team_id, away_team_id, "25/26"))
-        
+
         existing_match = cursor.fetchone()
-        
+
         # Prepare match data for database
         match_db_data = {
+            'fixture_id': fixture_id,
             'Date': formatted_date,
             'HomeTeam': home_team,
             'AwayTeam': away_team,
@@ -233,14 +323,17 @@ def process_match_data(cursor, match_data, team_mapping, logger):
         if existing_match:
             # Update existing match
             game_id = existing_match[0]
-            
+
             # Build update query for non-null values
+            # Note: fixture_id can be updated, but home_team_id/away_team_id should not change
             update_fields = []
             update_values = []
             for key, value in match_db_data.items():
-                if value is not None and key not in ['home_team_id', 'away_team_id']:
-                    update_fields.append(f"{key} = ?")
-                    update_values.append(value)
+                if key not in ['home_team_id', 'away_team_id']:
+                    # Include fixture_id even if None to allow clearing it
+                    if key == 'fixture_id' or value is not None:
+                        update_fields.append(f"{key} = ?")
+                        update_values.append(value)
             
             if update_fields:
                 update_values.append(game_id)
@@ -313,9 +406,14 @@ def main_fetch(args, logger):
         if not team_mapping:
             logger.error("No team mappings found. Run migration script first.")
             return False
-        
+
         logger.info(f"Loaded {len(team_mapping)} team mappings")
-        
+
+        # Ensure fixture_id column exists
+        if not ensure_fixture_id_column(cursor, logger):
+            logger.error("Failed to ensure fixture_id column exists")
+            return False
+
         if args.dry_run:
             logger.info("Dry run mode - no database changes will be made")
             # Still process to show what would happen
