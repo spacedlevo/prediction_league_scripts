@@ -30,9 +30,13 @@ import zipfile
 import io
 import glob
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
 from collections import defaultdict
+
+# Add project root to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # Import centralized configuration
 from scripts.config import CURRENT_SEASON

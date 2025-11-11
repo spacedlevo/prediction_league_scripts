@@ -33,9 +33,13 @@ import argparse
 import logging
 import json
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
 from io import StringIO
+
+# Add project root to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # Import centralized configuration
 from scripts.config import CURRENT_SEASON, get_football_data_url_code

@@ -19,10 +19,21 @@ All scripts automatically import from this central configuration. The helper fun
 - `get_season_dropbox_format()` - Converts "2026/2027" → "2026_27" for Dropbox paths
 - `get_season_database_format()` - Returns "2026/2027" for database queries
 
+**Technical Implementation:**
+Each script includes automatic path setup before importing config:
+```python
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from scripts.config import CURRENT_SEASON
+```
+This ensures imports work regardless of how the script is executed (directly, via cron, or from any directory).
+
 **Files that use centralized config:**
 - ✅ All 7 critical data collection scripts
 - ✅ All 3 high priority prediction/analysis scripts
 - ✅ Automatic format conversion (no manual URL updates needed!)
+- ✅ Works when run directly or via scheduler
 
 ---
 
@@ -383,14 +394,27 @@ python -c "from scripts.config import get_football_data_url_code; print(get_foot
 
 **Symptom:** `ModuleNotFoundError: No module named 'scripts.config'`
 
-**Solution:**
-```bash
-# Make sure you're in the project root directory
-pwd  # Should show: /path/to/prediction_league_script
+**Status:** ✅ **FIXED** - All scripts now include automatic path setup
 
-# Run scripts from project root
-python scripts/fpl/fetch_results.py
+Each script automatically adds the project root to Python's import path, so they can be run from anywhere:
+```python
+# This is now in every script before imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 ```
+
+You can now run scripts from any location:
+```bash
+# Works from project root
+python scripts/fpl/fetch_results.py
+
+# Also works from subdirectories
+cd scripts/fpl && python fetch_results.py
+
+# Also works with absolute paths
+python /full/path/to/scripts/fpl/fetch_results.py
+```
+
+If you still get import errors, ensure `scripts/config.py` exists and is readable.
 
 ### ✅ Issue: Config Shows Old Season
 

@@ -38,9 +38,13 @@ import logging
 import argparse
 import glob
 import os
+import sys
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 from requests.exceptions import RequestException, Timeout
+
+# Add project root to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # Import centralized configuration
 from scripts.config import CURRENT_SEASON

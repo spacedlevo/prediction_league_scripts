@@ -35,9 +35,13 @@ import logging
 import argparse
 import tempfile
 import shutil
+import sys
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
+
+# Add project root to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # Import centralized configuration
 from scripts.config import CURRENT_SEASON, get_season_dropbox_format, get_season_database_format

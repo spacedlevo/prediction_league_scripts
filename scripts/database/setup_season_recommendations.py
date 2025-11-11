@@ -8,9 +8,13 @@ based on the comprehensive analysis findings.
 
 import sqlite3
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
 import logging
+
+# Add project root to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # Import centralized configuration
 from scripts.config import CURRENT_SEASON

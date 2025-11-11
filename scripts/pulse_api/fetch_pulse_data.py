@@ -46,6 +46,7 @@ import logging
 import argparse
 import glob
 import os
+import sys
 from pathlib import Path
 from datetime import datetime
 from random import uniform
@@ -53,6 +54,9 @@ from tqdm import tqdm
 from requests.exceptions import RequestException, Timeout
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Optional, Tuple, Any
+
+# Add project root to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # Import centralized configuration
 from scripts.config import CURRENT_SEASON
