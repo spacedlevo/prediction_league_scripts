@@ -1,0 +1,261 @@
+gameweek,player,home_team,away_team,home_goals,away_goals
+12,jake walbank,burnley,chelsea,1,2
+12,jake walbank,bournemouth,west ham,2,1
+12,jake walbank,brighton,brentford,2,1
+12,jake walbank,fulham,sunderland,1,1
+12,jake walbank,liverpool,nott'm forest,2,1
+12,jake walbank,crystal palace,wolves,0,2
+12,jake walbank,newcastle,man city,1,2
+12,jake walbank,aston villa,leeds,1,2
+12,jake walbank,arsenal,tottenham,1,0
+12,jake walbank,man utd,everton,2,1
+12,graham kay,burnley,chelsea,1,2
+12,graham kay,bournemouth,west ham,2,0
+12,graham kay,brighton,brentford,2,2
+12,graham kay,fulham,sunderland,2,1
+12,graham kay,liverpool,nott'm forest,2,1
+12,graham kay,crystal palace,wolves,1,2
+12,graham kay,newcastle,man city,1,2
+12,graham kay,aston villa,leeds,1,2
+12,graham kay,arsenal,tottenham,2,1
+12,graham kay,man utd,everton,2,0
+12,chris johnson,burnley,chelsea,1,2
+12,chris johnson,bournemouth,west ham,1,0
+12,chris johnson,brighton,brentford,2,1
+12,chris johnson,fulham,sunderland,1,1
+12,chris johnson,liverpool,nott'm forest,2,0
+12,chris johnson,crystal palace,wolves,0,1
+12,chris johnson,newcastle,man city,2,3
+12,chris johnson,aston villa,leeds,1,2
+12,chris johnson,arsenal,tottenham,2,2
+12,chris johnson,man utd,everton,2,2
+12,josh jones,burnley,chelsea,0,2
+12,josh jones,bournemouth,west ham,2,1
+12,josh jones,brighton,brentford,2,1
+12,josh jones,fulham,sunderland,1,2
+12,josh jones,liverpool,nott'm forest,2,0
+12,josh jones,crystal palace,wolves,0,2
+12,josh jones,newcastle,man city,1,2
+12,josh jones,aston villa,leeds,2,1
+12,josh jones,arsenal,tottenham,2,1
+12,josh jones,man utd,everton,2,1
+12,joe daley,burnley,chelsea,1,2
+12,joe daley,bournemouth,west ham,1,1
+12,joe daley,brighton,brentford,2,0
+12,joe daley,fulham,sunderland,1,0
+12,joe daley,liverpool,nott'm forest,3,1
+12,joe daley,crystal palace,wolves,0,1
+12,joe daley,newcastle,man city,2,3
+12,joe daley,aston villa,leeds,1,1
+12,joe daley,arsenal,tottenham,2,0
+12,joe daley,man utd,everton,1,2
+12,dean charles,burnley,chelsea,0,2
+12,dean charles,bournemouth,west ham,2,0
+12,dean charles,brighton,brentford,1,0
+12,dean charles,fulham,sunderland,1,0
+12,dean charles,liverpool,nott'm forest,2,0
+12,dean charles,crystal palace,wolves,0,1
+12,dean charles,newcastle,man city,1,2
+12,dean charles,aston villa,leeds,1,2
+12,dean charles,arsenal,tottenham,2,0
+12,dean charles,man utd,everton,2,0
+12,colin croft,burnley,chelsea,0,2
+12,colin croft,bournemouth,west ham,2,1
+12,colin croft,brighton,brentford,1,0
+12,colin croft,fulham,sunderland,1,1
+12,colin croft,liverpool,nott'm forest,2,0
+12,colin croft,crystal palace,wolves,1,2
+12,colin croft,newcastle,man city,1,3
+12,colin croft,aston villa,leeds,0,1
+12,colin croft,arsenal,tottenham,2,1
+12,colin croft,man utd,everton,1,0
+12,col turner,burnley,chelsea,1,2
+12,col turner,bournemouth,west ham,2,0
+12,col turner,brighton,brentford,2,0
+12,col turner,fulham,sunderland,1,1
+12,col turner,liverpool,nott'm forest,2,1
+12,col turner,crystal palace,wolves,0,2
+12,col turner,newcastle,man city,0,2
+12,col turner,aston villa,leeds,1,0
+12,col turner,arsenal,tottenham,2,0
+12,col turner,man utd,everton,2,0
+12,olly spence robb,burnley,chelsea,1,2
+12,olly spence robb,bournemouth,west ham,1,0
+12,olly spence robb,brighton,brentford,2,2
+12,olly spence robb,fulham,sunderland,1,1
+12,olly spence robb,liverpool,nott'm forest,2,0
+12,olly spence robb,crystal palace,wolves,0,2
+12,olly spence robb,newcastle,man city,1,2
+12,olly spence robb,aston villa,leeds,0,1
+12,olly spence robb,arsenal,tottenham,1,0
+12,olly spence robb,man utd,everton,2,0
+12,jonny parker,arsenal,tottenham,9,9
+12,jonny parker,bournemouth,west ham,9,9
+12,jonny parker,brighton,brentford,9,9
+12,jonny parker,burnley,chelsea,9,9
+12,jonny parker,fulham,sunderland,9,9
+12,jonny parker,leeds,aston villa,9,9
+12,jonny parker,liverpool,nott'm forest,9,9
+12,jonny parker,man utd,everton,9,9
+12,jonny parker,newcastle,man city,9,9
+12,jonny parker,wolves,crystal palace,9,9
+12,andy mckenna,arsenal,tottenham,9,9
+12,andy mckenna,bournemouth,west ham,9,9
+12,andy mckenna,brighton,brentford,9,9
+12,andy mckenna,burnley,chelsea,9,9
+12,andy mckenna,fulham,sunderland,9,9
+12,andy mckenna,leeds,aston villa,9,9
+12,andy mckenna,liverpool,nott'm forest,9,9
+12,andy mckenna,man utd,everton,9,9
+12,andy mckenna,newcastle,man city,9,9
+12,andy mckenna,wolves,crystal palace,9,9
+12,kate daley,arsenal,tottenham,9,9
+12,kate daley,bournemouth,west ham,9,9
+12,kate daley,brighton,brentford,9,9
+12,kate daley,burnley,chelsea,9,9
+12,kate daley,fulham,sunderland,9,9
+12,kate daley,leeds,aston villa,9,9
+12,kate daley,liverpool,nott'm forest,9,9
+12,kate daley,man utd,everton,9,9
+12,kate daley,newcastle,man city,9,9
+12,kate daley,wolves,crystal palace,9,9
+12,sean burns,arsenal,tottenham,9,9
+12,sean burns,bournemouth,west ham,9,9
+12,sean burns,brighton,brentford,9,9
+12,sean burns,burnley,chelsea,9,9
+12,sean burns,fulham,sunderland,9,9
+12,sean burns,leeds,aston villa,9,9
+12,sean burns,liverpool,nott'm forest,9,9
+12,sean burns,man utd,everton,9,9
+12,sean burns,newcastle,man city,9,9
+12,sean burns,wolves,crystal palace,9,9
+12,ste harrison,arsenal,tottenham,9,9
+12,ste harrison,bournemouth,west ham,9,9
+12,ste harrison,brighton,brentford,9,9
+12,ste harrison,burnley,chelsea,9,9
+12,ste harrison,fulham,sunderland,9,9
+12,ste harrison,leeds,aston villa,9,9
+12,ste harrison,liverpool,nott'm forest,9,9
+12,ste harrison,man utd,everton,9,9
+12,ste harrison,newcastle,man city,9,9
+12,ste harrison,wolves,crystal palace,9,9
+12,chris hart,arsenal,tottenham,9,9
+12,chris hart,bournemouth,west ham,9,9
+12,chris hart,brighton,brentford,9,9
+12,chris hart,burnley,chelsea,9,9
+12,chris hart,fulham,sunderland,9,9
+12,chris hart,leeds,aston villa,9,9
+12,chris hart,liverpool,nott'm forest,9,9
+12,chris hart,man utd,everton,9,9
+12,chris hart,newcastle,man city,9,9
+12,chris hart,wolves,crystal palace,9,9
+12,amy hart,arsenal,tottenham,9,9
+12,amy hart,bournemouth,west ham,9,9
+12,amy hart,brighton,brentford,9,9
+12,amy hart,burnley,chelsea,9,9
+12,amy hart,fulham,sunderland,9,9
+12,amy hart,leeds,aston villa,9,9
+12,amy hart,liverpool,nott'm forest,9,9
+12,amy hart,man utd,everton,9,9
+12,amy hart,newcastle,man city,9,9
+12,amy hart,wolves,crystal palace,9,9
+12,graham handley,arsenal,tottenham,9,9
+12,graham handley,bournemouth,west ham,9,9
+12,graham handley,brighton,brentford,9,9
+12,graham handley,burnley,chelsea,9,9
+12,graham handley,fulham,sunderland,9,9
+12,graham handley,leeds,aston villa,9,9
+12,graham handley,liverpool,nott'm forest,9,9
+12,graham handley,man utd,everton,9,9
+12,graham handley,newcastle,man city,9,9
+12,graham handley,wolves,crystal palace,9,9
+12,dan barrell,arsenal,tottenham,9,9
+12,dan barrell,bournemouth,west ham,9,9
+12,dan barrell,brighton,brentford,9,9
+12,dan barrell,burnley,chelsea,9,9
+12,dan barrell,fulham,sunderland,9,9
+12,dan barrell,leeds,aston villa,9,9
+12,dan barrell,liverpool,nott'm forest,9,9
+12,dan barrell,man utd,everton,9,9
+12,dan barrell,newcastle,man city,9,9
+12,dan barrell,wolves,crystal palace,9,9
+12,gary regan,arsenal,tottenham,9,9
+12,gary regan,bournemouth,west ham,9,9
+12,gary regan,brighton,brentford,9,9
+12,gary regan,burnley,chelsea,9,9
+12,gary regan,fulham,sunderland,9,9
+12,gary regan,leeds,aston villa,9,9
+12,gary regan,liverpool,nott'm forest,9,9
+12,gary regan,man utd,everton,9,9
+12,gary regan,newcastle,man city,9,9
+12,gary regan,wolves,crystal palace,9,9
+12,james forshaw,arsenal,tottenham,9,9
+12,james forshaw,bournemouth,west ham,9,9
+12,james forshaw,brighton,brentford,9,9
+12,james forshaw,burnley,chelsea,9,9
+12,james forshaw,fulham,sunderland,9,9
+12,james forshaw,leeds,aston villa,9,9
+12,james forshaw,liverpool,nott'm forest,9,9
+12,james forshaw,man utd,everton,9,9
+12,james forshaw,newcastle,man city,9,9
+12,james forshaw,wolves,crystal palace,9,9
+12,scott frazer,arsenal,tottenham,9,9
+12,scott frazer,bournemouth,west ham,9,9
+12,scott frazer,brighton,brentford,9,9
+12,scott frazer,burnley,chelsea,9,9
+12,scott frazer,fulham,sunderland,9,9
+12,scott frazer,leeds,aston villa,9,9
+12,scott frazer,liverpool,nott'm forest,9,9
+12,scott frazer,man utd,everton,9,9
+12,scott frazer,newcastle,man city,9,9
+12,scott frazer,wolves,crystal palace,9,9
+12,tom levin,arsenal,tottenham,9,9
+12,tom levin,bournemouth,west ham,9,9
+12,tom levin,brighton,brentford,9,9
+12,tom levin,burnley,chelsea,9,9
+12,tom levin,fulham,sunderland,9,9
+12,tom levin,leeds,aston villa,9,9
+12,tom levin,liverpool,nott'm forest,9,9
+12,tom levin,man utd,everton,9,9
+12,tom levin,newcastle,man city,9,9
+12,tom levin,wolves,crystal palace,9,9
+12,luke prior,arsenal,tottenham,9,9
+12,luke prior,bournemouth,west ham,9,9
+12,luke prior,brighton,brentford,9,9
+12,luke prior,burnley,chelsea,9,9
+12,luke prior,fulham,sunderland,9,9
+12,luke prior,leeds,aston villa,9,9
+12,luke prior,liverpool,nott'm forest,9,9
+12,luke prior,man utd,everton,9,9
+12,luke prior,newcastle,man city,9,9
+12,luke prior,wolves,crystal palace,9,9
+12,edward fenna,arsenal,tottenham,9,9
+12,edward fenna,bournemouth,west ham,9,9
+12,edward fenna,brighton,brentford,9,9
+12,edward fenna,burnley,chelsea,9,9
+12,edward fenna,fulham,sunderland,9,9
+12,edward fenna,leeds,aston villa,9,9
+12,edward fenna,liverpool,nott'm forest,9,9
+12,edward fenna,man utd,everton,9,9
+12,edward fenna,newcastle,man city,9,9
+12,edward fenna,wolves,crystal palace,9,9
+12,michael green,arsenal,tottenham,9,9
+12,michael green,bournemouth,west ham,9,9
+12,michael green,brighton,brentford,9,9
+12,michael green,burnley,chelsea,9,9
+12,michael green,fulham,sunderland,9,9
+12,michael green,leeds,aston villa,9,9
+12,michael green,liverpool,nott'm forest,9,9
+12,michael green,man utd,everton,9,9
+12,michael green,newcastle,man city,9,9
+12,michael green,wolves,crystal palace,9,9
+12,tom hunt,arsenal,tottenham,9,9
+12,tom hunt,bournemouth,west ham,9,9
+12,tom hunt,brighton,brentford,9,9
+12,tom hunt,burnley,chelsea,9,9
+12,tom hunt,fulham,sunderland,9,9
+12,tom hunt,leeds,aston villa,9,9
+12,tom hunt,liverpool,nott'm forest,9,9
+12,tom hunt,man utd,everton,9,9
+12,tom hunt,newcastle,man city,9,9
+12,tom hunt,wolves,crystal palace,9,9

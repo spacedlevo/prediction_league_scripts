@@ -33,7 +33,7 @@ def get_season_dropbox_format():
     """
     Convert season to Dropbox directory format.
 
-    Dropbox directories use underscores instead of slashes.
+    Dropbox directories use underscores instead of slashes and short format for second year.
 
     Examples:
         2025/2026 -> '2025_26'
@@ -42,7 +42,8 @@ def get_season_dropbox_format():
     Returns:
         str: Season formatted for Dropbox paths (e.g., '2025_26')
     """
-    return CURRENT_SEASON.replace('/', '_')
+    year1, year2 = CURRENT_SEASON.split('/')
+    return f"{year1}_{year2[-2:]}"
 
 
 def get_season_database_format():

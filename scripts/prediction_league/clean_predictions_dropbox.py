@@ -49,7 +49,7 @@ from scripts.config import CURRENT_SEASON, get_season_dropbox_format, get_season
 # Configuration
 CURRENT_SEASON = get_season_dropbox_format()  # e.g., "2025_26" for Dropbox paths
 CURRENT_SEASON_DB = get_season_database_format()  # e.g., "2025/2026" for database queries
-DROPBOX_FOLDER = f"/Predictions/{CURRENT_SEASON}"  # App-sandboxed path (no /Apps prefix needed)
+DROPBOX_FOLDER = f"/Predictions/{CURRENT_SEASON}"  # Dropbox path to predictions folder
 
 # Paths
 db_path = Path(__file__).parent.parent.parent / "data" / "database.db"
