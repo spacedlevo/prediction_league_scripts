@@ -187,6 +187,9 @@ dev_data/
 data/predictions/*.csv
 data/cleaned/*.csv
 
+# Analysis Reports (generated output)
+analysis_reports/
+
 # OAuth Tokens and Refresh Data
 *_token*
 .oauth_*

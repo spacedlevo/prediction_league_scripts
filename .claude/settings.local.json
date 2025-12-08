@@ -20,7 +20,11 @@
       "Bash(git commit:*)",
       "Bash(git push:*)",
       "Bash(python scripts/analysis/player_minutes_analysis.py:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(head:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

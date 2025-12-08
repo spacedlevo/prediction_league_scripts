@@ -265,12 +265,13 @@ def get_gameweek_odds(gameweek, logger):
         conn.close()
 
 def create_predictions_string(odds_data, logger):
-    """Create the predictions string based on odds data using intelligent season recommendations"""
+    """Create the predictions string based on odds data with simplified strategy"""
     predictions = ["Tom Levin", ""]
 
-    # Get current season's recommended strategy
-    recommended_strategy = get_current_season_recommendation(CURRENT_SEASON, logger)
-    logger.info(f"Using {recommended_strategy} strategy for automated predictions")
+    # Simplified strategy:
+    # - Home favourites: 2-0
+    # - Away favourites: 0-1
+    logger.info(f"Using simplified strategy: Home favourites 2-0, Away favourites 0-1")
 
     for row in odds_data:
         home_team, away_team, home_odds, away_odds = row[:4]
@@ -279,20 +280,14 @@ def create_predictions_string(odds_data, logger):
         home_team = home_team.title()
         away_team = away_team.title()
 
-        # Generate prediction based on recommended strategy
+        # Generate prediction based on favourites
         if home_odds and away_odds:
             if home_odds <= away_odds:
-                # Home team favorite
-                if recommended_strategy == '1-0':
-                    prediction = f"{home_team} 1-0 {away_team}"
-                else:  # Default to 2-1 strategy
-                    prediction = f"{home_team} 2-1 {away_team}"
+                # Home team favorite - predict 2-0
+                prediction = f"{home_team} 2-0 {away_team}"
             else:
-                # Away team favorite
-                if recommended_strategy == '1-0':
-                    prediction = f"{home_team} 0-1 {away_team}"
-                else:  # Default to 2-1 strategy
-                    prediction = f"{home_team} 1-2 {away_team}"
+                # Away team favorite - predict 0-1
+                prediction = f"{home_team} 0-1 {away_team}"
         else:
             # Default if odds missing
             prediction = f"{home_team} 1-1 {away_team}"
@@ -300,7 +295,7 @@ def create_predictions_string(odds_data, logger):
         predictions.append(prediction)
 
     result = "\n".join(predictions)
-    logger.info(f"Created {recommended_strategy} strategy predictions for {len(odds_data)} fixtures")
+    logger.info(f"Created predictions for {len(odds_data)} fixtures")
     return result
 
 def check_file_exists_dropbox(file_path, config, logger):

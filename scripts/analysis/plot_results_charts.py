@@ -4,6 +4,7 @@ Create stacked column charts for:
 1. Football stats FTR (Full Time Result) by season
 2. Player predictions for current season (2025/2026)
 3. Player predictions by gameweek for a specific season (with --player and --season arguments)
+4. All player predictions for a specific gameweek (with --gameweek and --season arguments)
 """
 
 import sqlite3
@@ -281,6 +282,88 @@ def create_player_gameweek_chart(gameweeks, data, player_name, season):
 
     return output_path
 
+def get_all_players_for_gameweek(conn, gameweek, season):
+    """Get prediction counts for all players for a specific gameweek"""
+    cursor = conn.cursor()
+    cursor.execute('''
+    SELECT
+        p.player_name,
+        pr.predicted_result,
+        COUNT(*) as count
+    FROM predictions pr
+    JOIN players p ON pr.player_id = p.player_id
+    JOIN fixtures f ON pr.fixture_id = f.fixture_id
+    WHERE f.gameweek = ?
+    AND f.season = ?
+    AND pr.predicted_result IS NOT NULL
+    GROUP BY p.player_name, pr.predicted_result
+    ORDER BY p.player_name, pr.predicted_result
+    ''', (gameweek, season))
+
+    # Organize data for stacked chart
+    # Map both old format (H, D, A) and new format (HW, D, AW) to standard format
+    result_mapping = {'H': 'HW', 'HW': 'HW', 'D': 'D', 'A': 'AW', 'AW': 'AW'}
+    players = []
+    data = defaultdict(lambda: {'HW': 0, 'D': 0, 'AW': 0})
+
+    for player, result, count in cursor.fetchall():
+        if player not in players:
+            players.append(player)
+        # Map old and new format to standard format
+        mapped_result = result_mapping.get(result, result)
+        data[player][mapped_result] += count
+
+    return players, data
+
+def create_gameweek_all_players_chart(players, data, gameweek, season):
+    """Create stacked column chart for all players' predictions for a specific gameweek (percentage-based)"""
+    # Prepare data arrays and calculate percentages
+    hw_percentages = []
+    d_percentages = []
+    aw_percentages = []
+
+    for player in players:
+        total = data[player]['HW'] + data[player]['D'] + data[player]['AW']
+        hw_percentages.append((data[player]['HW'] / total) * 100 if total > 0 else 0)
+        d_percentages.append((data[player]['D'] / total) * 100 if total > 0 else 0)
+        aw_percentages.append((data[player]['AW'] / total) * 100 if total > 0 else 0)
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(16, 8))
+
+    # Create stacked bar chart
+    x = np.arange(len(players))
+    width = 0.8
+
+    p1 = ax.bar(x, hw_percentages, width, label='Home Win (HW)', color='#2E7D32')
+    p2 = ax.bar(x, d_percentages, width, bottom=hw_percentages, label='Draw (D)', color='#FFA726')
+    p3 = ax.bar(x, aw_percentages, width, bottom=np.array(hw_percentages) + np.array(d_percentages),
+                label='Away Win (AW)', color='#1976D2')
+
+    # Customize chart
+    ax.set_xlabel('Player', fontsize=12, fontweight='bold')
+    ax.set_ylabel('Percentage (%)', fontsize=12, fontweight='bold')
+    ax.set_title(f'Player Predictions by Result Type - Gameweek {gameweek} ({season})', fontsize=14, fontweight='bold')
+    ax.set_xticks(x)
+    ax.set_xticklabels(players, rotation=45, ha='right')
+    ax.set_ylim(0, 100)
+    ax.legend(loc='upper right')
+    ax.grid(axis='y', alpha=0.3)
+
+    plt.tight_layout()
+
+    # Save figure
+    output_dir = Path(__file__).parent.parent.parent / "analysis_reports" / "result_distribution"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    safe_season = season.replace('/', '_')
+    output_path = output_dir / f"gameweek_{gameweek}_{safe_season}.png"
+
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    print(f"Saved chart: {output_path}")
+
+    return output_path
+
 def parse_arguments():
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(
@@ -288,8 +371,10 @@ def parse_arguments():
     )
     parser.add_argument('--player', type=str,
                        help='Player name for gameweek analysis (e.g., "Tom Levin")')
+    parser.add_argument('--gameweek', type=int,
+                       help='Gameweek number to show all players\' predictions (e.g., 15)')
     parser.add_argument('--season', type=str,
-                       help='Season for gameweek analysis (e.g., "2025/2026")')
+                       help='Season for analysis (e.g., "2025/2026")')
     return parser.parse_args()
 
 def main():
@@ -299,8 +384,32 @@ def main():
     # Connect to database
     conn = setup_database_connection()
 
+    # Check if gameweek chart for all players requested
+    if args.gameweek and args.season:
+        print(f"Creating gameweek distribution chart for all players (GW{args.gameweek}, {args.season})...")
+        print("=" * 60)
+
+        players, gw_data = get_all_players_for_gameweek(conn, args.gameweek, args.season)
+
+        if not players:
+            print(f"\nError: No predictions found for gameweek {args.gameweek} in season {args.season}")
+            conn.close()
+            return
+
+        print(f"\nFound predictions from {len(players)} players for gameweek {args.gameweek}")
+
+        # Create chart
+        print("\nCreating gameweek distribution chart...")
+        gw_chart = create_gameweek_all_players_chart(players, gw_data, args.gameweek, args.season)
+
+        conn.close()
+
+        print("\n" + "=" * 60)
+        print("Chart created successfully!")
+        print(f"\nChart: {gw_chart}")
+
     # Check if player-specific gameweek chart requested
-    if args.player and args.season:
+    elif args.player and args.season:
         print(f"Creating gameweek distribution chart for {args.player} ({args.season})...")
         print("=" * 60)
 
@@ -331,8 +440,18 @@ def main():
         print("Chart created successfully!")
         print(f"\nChart: {gw_chart}")
 
-    elif args.player or args.season:
-        print("Error: Both --player and --season must be provided together")
+    elif args.player and not args.season:
+        print("Error: --season must be provided with --player")
+        conn.close()
+        return
+
+    elif args.gameweek and not args.season:
+        print("Error: --season must be provided with --gameweek")
+        conn.close()
+        return
+
+    elif args.season and not (args.player or args.gameweek):
+        print("Error: --season must be used with either --player or --gameweek")
         conn.close()
         return
 
