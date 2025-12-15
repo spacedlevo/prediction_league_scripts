@@ -80,6 +80,244 @@ def load_config():
     with open(keys_file, 'r') as f:
         return json.load(f)
 
+def build_team_alias_map():
+    """
+    Build comprehensive team alias mapping.
+    Maps common team name variations to canonical database names.
+    Returns dict mapping {alias.lower(): canonical_db_name}
+    """
+    # Structure: canonical_name -> list of known aliases
+    aliases = {
+        "tottenham": ["spurs", "hotspur", "thfc"],
+        "nott'm forest": ["forest", "notts forest", "nott's forest",
+                          "nottm forest", "nottingham", "nottingham forest", "nffc"],
+        "man city": ["city", "mcfc", "manchester city", "man c"],
+        "man utd": ["united", "man u", "mufc", "manchester united"],
+        "newcastle": ["newcastle utd", "nufc", "toon"],
+        "brighton": ["brighton & hove", "brighton and hove", "seagulls"],
+        "west ham": ["west ham utd", "hammers", "whufc"],
+        "wolves": ["wolverhampton", "wwfc", "wanderers"],
+        "crystal palace": ["palace", "cpfc","crystal p"],
+        "aston villa": ["villa", "avfc"],
+        "arsenal": ["gunners", "afc"],
+        "chelsea": ["blues", "cfc"],
+        "liverpool": ["reds", "lfc", "pool"],
+        "everton": ["toffees", "efc"],
+        "bournemouth": ["cherries", "afcb", "bmouth"],
+        "brentford": ["bees", "bfc"],
+        "fulham": ["cottagers", "ffc"],
+        "leeds": ["leeds utd", "lufc"],
+        "burnley": ["clarets"],
+        "sunderland": ["safc", "black cats"]
+    }
+
+    # Flatten to {alias: canonical} dictionary
+    alias_map = {}
+    for canonical, alias_list in aliases.items():
+        for alias in alias_list:
+            alias_map[alias.lower()] = canonical
+
+    return alias_map
+
+def normalize_team_names(content, logger):
+    """
+    Replace team aliases with canonical database names.
+
+    Args:
+        content: Raw prediction text content
+        logger: Logger instance
+
+    Returns:
+        Tuple of (normalized_text, corrections_list)
+    """
+    alias_map = build_team_alias_map()
+    corrections = []
+
+    # Process line by line to preserve structure
+    lines = content.split('\n')
+    normalized_lines = []
+
+    for line_num, line in enumerate(lines, 1):
+        original_line = line
+        normalized_line = line
+
+        # Sort aliases by length (longest first) to avoid partial replacements
+        # e.g., "nottingham forest" before "forest"
+        sorted_aliases = sorted(alias_map.keys(), key=len, reverse=True)
+
+        for alias in sorted_aliases:
+            canonical = alias_map[alias]
+
+            # Check if this specific canonical name already exists in the line
+            # to avoid double-replacements like "villa" in "Aston Villa"
+            canonical_pattern = r'\b' + re.escape(canonical) + r'\b'
+            if re.search(canonical_pattern, normalized_line, re.IGNORECASE):
+                # This canonical name already exists, skip this specific alias
+                continue
+
+            # Use word boundaries to avoid partial matches
+            # e.g., "forest" in "deforest" shouldn't match
+            pattern = r'\b' + re.escape(alias) + r'\b'
+
+            if re.search(pattern, normalized_line, re.IGNORECASE):
+                normalized_line = re.sub(pattern, canonical, normalized_line, flags=re.IGNORECASE)
+                corrections.append({
+                    'line_num': line_num,
+                    'original': original_line.strip(),
+                    'alias': alias,
+                    'canonical': canonical
+                })
+
+        normalized_lines.append(normalized_line)
+
+    # Log corrections with context
+    if corrections:
+        logger.info(f"Team name normalization: {len(corrections)} corrections made")
+        for corr in corrections:
+            logger.debug(f"  Line {corr['line_num']}: '{corr['alias']}' → '{corr['canonical']}'")
+
+    return '\n'.join(normalized_lines), corrections
+
+def normalize_newlines(content, logger):
+    """
+    Detect and merge predictions split across multiple lines.
+
+    Strategy:
+    - Lines ending with team name followed by line with score pattern: merge
+    - Lines with score pattern but no team names: merge with previous
+    - Team + score on one line, team on next line: merge with 'v' between teams
+
+    Args:
+        content: Raw prediction text content
+        logger: Logger instance
+
+    Returns:
+        Tuple of (normalized_text, merge_count)
+    """
+    lines = content.split('\n')
+    normalized_lines = []
+    merge_count = 0
+    i = 0
+
+    # Pattern for score-like content: digits, spaces, hyphens
+    score_pattern = re.compile(r'^\s*[\d\s\-–—]+\s*$')
+
+    # Pattern for team vs team structure (partial or complete)
+    team_vs_pattern = re.compile(r'\b\w+\s+(?:vs?\.?|v)\s+\w+\b', re.IGNORECASE)
+
+    # Pattern for line with team + score (e.g., "Liverpool 1-0" or "Arsenal 2 1")
+    team_score_pattern = re.compile(r'^([a-z\s\']+?)\s+([\d\s\-–—]+)$', re.IGNORECASE)
+
+    # Pattern for line with just team name(s)
+    team_only_pattern = re.compile(r'^[a-z\s\']+$', re.IGNORECASE)
+
+    while i < len(lines):
+        current_line = lines[i].strip()
+
+        # Skip empty lines
+        if not current_line:
+            normalized_lines.append('')
+            i += 1
+            continue
+
+        # Check if next line looks like a continuation
+        if i + 1 < len(lines):
+            next_line = lines[i + 1].strip()
+
+            # Case 1: Current line has team names, next line is just score
+            if team_vs_pattern.search(current_line) and score_pattern.match(next_line):
+                merged = f"{current_line} {next_line}"
+                normalized_lines.append(merged)
+                merge_count += 1
+                logger.debug(f"Merged lines {i+1}-{i+2}: '{current_line}' + '{next_line}'")
+                i += 2
+                continue
+
+            # Case 2: Current line is incomplete (ends mid-team), next has score
+            # More conservative: only if current is short and next has score
+            if len(current_line) < 30 and score_pattern.match(next_line):
+                merged = f"{current_line} {next_line}"
+                normalized_lines.append(merged)
+                merge_count += 1
+                logger.debug(f"Merged short line {i+1} with score on line {i+2}")
+                i += 2
+                continue
+
+            # Case 3: Current line has "team + score", next line has just team name
+            # e.g., "Liverpool 1-0" followed by "Aston Villa"
+            team_score_match = team_score_pattern.match(current_line)
+            if team_score_match and team_only_pattern.match(next_line):
+                # Extract components
+                team1 = team_score_match.group(1).strip()
+                team2 = next_line.strip()
+                score = team_score_match.group(2).strip()
+
+                # Don't merge if next line is likely a player name
+                # Player names typically have 2-3 words and are in proper case
+                # Team names often have lowercase words (e.g., "Man City", "West Ham")
+                is_likely_player = (
+                    len(team2.split()) == 2 and
+                    all(word[0].isupper() for word in team2.split()) and
+                    'v' not in team2.lower()
+                )
+
+                if not is_likely_player:
+                    merged = f"{team1} v {team2} {score}"
+                    normalized_lines.append(merged)
+                    merge_count += 1
+                    logger.debug(f"Merged team-score-team format on lines {i+1}-{i+2}: '{current_line}' + '{next_line}'")
+                    i += 2
+                    continue
+
+        # No merge needed
+        normalized_lines.append(current_line)
+        i += 1
+
+    if merge_count > 0:
+        logger.info(f"Newline normalization: {merge_count} line merges performed")
+
+    return '\n'.join(normalized_lines), merge_count
+
+def log_correction_summary(team_corrections, merge_count, logger):
+    """
+    Log detailed summary of all corrections made during preprocessing.
+    Provides transparency for manual review if needed.
+
+    Args:
+        team_corrections: List of team name correction dictionaries
+        merge_count: Number of line merges performed
+        logger: Logger instance
+    """
+    if not team_corrections and merge_count == 0:
+        logger.info("No automatic corrections were needed")
+        return
+
+    logger.info("=" * 60)
+    logger.info("PREPROCESSING CORRECTION SUMMARY")
+    logger.info("=" * 60)
+
+    if merge_count > 0:
+        logger.info(f"Line Merges: {merge_count} predictions were split across multiple lines")
+
+    if team_corrections:
+        logger.info(f"Team Name Corrections: {len(team_corrections)} aliases replaced")
+
+        # Group by canonical name for readability
+        by_canonical = {}
+        for corr in team_corrections:
+            canonical = corr['canonical']
+            if canonical not in by_canonical:
+                by_canonical[canonical] = []
+            by_canonical[canonical].append(corr['alias'])
+
+        for canonical, aliases in sorted(by_canonical.items()):
+            unique_aliases = sorted(set(aliases))
+            logger.info(f"  {canonical}: {', '.join(unique_aliases)} ({len(aliases)} occurrences)")
+
+    logger.info("=" * 60)
+    logger.info("Review logs above for line-by-line details")
+    logger.info("=" * 60)
+
 def update_keys_file(config, logger):
     """Safely update keys.json file with new configuration"""
     try:
@@ -817,7 +1055,26 @@ def process_file(file_info, config, teams, players, cursor, logger, dry_run=Fals
     content = download_dropbox_file(file_info, config, logger)
     if not content:
         return False
-    
+
+    # === PREPROCESSING SECTION ===
+    logger.info("Starting prediction text preprocessing...")
+
+    try:
+        # Step 1: Normalize newlines (merge split predictions)
+        content, merge_count = normalize_newlines(content, logger)
+
+        # Step 2: Normalize team names (apply aliases)
+        content, team_corrections = normalize_team_names(content, logger)
+
+        # Step 3: Log summary
+        log_correction_summary(team_corrections, merge_count, logger)
+
+    except Exception as e:
+        logger.warning(f"Preprocessing failed, using original text: {e}")
+        # Continue with original content
+
+    # === END PREPROCESSING ===
+
     # Clean and process predictions
     predictions = clean_predictions_content(content, teams, players, gameweek, logger)
     
