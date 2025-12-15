@@ -4,11 +4,66 @@ Historical record of critical fixes and system improvements in chronological ord
 
 ## Table of Contents
 
+- [December 2025](#december-2025)
 - [November 2025](#november-2025)
 - [October 2025](#october-2025)
 - [September 2025](#september-2025)
 - [August 2025](#august-2025)
 - [Verification Steps](#verification-steps)
+
+---
+
+## December 2025
+
+### Result Code Format Standardization
+
+**Date**: December 2025
+
+**Issue**: Database used three-letter result codes (HW/AW/D) which were verbose and inconsistent with common single-letter format
+
+**Result**: Less readable API responses, more complex comparison logic, unnecessary verbosity in database
+
+**Fix**: Standardized all result codes to single-letter format (H/A/D) across predictions and results tables
+
+**Migration Details**:
+- Created dedicated migration script: `scripts/database/update_result_codes.py`
+- Dry-run mode for safe testing: `--dry-run` flag
+- Affected 52,870 records across two tables:
+  - `predictions.predicted_result`: 51,282 records updated
+  - `results.result`: 1,588 records updated
+- Updates: `HW → H` (31,531 records), `AW → A` (21,339 records)
+
+**Implementation**:
+```python
+# Update predictions table
+UPDATE predictions SET predicted_result = 'H' WHERE predicted_result = 'HW'
+UPDATE predictions SET predicted_result = 'A' WHERE predicted_result = 'AW'
+
+# Update results table
+UPDATE results SET result = 'H' WHERE result = 'HW'
+UPDATE results SET result = 'A' WHERE result = 'AW'
+```
+
+**Safety Features**:
+- Transaction-safe with rollback on error
+- Comprehensive logging to `logs/update_result_codes_YYYYMMDD.log`
+- Automatic `last_update` table updates for both predictions and results
+- Analysis mode shows current state before changes
+
+**Impact**: Cleaner, more readable database schema aligned with industry standards; simplified comparison logic in scoring systems
+
+**Files Modified**:
+- New: `scripts/database/update_result_codes.py`
+- Updated: All future code expects H/A/D format
+
+**Usage**:
+```bash
+# Preview changes
+python scripts/database/update_result_codes.py --dry-run
+
+# Execute migration
+python scripts/database/update_result_codes.py
+```
 
 ---
 

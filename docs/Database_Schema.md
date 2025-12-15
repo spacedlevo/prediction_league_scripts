@@ -4,6 +4,25 @@
 
 The odds system uses SQLite with several related tables to store teams, fixtures, bookmakers, individual odds, and aggregated summaries.
 
+## Migration History
+
+### December 2025: Result Code Format Standardization
+
+**Change**: Updated result codes from three-letter format to single-letter format
+
+**Affected Tables**:
+- `predictions.predicted_result`: `HW` → `H`, `AW` → `A`
+- `results.result`: `HW` → `H`, `AW` → `A`
+
+**Migration Script**: `scripts/database/update_result_codes.py`
+
+**New Format**:
+- `H` = Home win
+- `A` = Away win
+- `D` = Draw (unchanged)
+
+**Impact**: All code expecting result values must use single-letter format (H/A/D). The legacy three-letter format (HW/AW/D) is deprecated and no longer supported.
+
 ## Core Tables
 
 ### `teams`
@@ -414,7 +433,10 @@ CREATE TABLE results (
 - `result_id`: Unique identifier for each result
 - `fixture_id`: Links to fixtures table
 - `home_goals`, `away_goals`: Actual match score
-- `result`: Actual result ("H" = Home win, "D" = Draw, "A" = Away win)
+- `result`: Actual result in single-letter format:
+  - `H` = Home win
+  - `D` = Draw
+  - `A` = Away win
 
 ### `gameweek_cache`
 Caches current gameweek information for performance:
@@ -461,7 +483,10 @@ CREATE TABLE predictions (
 - `player_id`: Links to players table
 - `fixture_id`: Links to fixtures table for match details
 - `home_goals`, `away_goals`: Predicted score
-- `predicted_result`: Calculated result ("H" = Home win, "D" = Draw, "A" = Away win)
+- `predicted_result`: Calculated result in single-letter format:
+  - `H` = Home win
+  - `D` = Draw
+  - `A` = Away win
 
 **Data Source**: Dropbox API via `clean_predictions_dropbox.py` script
 
@@ -526,7 +551,16 @@ def get_fixture_id(home_team, away_team, gameweek, cursor):
 #### Result Calculation
 ```python
 def calculate_predicted_result(home_goals, away_goals):
-    """Generate H/D/A result from goal scores"""
+    """Generate H/D/A result from goal scores
+
+    Returns single-letter result code:
+        H = Home win (home_goals > away_goals)
+        A = Away win (home_goals < away_goals)
+        D = Draw (home_goals == away_goals)
+
+    Note: Uses simplified single-letter format (H/A/D)
+          instead of legacy three-letter format (HW/AW/D)
+    """
     if home_goals > away_goals:
         return 'H'  # Home win
     elif home_goals < away_goals:

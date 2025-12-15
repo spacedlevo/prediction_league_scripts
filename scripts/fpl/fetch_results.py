@@ -295,11 +295,11 @@ def cleanup_old_sample_files(keep_count=5, logger=None):
             logger.error(f"Error cleaning up sample files: {e}")
 
 def calculate_match_result(home_goals, away_goals):
-    """Calculate match result: HW (Home Win), AW (Away Win), or D (Draw)"""
+    """Calculate match result: H (Home Win), A (Away Win), or D (Draw)"""
     if home_goals > away_goals:
-        return "HW"
+        return "H"
     elif home_goals < away_goals:
-        return "AW"
+        return "A"
     else:
         return "D"
 

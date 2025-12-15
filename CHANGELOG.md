@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Result Code Format Standardization** - Simplified result codes from three-letter to single-letter format
+  - **Database Schema Change**: Updated `predictions.predicted_result` and `results.result` columns
+  - **Old Format**: `HW` (Home Win), `AW` (Away Win), `D` (Draw)
+  - **New Format**: `H` (Home Win), `A` (Away Win), `D` (Draw)
+  - **Migration Script**: `scripts/database/update_result_codes.py` with dry-run support
+  - **Affected Records**: 52,870 total records updated (51,282 predictions + 1,588 results)
+  - **Safety Features**: Transaction-safe, rollback on error, comprehensive logging
+  - **Timestamp Updates**: Automatically updates `last_update` table for both tables
+  - **Usage**: `python scripts/database/update_result_codes.py [--dry-run]`
+  - **Impact**: Cleaner API responses, simplified result comparison logic, improved readability
+
 ### Added
 - **Prediction Verification System** - Automated comparison of database predictions against WhatsApp messages and text files
   - **Database Table**: New `prediction_verification` table stores verification results with player_id, fixture_id, and score comparisons

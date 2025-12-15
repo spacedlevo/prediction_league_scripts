@@ -434,6 +434,7 @@ For historical fixes and changelog, see: **[docs/FIXES_CHANGELOG.md](docs/FIXES_
 
 **Recent Fixes Summary:**
 
+- **Dec 2025**: Result code format standardization (HW/AW → H/A)
 - **Nov 2025**: Upload timestamp visibility on PythonAnywhere
 - **Oct 2025**: Upload timestamp logic simplification
 - **Sep 2025**: Unnecessary timestamp updates fixed
@@ -465,6 +466,8 @@ Remember: This is a hobby project. Perfect is the enemy of done. Focus on code t
 - **[SYSTEMS.md](docs/SYSTEMS.md)** - Detailed documentation for all automated systems
 - **[DEPLOYMENT.md](docs/DEPLOYMENT.md)** - Production deployment guide and troubleshooting
 - **[FIXES_CHANGELOG.md](docs/FIXES_CHANGELOG.md)** - Historical fixes and system improvements
+- **[Database_Schema.md](docs/Database_Schema.md)** - Complete database schema reference and migration history
+- **[scripts/database/README.md](scripts/database/README.md)** - Database maintenance scripts and migrations
 
 ### Quick Reference
 
@@ -482,6 +485,9 @@ tail -f logs/script_$(date +%Y%m%d).log
 
 # Database upload
 ./venv/bin/python scripts/database/monitor_and_upload.py --dry-run
+
+# Database migrations (with dry-run first)
+python scripts/database/update_result_codes.py --dry-run
 
 # Scheduler logs
 tail -f logs/scheduler/master_scheduler_$(date +%Y%m%d).log
