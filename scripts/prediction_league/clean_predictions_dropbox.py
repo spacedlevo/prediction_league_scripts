@@ -269,6 +269,30 @@ def normalize_newlines(content, logger):
                     i += 2
                     continue
 
+            # Case 4: Current line has just team name, next line has "score v team"
+            # e.g., "Newcastle" followed by "2 v 1 Chelsea"
+            # Pattern: digits/spaces/hyphens + "v" + team name
+            score_v_team_pattern = re.compile(r'^([\d\s\-–—]+)\s+v\s+(.+)$', re.IGNORECASE)
+            score_v_team_match = score_v_team_pattern.match(next_line)
+
+            if team_only_pattern.match(current_line) and score_v_team_match:
+                # Don't merge if current line looks like a player name
+                is_likely_player = (
+                    len(current_line.split()) == 2 and
+                    all(word[0].isupper() for word in current_line.split())
+                )
+
+                if not is_likely_player:
+                    team1 = current_line.strip()
+                    score = score_v_team_match.group(1).strip()
+                    team2 = score_v_team_match.group(2).strip()
+                    merged = f"{team1} {score} v {team2}"
+                    normalized_lines.append(merged)
+                    merge_count += 1
+                    logger.debug(f"Merged team-on-line1 + score-v-team-on-line2 on lines {i+1}-{i+2}: '{current_line}' + '{next_line}'")
+                    i += 2
+                    continue
+
         # No merge needed
         normalized_lines.append(current_line)
         i += 1
