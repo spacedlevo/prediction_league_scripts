@@ -90,7 +90,7 @@ def build_team_alias_map():
     aliases = {
         "tottenham": ["spurs", "hotspur", "thfc"],
         "nott'm forest": ["forest", "notts forest", "nott's forest",
-                          "nottm forest", "nottingham", "nottingham forest", "nffc"],
+                          "nottm forest", "nottingham", "nottingham forest", "nffc", "nott'm f"],
         "man city": ["city", "mcfc", "manchester city", "man c"],
         "man utd": ["united", "man u", "mufc", "manchester united"],
         "newcastle": ["newcastle utd", "nufc", "toon"],
@@ -103,7 +103,7 @@ def build_team_alias_map():
         "chelsea": ["blues", "cfc"],
         "liverpool": ["reds", "lfc", "pool"],
         "everton": ["toffees", "efc"],
-        "bournemouth": ["cherries", "afcb", "bmouth"],
+        "bournemouth": ["cherries", "afcb", "bmouth", "bournemo"],
         "brentford": ["bees", "bfc"],
         "fulham": ["cottagers", "ffc"],
         "leeds": ["leeds utd", "lufc"],
