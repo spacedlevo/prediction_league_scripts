@@ -463,7 +463,7 @@ def load_teams_and_players(cursor, logger):
     teams = [team[0].lower() for team in cursor.fetchall()]
     
     # Load active players
-    cursor.execute("SELECT player_name FROM players WHERE active = 1")
+    cursor.execute("SELECT player_name FROM players")
     players = [player[0] for player in cursor.fetchall()]
     
     logger.info(f"Loaded {len(teams)} teams and {len(players)} active players")
