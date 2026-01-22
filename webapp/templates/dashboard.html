@@ -331,17 +331,25 @@
     {% if verification_mismatches %}
     <div class="mb-6">
         <div class="bg-white shadow rounded-lg">
-            <div class="px-6 py-4 border-b border-gray-200 bg-red-50">
+            <div class="px-6 py-4 border-b border-gray-200 bg-red-50 flex justify-between items-center">
                 <h3 class="text-lg font-medium text-red-900 flex items-center">
                     <span class="text-xl mr-2">⚠️</span>
                     Prediction Verification Issues
                 </h3>
+                <button onclick="acknowledgeVerificationIssues()" class="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700 transition-colors">
+                    Clear All
+                </button>
             </div>
             <div class="p-6">
                 <div class="space-y-4">
                     {% for gameweek, mismatches in verification_mismatches.items() %}
                     <div class="border-l-4 border-red-500 pl-4">
-                        <h4 class="text-sm font-semibold text-red-900 mb-2">Gameweek {{ gameweek }}</h4>
+                        <div class="flex justify-between items-center mb-2">
+                            <h4 class="text-sm font-semibold text-red-900">Gameweek {{ gameweek }}</h4>
+                            <button onclick="acknowledgeVerificationIssues({{ gameweek }})" class="px-2 py-0.5 text-xs bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors">
+                                Clear GW
+                            </button>
+                        </div>
                         <div class="bg-red-50 rounded-lg p-3">
                             <ul class="space-y-2 text-sm">
                                 {% for mismatch in mismatches %}
@@ -555,6 +563,38 @@ document.addEventListener('DOMContentLoaded', function() {
         location.reload();
     }, 30000);
 });
+
+// Acknowledge verification issues
+function acknowledgeVerificationIssues(gameweek = null) {
+    const message = gameweek
+        ? `Clear all verification issues for Gameweek ${gameweek}?`
+        : 'Clear all verification issues?';
+
+    if (!confirm(message)) {
+        return;
+    }
+
+    const payload = gameweek ? { gameweek: gameweek } : {};
+
+    fetch('/api/verification/acknowledge', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        alert('Error: ' + error.message);
+    });
+}
 
 // Simple datetime formatting helper
 function moment(timestamp) {

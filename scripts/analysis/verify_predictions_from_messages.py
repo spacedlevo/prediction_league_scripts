@@ -604,6 +604,16 @@ def compare_predictions(message_predictions, db_predictions, fixtures, logger):
 def save_to_database(results, fixtures, cursor, logger):
     """Save verification results to database"""
     try:
+        # Save acknowledged status before clearing (to preserve user acknowledgments)
+        cursor.execute("""
+            SELECT player_id, fixture_id, acknowledged
+            FROM prediction_verification
+            WHERE acknowledged = 1
+        """)
+        acknowledged_items = {(row[0], row[1]): row[2] for row in cursor.fetchall()}
+        if acknowledged_items:
+            logger.info(f"Preserving {len(acknowledged_items)} acknowledged verification items")
+
         # Clear existing verification data
         cursor.execute("DELETE FROM prediction_verification")
 
@@ -674,6 +684,19 @@ def save_to_database(results, fixtures, cursor, logger):
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                 ''', ('In Database Only', player_id, fixture_id, db_home, db_away, None, None))
                 inserted_count += 1
+
+        # Restore acknowledged status for items that were previously acknowledged
+        if acknowledged_items:
+            restored_count = 0
+            for (player_id, fixture_id), _ in acknowledged_items.items():
+                cursor.execute("""
+                    UPDATE prediction_verification
+                    SET acknowledged = 1
+                    WHERE player_id = ? AND fixture_id = ?
+                """, (player_id, fixture_id))
+                restored_count += cursor.rowcount
+            if restored_count > 0:
+                logger.info(f"Restored acknowledged status for {restored_count} verification items")
 
         logger.info(f"Inserted {inserted_count} verification records into database")
         return True
@@ -837,10 +860,18 @@ def create_verification_table(cursor, logger):
                 message_home_goals INTEGER,
                 message_away_goals INTEGER,
                 verified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                acknowledged INTEGER DEFAULT 0,
                 FOREIGN KEY (player_id) REFERENCES players(player_id),
                 FOREIGN KEY (fixture_id) REFERENCES fixtures(fixture_id)
             )
         """)
+
+        # Add acknowledged column if it doesn't exist (for existing databases)
+        cursor.execute("PRAGMA table_info(prediction_verification)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'acknowledged' not in columns:
+            cursor.execute("ALTER TABLE prediction_verification ADD COLUMN acknowledged INTEGER DEFAULT 0")
+            logger.info("Added 'acknowledged' column to prediction_verification table")
 
         # Create indexes if they don't exist
         cursor.execute("""

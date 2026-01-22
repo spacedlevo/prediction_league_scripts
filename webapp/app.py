@@ -765,6 +765,55 @@ def calculate_custom_points():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/verification/acknowledge', methods=['POST'])
+@require_auth
+def acknowledge_verification_issues():
+    """Acknowledge verification issues to clear them from the dashboard"""
+    try:
+        data = request.get_json()
+        gameweek = data.get('gameweek')  # Optional: specific gameweek to acknowledge
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if gameweek:
+            # Acknowledge issues for a specific gameweek
+            cursor.execute("""
+                UPDATE prediction_verification
+                SET acknowledged = 1
+                WHERE verification_id IN (
+                    SELECT pv.verification_id
+                    FROM prediction_verification pv
+                    JOIN fixtures f ON pv.fixture_id = f.fixture_id
+                    WHERE pv.category = 'Score Mismatch'
+                    AND f.gameweek = ?
+                    AND f.season = '2025/2026'
+                )
+            """, (gameweek,))
+            message = f"Acknowledged all issues for Gameweek {gameweek}"
+        else:
+            # Acknowledge all issues
+            cursor.execute("""
+                UPDATE prediction_verification
+                SET acknowledged = 1
+                WHERE category = 'Score Mismatch'
+            """)
+            message = "Acknowledged all verification issues"
+
+        affected_rows = cursor.rowcount
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': message,
+            'acknowledged_count': affected_rows
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 def get_fixtures_with_odds_multi_season(cursor, season_filter='2025/2026', logger=None):
     """Get fixtures with odds data from both fixture_odds_summary and football_stats fallback"""
     
@@ -1887,6 +1936,7 @@ def get_verification_mismatches(cursor) -> Dict:
             JOIN teams at ON f.away_teamid = at.team_id
             WHERE pv.category = 'Score Mismatch'
             AND f.season = '2025/2026'
+            AND (pv.acknowledged IS NULL OR pv.acknowledged = 0)
             ORDER BY f.gameweek DESC, p.player_name
         """)
 
