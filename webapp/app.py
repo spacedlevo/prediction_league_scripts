@@ -202,6 +202,9 @@ def dashboard():
         # Get verification mismatches
         verification_mismatches = get_verification_mismatches(cursor)
 
+        # Get future gameweek deadlines
+        future_deadlines = get_future_gameweek_deadlines(cursor)
+
         conn.close()
 
         return render_template('dashboard.html',
@@ -211,6 +214,7 @@ def dashboard():
                              predictions_progress=predictions_progress,
                              identical_predictions=identical_predictions,
                              verification_mismatches=verification_mismatches,
+                             future_deadlines=future_deadlines,
                              page_title='Dashboard')
     
     except Exception as e:
@@ -222,6 +226,7 @@ def dashboard():
                              predictions_progress={'current': {}, 'next': {}},
                              identical_predictions={'current': {}, 'next': {}},
                              verification_mismatches={},
+                             future_deadlines=[],
                              page_title='Dashboard')
 
 
@@ -2041,6 +2046,39 @@ def get_recent_updates(cursor) -> List:
             formatted_updates.append(update_dict)
         
         return formatted_updates
+    except Exception:
+        return []
+
+
+def get_future_gameweek_deadlines(cursor) -> List:
+    """Get future gameweek deadlines (unfinished gameweeks)"""
+    try:
+        cursor.execute("""
+            SELECT gameweek, deadline_dttm, current_gameweek, next_gameweek, finished
+            FROM gameweeks
+            WHERE finished = 0 OR finished IS NULL
+            ORDER BY gameweek ASC
+            LIMIT 10
+        """)
+        raw_deadlines = cursor.fetchall()
+
+        formatted_deadlines = []
+        for deadline in raw_deadlines:
+            deadline_dict = {
+                'gameweek': deadline[0],
+                'deadline_dttm': deadline[1],
+                'current_gameweek': deadline[2],
+                'next_gameweek': deadline[3],
+                'finished': deadline[4],
+                'formatted_deadline': 'Unknown'
+            }
+
+            if deadline[1]:
+                deadline_dict['formatted_deadline'] = convert_to_uk_time(deadline[1], '%a %d %b %Y, %H:%M')
+
+            formatted_deadlines.append(deadline_dict)
+
+        return formatted_deadlines
     except Exception:
         return []
 
