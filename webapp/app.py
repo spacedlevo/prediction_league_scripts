@@ -22,7 +22,11 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+import time
 import pytz
+import requests as http_requests
+import pandas as pd
+from pulp import LpProblem, LpMaximize, LpVariable, lpSum, PULP_CBC_CMD
 
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -33,6 +37,16 @@ app = Flask(__name__)
 # Global variables for configuration and state
 config = {}
 script_status = {}  # Track running scripts
+
+# FPL Optimizer constants (from fpl_optimizer.py)
+FPL_POSITION_REQUIREMENTS = {"1": 2, "2": 5, "3": 5, "4": 3}
+FPL_MAX_PER_TEAM = 3
+FPL_POSITION_NAMES = {"1": "GK", "2": "DEF", "3": "MID", "4": "FWD"}
+FPL_FORM_WEIGHT = 0.4
+FPL_FORM_GWS = 5
+
+# Simple cache for FPL API responses (key -> (timestamp, data))
+_fpl_api_cache = {}
 
 
 def convert_to_uk_time(timestamp_or_dt, format_str='%d/%m/%Y %H:%M'):
@@ -530,6 +544,150 @@ def api_fpl_players():
             'error': str(e),
             'players': [],
             'count': 0
+        })
+
+
+@app.route('/api/fpl/my-team')
+@require_auth
+def fpl_my_team():
+    """API endpoint: fetch user's FPL team and recommend transfers"""
+    try:
+        team_id = config.get('fpl_team_id', 273788)
+        db_path = config.get('database_path', '')
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        current_gw = get_current_fpl_gameweek(cursor)
+        conn.close()
+
+        # Fetch data from FPL API
+        entry_data = fetch_fpl_entry(team_id)
+        picks_data = fetch_fpl_picks(team_id, current_gw)
+        history_data = fetch_fpl_history(team_id)
+
+        # Extract key info
+        team_name = entry_data.get('name', 'Unknown')
+        overall_points = entry_data.get('summary_overall_points', 0)
+        overall_rank = entry_data.get('summary_overall_rank', 0)
+
+        entry_history = picks_data.get('entry_history', {})
+        bank = entry_history.get('bank', 0)
+        squad_value = entry_history.get('value', 0)
+
+        free_transfers = calculate_free_transfers(history_data)
+
+        # Get current squad player IDs from picks
+        picks = picks_data.get('picks', [])
+        current_player_ids = [p['element'] for p in picks]
+        captain_id = next((p['element'] for p in picks if p.get('is_captain')), None)
+        vice_captain_id = next((p['element'] for p in picks if p.get('is_vice_captain')), None)
+        starter_positions = {p['element'] for p in picks if p.get('multiplier', 0) > 0}
+
+        # Load all player data with blended scores
+        all_players_df, total_gws = load_fpl_optimizer_data(db_path)
+
+        # Build current squad details
+        current_squad_df = all_players_df[all_players_df.player_id.isin(current_player_ids)]
+        current_squad = []
+        for _, p in current_squad_df.iterrows():
+            current_squad.append({
+                'player_id': int(p.player_id),
+                'player_name': p.player_name,
+                'position': FPL_POSITION_NAMES.get(str(p.position), str(p.position)),
+                'position_raw': str(p.position),
+                'team_name': p.team_name or 'Unknown',
+                'total_points': int(p.total_points),
+                'value': float(p.value),
+                'blended': round(float(p.blended), 1),
+                'form': str(p.form),
+                'avg_pts_last5': round(float(p.avg_pts_last5), 1),
+                'is_captain': p.player_id == captain_id,
+                'is_vice_captain': p.player_id == vice_captain_id,
+                'is_starter': p.player_id in starter_positions,
+                'status': p.status,
+            })
+
+        # Sort by position then points
+        pos_order = {'1': 0, '2': 1, '3': 2, '4': 3}
+        current_squad.sort(key=lambda x: (pos_order.get(x['position_raw'], 9), -x['total_points']))
+
+        # Run optimizer to get ideal squad
+        optimal_squad_df = optimize_fpl_squad(all_players_df, score_col="blended")
+        optimal_squad = []
+        for _, p in optimal_squad_df.iterrows():
+            optimal_squad.append({
+                'player_id': int(p.player_id),
+                'player_name': p.player_name,
+                'position': FPL_POSITION_NAMES.get(str(p.position), str(p.position)),
+                'position_raw': str(p.position),
+                'team_name': p.team_name or 'Unknown',
+                'total_points': int(p.total_points),
+                'value': float(p.value),
+                'blended': round(float(p.blended), 1),
+                'form': str(p.form),
+                'avg_pts_last5': round(float(p.avg_pts_last5), 1),
+                'status': p.status,
+            })
+        optimal_squad.sort(key=lambda x: (pos_order.get(x['position_raw'], 9), -x['total_points']))
+
+        # Recommend transfers
+        recommended_transfers = recommend_transfers(
+            current_player_ids, optimal_squad_df, all_players_df, bank, free_transfers
+        )
+
+        # Build recommended squad (current with transfers applied)
+        out_ids = {t['out']['player_id'] for t in recommended_transfers}
+        in_ids = {t['in']['player_id'] for t in recommended_transfers}
+        recommended_squad = [p for p in current_squad if p['player_id'] not in out_ids]
+        for _, p in all_players_df[all_players_df.player_id.isin(in_ids)].iterrows():
+            recommended_squad.append({
+                'player_id': int(p.player_id),
+                'player_name': p.player_name,
+                'position': FPL_POSITION_NAMES.get(str(p.position), str(p.position)),
+                'position_raw': str(p.position),
+                'team_name': p.team_name or 'Unknown',
+                'total_points': int(p.total_points),
+                'value': float(p.value),
+                'blended': round(float(p.blended), 1),
+                'form': str(p.form),
+                'avg_pts_last5': round(float(p.avg_pts_last5), 1),
+                'is_captain': False,
+                'is_vice_captain': False,
+                'is_starter': True,
+                'status': p.status,
+                'is_new': True,
+            })
+        recommended_squad.sort(key=lambda x: (pos_order.get(x['position_raw'], 9), -x['total_points']))
+
+        # Chips used
+        chips_used = [
+            {'name': c.get('name', ''), 'event': c.get('event', 0)}
+            for c in history_data.get('chips', [])
+        ]
+
+        return jsonify({
+            'success': True,
+            'gameweek': current_gw,
+            'team_name': team_name,
+            'free_transfers': free_transfers,
+            'bank': bank,
+            'squad_value': squad_value,
+            'overall_points': overall_points,
+            'overall_rank': overall_rank,
+            'current_squad': current_squad,
+            'optimal_squad': optimal_squad,
+            'recommended_transfers': recommended_transfers,
+            'recommended_squad': recommended_squad,
+            'chips_used': chips_used,
+        })
+
+    except Exception as e:
+        print(f"Error in fpl_my_team: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e),
         })
 
 
@@ -2186,6 +2344,291 @@ def get_top_fpl_players(cursor) -> Dict:
         top_players = {}
     
     return top_players
+
+
+# ─── FPL My Team & Transfer Recommendation Helpers ───────────────────────────
+
+def _fpl_cache_get(key, max_age=1800):
+    """Get cached FPL API response if still fresh (default 30 min)"""
+    if key in _fpl_api_cache:
+        ts, data = _fpl_api_cache[key]
+        if time.time() - ts < max_age:
+            return data
+    return None
+
+
+def _fpl_cache_set(key, data):
+    """Cache an FPL API response"""
+    _fpl_api_cache[key] = (time.time(), data)
+
+
+def get_current_fpl_gameweek(cursor):
+    """Get the current/most recent finished gameweek number"""
+    cursor.execute("""
+        SELECT gameweek FROM gameweeks
+        WHERE is_current = 1
+        LIMIT 1
+    """)
+    row = cursor.fetchone()
+    if row:
+        return row[0]
+    # Fallback: highest finished gameweek
+    cursor.execute("""
+        SELECT MAX(gameweek) FROM gameweeks WHERE finished = 1
+    """)
+    row = cursor.fetchone()
+    return row[0] if row else 1
+
+
+def fetch_fpl_entry(team_id):
+    """Fetch manager profile from FPL API"""
+    cache_key = f"entry_{team_id}"
+    cached = _fpl_cache_get(cache_key)
+    if cached:
+        return cached
+
+    url = f"https://fantasy.premierleague.com/api/entry/{team_id}/"
+    response = http_requests.get(url, timeout=15)
+    response.raise_for_status()
+    data = response.json()
+    _fpl_cache_set(cache_key, data)
+    return data
+
+
+def fetch_fpl_picks(team_id, gameweek):
+    """Fetch team picks for a specific gameweek from FPL API"""
+    cache_key = f"picks_{team_id}_{gameweek}"
+    cached = _fpl_cache_get(cache_key)
+    if cached:
+        return cached
+
+    url = f"https://fantasy.premierleague.com/api/entry/{team_id}/event/{gameweek}/picks/"
+    response = http_requests.get(url, timeout=15)
+    response.raise_for_status()
+    data = response.json()
+    _fpl_cache_set(cache_key, data)
+    return data
+
+
+def fetch_fpl_history(team_id):
+    """Fetch manager's season history from FPL API"""
+    cache_key = f"history_{team_id}"
+    cached = _fpl_cache_get(cache_key)
+    if cached:
+        return cached
+
+    url = f"https://fantasy.premierleague.com/api/entry/{team_id}/history/"
+    response = http_requests.get(url, timeout=15)
+    response.raise_for_status()
+    data = response.json()
+    _fpl_cache_set(cache_key, data)
+    return data
+
+
+def calculate_free_transfers(history_data):
+    """Calculate free transfers available based on gameweek history and chips used"""
+    chip_reset_events = set()
+    for chip in history_data.get('chips', []):
+        if chip.get('name') in ('wildcard', 'freehit'):
+            chip_reset_events.add(chip['event'])
+
+    free_transfers = 1
+    for gw in history_data.get('current', []):
+        event = gw['event']
+        if event in chip_reset_events:
+            free_transfers = 1
+            continue
+        transfers_made = gw.get('event_transfers', 0)
+        free_transfers = max(1, min(free_transfers - transfers_made + 1, 5))
+
+    return free_transfers
+
+
+def load_fpl_optimizer_data(db_path):
+    """Load all eligible players with blended scores (ported from fpl_optimizer.py)"""
+    conn = sqlite3.connect(db_path)
+
+    df = pd.read_sql_query("""
+        SELECT p.player_id, p.player_name, p.position, p.total_points, p.value,
+               p.team_id, p.db_team_id, p.minutes, p.status,
+               p.saves, p.clean_sheets, p.goals_scored, p.assists,
+               p.expected_goals, p.expected_assists, p.expected_goal_involvements,
+               p.defensive_contribution, p.bonus, p.bps, p.form, p.points_per_game,
+               t.team_name
+        FROM fpl_players_bootstrap p
+        LEFT JOIN teams t ON p.db_team_id = t.team_id
+        WHERE p.can_select = 1 AND p.minutes > 0
+    """, conn)
+
+    # Get max gameweek for form calculation
+    max_gw = pd.read_sql_query(
+        "SELECT MAX(gameweek) as max_gw FROM fantasy_pl_scores", conn
+    ).iloc[0]["max_gw"]
+    total_gws = int(max_gw) if max_gw else 26
+    min_gw = total_gws - FPL_FORM_GWS + 1
+
+    # Load form data (last 5 gameweeks)
+    gw_data = pd.read_sql_query(f"""
+        SELECT player_id, AVG(total_points) as avg_pts_last5
+        FROM fantasy_pl_scores
+        WHERE gameweek BETWEEN {min_gw} AND {total_gws}
+        GROUP BY player_id
+    """, conn)
+
+    conn.close()
+
+    df = df.merge(gw_data, on="player_id", how="left")
+    df["avg_pts_last5"] = df["avg_pts_last5"].fillna(0)
+
+    # Blended score: 60% season + 40% recent form projected over full season
+    df["blended"] = (
+        (1 - FPL_FORM_WEIGHT) * df["total_points"]
+        + FPL_FORM_WEIGHT * (df["avg_pts_last5"] * total_gws)
+    )
+
+    return df, total_gws
+
+
+def optimize_fpl_squad(df, score_col="blended"):
+    """Find optimal 15-player squad using LP solver (ported from fpl_optimizer.py)"""
+    prob = LpProblem("FPL_Optimal", LpMaximize)
+
+    player_vars = {
+        row.player_id: LpVariable(f"x_{row.player_id}", cat="Binary")
+        for _, row in df.iterrows()
+    }
+
+    # Objective: maximize the chosen score column
+    prob += lpSum(
+        player_vars[row.player_id] * getattr(row, score_col)
+        for _, row in df.iterrows()
+    )
+
+    # Budget constraint: use max possible budget (1000 = £100m)
+    budget = 1000
+    prob += lpSum(
+        player_vars[row.player_id] * row.value
+        for _, row in df.iterrows()
+    ) <= budget
+
+    # Position constraints
+    for pos, count in FPL_POSITION_REQUIREMENTS.items():
+        prob += lpSum(
+            player_vars[row.player_id]
+            for _, row in df[df.position == pos].iterrows()
+        ) == count
+
+    # Max 3 players per team
+    for team_id in df.team_id.unique():
+        prob += lpSum(
+            player_vars[row.player_id]
+            for _, row in df[df.team_id == team_id].iterrows()
+        ) <= FPL_MAX_PER_TEAM
+
+    prob.solve(PULP_CBC_CMD(msg=0))
+
+    selected_ids = [
+        pid for pid, var in player_vars.items() if var.varValue == 1
+    ]
+    return df[df.player_id.isin(selected_ids)].copy()
+
+
+def recommend_transfers(current_ids, optimal_squad_df, all_players_df, bank, free_transfers):
+    """Recommend transfers by comparing current squad to optimal, limited by free transfers"""
+    optimal_ids = set(optimal_squad_df.player_id)
+    current_set = set(current_ids)
+
+    # Players to potentially swap out (in current but not in optimal)
+    potential_outs = current_set - optimal_ids
+    # Players to potentially swap in (in optimal but not in current)
+    potential_ins = optimal_ids - current_set
+
+    if not potential_outs or not potential_ins:
+        return []
+
+    current_df = all_players_df[all_players_df.player_id.isin(current_set)]
+    # Count players per team in current squad
+    team_counts = current_df.groupby('team_id').size().to_dict()
+
+    transfers = []
+    out_players = all_players_df[all_players_df.player_id.isin(potential_outs)]
+    in_players = all_players_df[all_players_df.player_id.isin(potential_ins)]
+
+    # Generate all valid (out, in) pairs at the same position
+    for _, out_p in out_players.iterrows():
+        for _, in_p in in_players[in_players.position == out_p.position].iterrows():
+            cost_change = in_p.value - out_p.value
+            score_gain = in_p.blended - out_p.blended
+            if score_gain <= 0:
+                continue
+            transfers.append({
+                'out_id': out_p.player_id,
+                'in_id': in_p.player_id,
+                'out': {
+                    'player_id': int(out_p.player_id),
+                    'player_name': out_p.player_name,
+                    'position': FPL_POSITION_NAMES.get(str(out_p.position), str(out_p.position)),
+                    'team_name': out_p.team_name,
+                    'total_points': int(out_p.total_points),
+                    'value': float(out_p.value),
+                    'blended': round(float(out_p.blended), 1),
+                    'form': str(out_p.form),
+                },
+                'in': {
+                    'player_id': int(in_p.player_id),
+                    'player_name': in_p.player_name,
+                    'position': FPL_POSITION_NAMES.get(str(in_p.position), str(in_p.position)),
+                    'team_name': in_p.team_name,
+                    'total_points': int(in_p.total_points),
+                    'value': float(in_p.value),
+                    'blended': round(float(in_p.blended), 1),
+                    'form': str(in_p.form),
+                },
+                'score_gain': round(float(score_gain), 1),
+                'cost_change': float(cost_change),
+            })
+
+    # Sort by score gain descending
+    transfers.sort(key=lambda t: t['score_gain'], reverse=True)
+
+    # Greedily pick top N transfers respecting constraints
+    selected = []
+    used_outs = set()
+    used_ins = set()
+    running_bank = bank
+
+    for t in transfers:
+        if len(selected) >= free_transfers:
+            break
+        if t['out_id'] in used_outs or t['in_id'] in used_ins:
+            continue
+        if t['cost_change'] > running_bank:
+            continue
+
+        # Check team limit: after removing out_player's team count and adding in_player's
+        out_team = all_players_df[all_players_df.player_id == t['out_id']].iloc[0].team_id
+        in_team = all_players_df[all_players_df.player_id == t['in_id']].iloc[0].team_id
+        if out_team != in_team:
+            current_in_team_count = team_counts.get(in_team, 0)
+            if current_in_team_count >= FPL_MAX_PER_TEAM:
+                continue
+
+        selected.append(t)
+        used_outs.add(t['out_id'])
+        used_ins.add(t['in_id'])
+        running_bank -= t['cost_change']
+
+        # Update team counts for subsequent checks
+        if out_team != in_team:
+            team_counts[out_team] = team_counts.get(out_team, 1) - 1
+            team_counts[in_team] = team_counts.get(in_team, 0) + 1
+
+    # Clean up internal fields before returning
+    for t in selected:
+        del t['out_id']
+        del t['in_id']
+
+    return selected
 
 
 def execute_script(script_key: str, script_info: Dict):

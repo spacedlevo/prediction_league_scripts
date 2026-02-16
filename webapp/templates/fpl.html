@@ -7,7 +7,54 @@
         <h1 class="text-2xl font-bold text-gray-900 mb-2">⭐ FPL Insights</h1>
         <p class="text-gray-600">Fantasy Premier League player statistics and analysis tools.</p>
     </div>
-    
+
+    <!-- My FPL Team & Transfer Recommendations -->
+    <div class="bg-white shadow rounded-lg p-6">
+        <div class="flex justify-between items-center mb-4">
+            <div>
+                <h2 class="text-lg font-bold text-gray-900">My FPL Team & Transfer Recommendations</h2>
+                <p class="text-sm text-gray-500">Fetches your team from the FPL API and runs the optimizer to suggest transfers.</p>
+            </div>
+            <button onclick="loadMyTeam()"
+                    id="loadTeamBtn"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                Load My Team
+            </button>
+        </div>
+
+        <!-- Loading -->
+        <div id="teamLoading" class="hidden text-center py-8">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+            <p class="text-gray-500 mt-2">Fetching your team and running optimizer...</p>
+        </div>
+
+        <!-- Error -->
+        <div id="teamError" class="hidden bg-red-50 border border-red-200 rounded-md p-4 text-red-700"></div>
+
+        <!-- Results -->
+        <div id="teamResults" class="hidden space-y-6">
+            <!-- Summary Cards -->
+            <div id="teamSummary" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4"></div>
+
+            <!-- Recommended Transfers -->
+            <div id="transfersSection"></div>
+
+            <!-- Squad Comparison -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div id="currentSquadSection"></div>
+                <div id="recommendedSquadSection"></div>
+            </div>
+
+            <!-- Optimal Squad (collapsible) -->
+            <details class="bg-gray-50 rounded-lg">
+                <summary class="px-4 py-3 cursor-pointer text-sm font-medium text-gray-700 hover:text-gray-900">
+                    View Full Optimal Squad (unconstrained by current team)
+                </summary>
+                <div id="optimalSquadSection" class="px-4 pb-4"></div>
+            </details>
+        </div>
+    </div>
+
     <!-- Quick Stats -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <!-- Total Players -->
@@ -861,5 +908,233 @@ document.getElementById('playerName').addEventListener('input', function(e) {
     // In real implementation, this would query the database for player name suggestions
     // Could use a datalist element for simple autocomplete
 });
+
+// ─── My FPL Team & Transfer Recommendations ─────────────────────────────────
+
+function loadMyTeam() {
+    const btn = document.getElementById('loadTeamBtn');
+    const loading = document.getElementById('teamLoading');
+    const error = document.getElementById('teamError');
+    const results = document.getElementById('teamResults');
+
+    btn.disabled = true;
+    btn.textContent = 'Loading...';
+    loading.classList.remove('hidden');
+    error.classList.add('hidden');
+    results.classList.add('hidden');
+
+    fetch('/api/fpl/my-team')
+        .then(r => r.json())
+        .then(data => {
+            loading.classList.add('hidden');
+            btn.disabled = false;
+            btn.textContent = 'Refresh';
+
+            if (data.success) {
+                renderTeamResults(data);
+                results.classList.remove('hidden');
+            } else {
+                error.textContent = 'Error: ' + (data.error || 'Unknown error');
+                error.classList.remove('hidden');
+            }
+        })
+        .catch(err => {
+            loading.classList.add('hidden');
+            btn.disabled = false;
+            btn.textContent = 'Retry';
+            error.textContent = 'Failed to load data: ' + err.message;
+            error.classList.remove('hidden');
+        });
+}
+
+function renderTeamResults(data) {
+    renderSummaryCards(data);
+    renderTransfers(data.recommended_transfers);
+    renderSquadTable(data.current_squad, 'currentSquadSection', 'Current Squad',
+        new Set((data.recommended_transfers || []).map(t => t.out.player_id)), 'out');
+    renderSquadTable(data.recommended_squad, 'recommendedSquadSection', 'Recommended Squad',
+        new Set((data.recommended_transfers || []).map(t => t.in.player_id)), 'in');
+    renderSquadTable(data.optimal_squad, 'optimalSquadSection', 'Optimal Squad (Form-Weighted)', new Set(), null);
+}
+
+function renderSummaryCards(data) {
+    const container = document.getElementById('teamSummary');
+    const cards = [
+        { label: 'Team', value: data.team_name, sub: 'GW ' + data.gameweek, icon: '🏠' },
+        { label: 'Free Transfers', value: data.free_transfers, sub: 'available', icon: '🔄' },
+        { label: 'Bank', value: '£' + (data.bank / 10).toFixed(1) + 'm', sub: 'remaining', icon: '💰' },
+        { label: 'Squad Value', value: '£' + (data.squad_value / 10).toFixed(1) + 'm', sub: 'total', icon: '📊' },
+        { label: 'Overall Points', value: data.overall_points.toLocaleString(), sub: '', icon: '⭐' },
+        { label: 'Overall Rank', value: data.overall_rank.toLocaleString(), sub: '', icon: '🏆' },
+    ];
+
+    container.innerHTML = cards.map(c => `
+        <div class="bg-gray-50 rounded-lg p-4">
+            <div class="flex items-center gap-2 mb-1">
+                <span class="text-lg">${c.icon}</span>
+                <span class="text-xs font-medium text-gray-500 uppercase">${c.label}</span>
+            </div>
+            <div class="text-lg font-bold text-gray-900">${c.value}</div>
+            ${c.sub ? `<div class="text-xs text-gray-500">${c.sub}</div>` : ''}
+        </div>
+    `).join('');
+}
+
+function renderTransfers(transfers) {
+    const container = document.getElementById('transfersSection');
+
+    if (!transfers || transfers.length === 0) {
+        container.innerHTML = `
+            <div class="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                <span class="text-green-700 font-medium">Your squad is looking good - no transfers recommended!</span>
+            </div>`;
+        return;
+    }
+
+    let html = `
+        <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+            <div class="px-4 py-3 bg-indigo-50 border-b border-indigo-100">
+                <h3 class="text-sm font-bold text-indigo-900">Recommended Transfers (${transfers.length})</h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Out</th>
+                            <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Team</th>
+                            <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Pts</th>
+                            <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Value</th>
+                            <th class="px-2 py-2 text-center text-xs text-gray-400">→</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">In</th>
+                            <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Team</th>
+                            <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Pts</th>
+                            <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Value</th>
+                            <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Gain</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">`;
+
+    for (const t of transfers) {
+        const costDiff = t.cost_change / 10;
+        const costStr = costDiff > 0 ? `+£${costDiff.toFixed(1)}m` : costDiff < 0 ? `-£${Math.abs(costDiff).toFixed(1)}m` : '£0';
+        html += `
+            <tr>
+                <td class="px-4 py-2 text-sm">
+                    <span class="text-red-700 font-medium">${t.out.player_name}</span>
+                    <span class="text-xs text-gray-400 ml-1">${t.out.position}</span>
+                </td>
+                <td class="px-4 py-2 text-center text-xs text-gray-500">${t.out.team_name}</td>
+                <td class="px-4 py-2 text-center text-sm">${t.out.total_points}</td>
+                <td class="px-4 py-2 text-center text-sm">£${(t.out.value / 10).toFixed(1)}m</td>
+                <td class="px-2 py-2 text-center text-gray-400 text-lg">→</td>
+                <td class="px-4 py-2 text-sm">
+                    <span class="text-green-700 font-medium">${t.in.player_name}</span>
+                    <span class="text-xs text-gray-400 ml-1">${t.in.position}</span>
+                </td>
+                <td class="px-4 py-2 text-center text-xs text-gray-500">${t.in.team_name}</td>
+                <td class="px-4 py-2 text-center text-sm">${t.in.total_points}</td>
+                <td class="px-4 py-2 text-center text-sm">£${(t.in.value / 10).toFixed(1)}m</td>
+                <td class="px-4 py-2 text-center">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        +${t.score_gain}
+                    </span>
+                    <div class="text-xs text-gray-400">${costStr}</div>
+                </td>
+            </tr>`;
+    }
+
+    html += `</tbody></table></div></div>`;
+    container.innerHTML = html;
+}
+
+function renderSquadTable(squad, containerId, title, highlightIds, highlightType) {
+    const container = document.getElementById(containerId);
+    if (!squad || squad.length === 0) {
+        container.innerHTML = `<div class="text-gray-400 text-center py-4">No squad data</div>`;
+        return;
+    }
+
+    const positions = ['GK', 'DEF', 'MID', 'FWD'];
+    const posGroups = {};
+    for (const pos of positions) {
+        posGroups[pos] = squad.filter(p => p.position === pos);
+    }
+
+    let totalPts = squad.reduce((s, p) => s + p.total_points, 0);
+    let totalValue = squad.reduce((s, p) => s + p.value, 0);
+    let totalBlended = squad.reduce((s, p) => s + p.blended, 0);
+
+    let html = `
+        <div class="border border-gray-200 rounded-lg overflow-hidden">
+            <div class="px-4 py-3 bg-gray-50 border-b">
+                <h3 class="text-sm font-bold text-gray-900">${title}</h3>
+                <div class="text-xs text-gray-500">Pts: ${totalPts} | Value: £${(totalValue / 10).toFixed(1)}m | Blended: ${totalBlended.toFixed(0)}</div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">Player</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">Team</th>
+                            <th class="px-3 py-2 text-center text-xs font-medium text-gray-500">Pts</th>
+                            <th class="px-3 py-2 text-center text-xs font-medium text-gray-500">Form</th>
+                            <th class="px-3 py-2 text-center text-xs font-medium text-gray-500">Value</th>
+                            <th class="px-3 py-2 text-center text-xs font-medium text-gray-500">Blended</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
+    let lastPos = '';
+    for (const p of squad) {
+        if (p.position !== lastPos) {
+            html += `<tr class="bg-gray-100"><td colspan="6" class="px-3 py-1 text-xs font-bold text-gray-600">${p.position}</td></tr>`;
+            lastPos = p.position;
+        }
+
+        const isHighlighted = highlightIds && highlightIds.has(p.player_id);
+        let rowClass = '';
+        let nameExtra = '';
+        if (isHighlighted && highlightType === 'out') {
+            rowClass = 'bg-red-50';
+            nameExtra = ' <span class="text-xs text-red-500">(OUT)</span>';
+        } else if (isHighlighted && highlightType === 'in') {
+            rowClass = 'bg-green-50';
+            nameExtra = ' <span class="text-xs text-green-600">(NEW)</span>';
+        } else if (p.is_new) {
+            rowClass = 'bg-green-50';
+            nameExtra = ' <span class="text-xs text-green-600">(NEW)</span>';
+        }
+
+        const captainBadge = p.is_captain ? ' <span class="text-xs font-bold text-yellow-600">(C)</span>' :
+                             p.is_vice_captain ? ' <span class="text-xs text-gray-400">(V)</span>' : '';
+        const benchClass = p.is_starter === false ? ' text-gray-400 italic' : '';
+
+        // Color-code form
+        const formVal = parseFloat(p.form) || 0;
+        let formColor = 'text-gray-600';
+        if (formVal >= 6) formColor = 'text-green-700 font-medium';
+        else if (formVal >= 4) formColor = 'text-yellow-600';
+        else if (formVal < 2) formColor = 'text-red-600';
+
+        // Status indicator
+        let statusIcon = '';
+        if (p.status === 'i') statusIcon = '<span class="text-red-500 text-xs ml-1" title="Injured">🔴</span>';
+        else if (p.status === 'd') statusIcon = '<span class="text-yellow-500 text-xs ml-1" title="Doubtful">🟡</span>';
+        else if (p.status === 's') statusIcon = '<span class="text-red-500 text-xs ml-1" title="Suspended">🟠</span>';
+
+        html += `
+            <tr class="${rowClass}${benchClass}">
+                <td class="px-3 py-1.5 font-medium">${p.player_name}${captainBadge}${nameExtra}${statusIcon}</td>
+                <td class="px-3 py-1.5 text-xs text-gray-500">${p.team_name}</td>
+                <td class="px-3 py-1.5 text-center">${p.total_points}</td>
+                <td class="px-3 py-1.5 text-center ${formColor}">${p.form}</td>
+                <td class="px-3 py-1.5 text-center">£${(p.value / 10).toFixed(1)}m</td>
+                <td class="px-3 py-1.5 text-center">${p.blended}</td>
+            </tr>`;
+    }
+
+    html += `</tbody></table></div></div>`;
+    container.innerHTML = html;
+}
 </script>
 {% endblock %}

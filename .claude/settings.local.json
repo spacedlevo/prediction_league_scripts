@@ -25,7 +25,14 @@
       "Bash(grep:*)",
       "Bash(head:*)",
       "Bash(cat:*)",
-      "Bash(tee:*)"
+      "Bash(tee:*)",
+      "Bash(wc:*)",
+      "WebFetch(domain:fantasy.premierleague.com)",
+      "Bash(/home/levo/Documents/projects/prediction_league_script/venv/bin/pip list:*)",
+      "Bash(/home/levo/Documents/projects/prediction_league_script/venv/bin/python:*)",
+      "Bash(pip install:*)",
+      "Bash(curl:*)",
+      "mcp__playwright__browser_install"
     ],
     "deny": [],
     "ask": []
