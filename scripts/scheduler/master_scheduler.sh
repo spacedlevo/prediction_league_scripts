@@ -63,6 +63,7 @@ ENABLE_AUTOMATED_PREDICTIONS=${ENABLE_AUTOMATED_PREDICTIONS:-true}
 ENABLE_FETCH_FPL_DATA=${ENABLE_FETCH_FPL_DATA:-true}
 ENABLE_FETCH_ODDS=${ENABLE_FETCH_ODDS:-true}
 ENABLE_FETCH_PULSE_DATA=${ENABLE_FETCH_PULSE_DATA:-true}
+ENABLE_FETCH_FPL_PICKS=${ENABLE_FETCH_FPL_PICKS:-true}
 
 # Logging function
 log() {
@@ -206,6 +207,14 @@ if [[ $current_hour -eq 7 ]] && [[ $current_minute -eq 0 ]]; then
     fi
 fi
 
+# Daily at 7:05 AM (FPL team picks - after FPL data fetch)
+if [[ $current_hour -eq 7 ]] && [[ $current_minute -eq 5 ]]; then
+    if [[ "$ENABLE_FETCH_FPL_PICKS" == "true" ]]; then
+        run_script "scripts/fpl/fetch_fpl_picks.py" "fetch_fpl_picks" &
+        log "DEBUG" "Triggered fetch_fpl_picks (daily 7:05 AM)"
+    fi
+fi
+
 # Daily at 8 AM (Pulse API data collection)
 if [[ $current_hour -eq 8 ]] && [[ $current_minute -eq 0 ]]; then
     if [[ "$ENABLE_FETCH_PULSE_DATA" == "true" ]]; then
@@ -265,6 +274,7 @@ if [[ "${DEBUG_MODE:-false}" == "true" ]]; then
     log "DEBUG" "  ENABLE_FETCH_FPL_DATA: $ENABLE_FETCH_FPL_DATA"
     log "DEBUG" "  ENABLE_FETCH_ODDS: $ENABLE_FETCH_ODDS"
     log "DEBUG" "  ENABLE_FETCH_PULSE_DATA: $ENABLE_FETCH_PULSE_DATA"
+    log "DEBUG" "  ENABLE_FETCH_FPL_PICKS: $ENABLE_FETCH_FPL_PICKS"
     log "DEBUG" "  ENABLE_FETCH_FOOTBALL_DATA: $ENABLE_FETCH_FOOTBALL_DATA"
     log "DEBUG" "  ENABLE_UPDATE_RECOMMENDATIONS: $ENABLE_UPDATE_RECOMMENDATIONS"
     log "DEBUG" "  ENABLE_VERIFY_PREDICTIONS: $ENABLE_VERIFY_PREDICTIONS"

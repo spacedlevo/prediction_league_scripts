@@ -373,7 +373,7 @@ def clear_existing_fpl_data(cursor, conn, season, logger, dry_run=False):
             logger.info(f"Clearing existing FPL data for season {season}...")
         
         # Get count before clearing
-        cursor.execute("SELECT COUNT(*) FROM fantasy_pl_scores")
+        cursor.execute("SELECT COUNT(*) FROM fantasy_pl_scores WHERE season = ?", (season,))
         scores_count = cursor.fetchone()[0]
         
         cursor.execute("SELECT COUNT(*) FROM fpl_players_bootstrap WHERE season = ?", (season,))
@@ -384,8 +384,8 @@ def clear_existing_fpl_data(cursor, conn, season, logger, dry_run=False):
                        f"{bootstrap_count} bootstrap records, {scores_count} performance records")
             return
         
-        # Clear fantasy_pl_scores table (no season filter needed - it's all current season data)
-        cursor.execute("DELETE FROM fantasy_pl_scores")
+        # Clear fantasy_pl_scores for the specified season only (preserves historical data)
+        cursor.execute("DELETE FROM fantasy_pl_scores WHERE season = ?", (season,))
         scores_deleted = cursor.rowcount
         
         # Clear bootstrap data for the specified season
@@ -1100,8 +1100,8 @@ def upsert_player_scores(cursor, player_scores, existing_data, fixture_mapping, 
                 expected_goal_involvements, expected_goals_conceded, value, transfers_balance,
                 selected, transfers_in, transfers_out, opponent_team, kickoff_time, team_h_score,
                 team_a_score, element, clearances_blocks_interceptions, recoveries, tackles,
-                defensive_contribution
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                defensive_contribution, season
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             db_record['player_name'], db_record['gameweek'], db_record['player_id'],
             db_record['total_points'], db_record['fixture_id'], db_record['team_id'], db_record['was_home'],
@@ -1114,10 +1114,10 @@ def upsert_player_scores(cursor, player_scores, existing_data, fixture_mapping, 
             db_record['expected_assists'], db_record['expected_goal_involvements'],
             db_record['expected_goals_conceded'], db_record['value'], db_record['transfers_balance'],
             db_record['selected'], db_record['transfers_in'], db_record['transfers_out'],
-            # New fields
             db_record['opponent_team'], db_record['kickoff_time'], db_record['team_h_score'],
             db_record['team_a_score'], db_record['element'], db_record['clearances_blocks_interceptions'],
-            db_record['recoveries'], db_record['tackles'], db_record['defensive_contribution']
+            db_record['recoveries'], db_record['tackles'], db_record['defensive_contribution'],
+            CURRENT_SEASON
         ))
         
         if existing_record:

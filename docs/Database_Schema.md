@@ -356,6 +356,53 @@ CREATE TABLE fpl_players_bootstrap (
 - **Team Integration**: Maps FPL teams to database team records
 - **Historical Tracking**: Maintains bootstrap change history
 
+### `fantasy_pl_scores` Season Support
+The `fantasy_pl_scores` table now includes a `season` column to preserve historical data across seasons:
+- `season TEXT DEFAULT '2025/2026'` — links performance data to a specific season
+- Season-aware delete during `--force-refresh` preserves prior season data
+- Index: `idx_player_scores_season_player_gw` on `(season, player_id, gameweek)`
+
+### `fpl_team_picks` (NEW)
+Stores FPL manager squad picks per gameweek for historical tracking:
+
+```sql
+CREATE TABLE fpl_team_picks (
+    season TEXT NOT NULL,
+    gameweek INTEGER NOT NULL,
+    player_id INTEGER NOT NULL,
+    position INTEGER NOT NULL,       -- 1-11 starters, 12-15 bench
+    is_captain BOOLEAN DEFAULT 0,
+    is_vice_captain BOOLEAN DEFAULT 0,
+    multiplier INTEGER DEFAULT 1,    -- 0=bench, 1=normal, 2=captain, 3=triple captain
+    PRIMARY KEY (season, gameweek, player_id)
+);
+```
+
+**Key Relationships**:
+- `player_id` + `gameweek` + `season` joins to `fantasy_pl_scores` for player performance in that gameweek
+
+### `fpl_team_gameweek_summary` (NEW)
+Stores manager-level gameweek stats (points, rank, transfers, chips):
+
+```sql
+CREATE TABLE fpl_team_gameweek_summary (
+    season TEXT NOT NULL,
+    gameweek INTEGER NOT NULL,
+    total_points INTEGER,
+    gameweek_rank INTEGER,
+    overall_rank INTEGER,
+    bank INTEGER,                    -- In 0.1m units
+    squad_value INTEGER,             -- In 0.1m units
+    points_on_bench INTEGER,
+    transfers_made INTEGER,
+    transfers_cost INTEGER,          -- Hit points
+    chip_used TEXT,                   -- 'wildcard', 'bboost', '3xc', 'freehit'
+    PRIMARY KEY (season, gameweek)
+);
+```
+
+**Data Source**: FPL API (`/api/entry/{team_id}/event/{gw}/picks/` and `/api/entry/{team_id}/history/`)
+
 ### Indexes (Updated)
 
 ```sql
@@ -370,6 +417,8 @@ CREATE INDEX idx_player_scores_player_id ON fantasy_pl_scores(player_id);
 CREATE INDEX idx_player_scores_gameweek ON fantasy_pl_scores(gameweek);
 CREATE INDEX idx_player_scores_team_id ON fantasy_pl_scores(team_id);  -- NEW
 CREATE INDEX idx_bootstrap_player_season ON fpl_players_bootstrap(player_id, season);  -- NEW
+CREATE INDEX idx_player_scores_season_player_gw ON fantasy_pl_scores(season, player_id, gameweek);  -- NEW
+CREATE INDEX idx_fpl_picks_season_gw ON fpl_team_picks(season, gameweek);  -- NEW
 
 -- Gameweeks indexes
 CREATE INDEX idx_gameweeks_current ON gameweeks(current_gameweek);  -- NEW
@@ -387,6 +436,8 @@ CREATE INDEX idx_gameweeks_finished ON gameweeks(finished);  -- NEW
 - **FPL Players**: ~700 Premier League players (NEW)
 - **FPL Scores**: ~15,000-25,000 performance records per season (NEW)
 - **FPL Bootstrap**: ~700 cached player summaries per season (NEW)
+- **FPL Team Picks**: ~570 records per season (15 players × 38 gameweeks) (NEW)
+- **FPL Gameweek Summary**: 38 records per season (NEW)
 
 ## Prediction League Tables (NEW)
 
