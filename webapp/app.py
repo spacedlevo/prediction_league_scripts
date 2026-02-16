@@ -2366,7 +2366,7 @@ def get_current_fpl_gameweek(cursor):
     """Get the current/most recent finished gameweek number"""
     cursor.execute("""
         SELECT gameweek FROM gameweeks
-        WHERE is_current = 1
+        WHERE current_gameweek = 1
         LIMIT 1
     """)
     row = cursor.fetchone()
