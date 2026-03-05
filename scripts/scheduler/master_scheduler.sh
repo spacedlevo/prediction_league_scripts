@@ -64,6 +64,7 @@ ENABLE_FETCH_FPL_DATA=${ENABLE_FETCH_FPL_DATA:-true}
 ENABLE_FETCH_ODDS=${ENABLE_FETCH_ODDS:-true}
 ENABLE_FETCH_PULSE_DATA=${ENABLE_FETCH_PULSE_DATA:-true}
 ENABLE_FETCH_FPL_PICKS=${ENABLE_FETCH_FPL_PICKS:-true}
+ENABLE_MYSQL_SYNC=${ENABLE_MYSQL_SYNC:-true}
 
 # Logging function
 log() {
@@ -162,6 +163,13 @@ fi
 if [[ "$ENABLE_MONITOR_UPLOAD" == "true" ]]; then
     run_script "scripts/database/monitor_and_upload.py" "monitor_and_upload" &
     log "DEBUG" "Triggered monitor_and_upload (after 10s delay)"
+fi
+
+# mysql_sync.py - runs every minute after 15s delay (after SQLite upload)
+if [[ "$ENABLE_MYSQL_SYNC" == "true" ]]; then
+    sleep 5  # Additional 5s delay after monitor_and_upload
+    run_script "scripts/database/mysql_sync.py" "mysql_sync" &
+    log "DEBUG" "Triggered mysql_sync (after 15s delay)"
 fi
 
 # ============================================================================
@@ -275,6 +283,7 @@ if [[ "${DEBUG_MODE:-false}" == "true" ]]; then
     log "DEBUG" "  ENABLE_FETCH_ODDS: $ENABLE_FETCH_ODDS"
     log "DEBUG" "  ENABLE_FETCH_PULSE_DATA: $ENABLE_FETCH_PULSE_DATA"
     log "DEBUG" "  ENABLE_FETCH_FPL_PICKS: $ENABLE_FETCH_FPL_PICKS"
+    log "DEBUG" "  ENABLE_MYSQL_SYNC: $ENABLE_MYSQL_SYNC"
     log "DEBUG" "  ENABLE_FETCH_FOOTBALL_DATA: $ENABLE_FETCH_FOOTBALL_DATA"
     log "DEBUG" "  ENABLE_UPDATE_RECOMMENDATIONS: $ENABLE_UPDATE_RECOMMENDATIONS"
     log "DEBUG" "  ENABLE_VERIFY_PREDICTIONS: $ENABLE_VERIFY_PREDICTIONS"

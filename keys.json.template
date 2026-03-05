@@ -7,5 +7,9 @@
   "PUSHOVER_USER": "your_pushover_user_key_optional",
   "PUSHOVER_TOKEN": "your_pushover_app_token_optional",
   "pythonanywhere_username": "your_pythonanywhere_username",
-  "pythonanywhere_password": "your_pythonanywhere_password"
+  "pythonanywhere_password": "your_pythonanywhere_password",
+  "mysql_host": "your_username.mysql.pythonanywhere-services.com",
+  "mysql_database": "your_username$database_name",
+  "mysql_username": "your_username",
+  "mysql_password": "your_mysql_password"
 }

@@ -32,7 +32,13 @@
       "Bash(/home/levo/Documents/projects/prediction_league_script/venv/bin/python:*)",
       "Bash(pip install:*)",
       "Bash(curl:*)",
-      "mcp__playwright__browser_install"
+      "mcp__playwright__browser_install",
+      "Bash(sudo apt install sqlite3)",
+      "Read(/home/levo/Documents/projects/**)",
+      "WebSearch",
+      "WebFetch(domain:help.pythonanywhere.com)",
+      "Bash(timeout 600 python scripts/database/mysql_sync.py --full-sync)",
+      "Bash(timeout 300 python scripts/database/mysql_sync.py --full-sync)"
     ],
     "deny": [],
     "ask": []
