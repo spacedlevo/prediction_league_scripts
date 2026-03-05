@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
 """
-MySQL Synchronization for Core Prediction League Tables
+Zero-Downtime MySQL Synchronization for Core Prediction League Tables
 
 Syncs only essential tables from SQLite to PythonAnywhere MySQL:
 - fixtures, gameweeks, last_update, players, predictions, results, teams
+
+Uses atomic table swaps to ensure zero downtime during synchronization:
+1. Creates temporary tables with same structure
+2. Syncs data to temporary tables
+3. Performs atomic RENAME TABLE operation
+4. Cleans up backup tables
 
 This enables real-time data availability on PythonAnywhere while keeping
 all detailed data (FPL scores, odds, pulse data) in local SQLite.
 
 Usage:
     python mysql_sync.py --test          # Test connection
-    python mysql_sync.py --full-sync     # Initial complete sync
+    python mysql_sync.py --full-sync     # Zero-downtime atomic sync
     python mysql_sync.py --incremental   # Sync only changes
 """
 
@@ -140,17 +146,30 @@ def get_table_columns(table_name: str, sqlite_cursor: sql.Cursor) -> List[str]:
     return columns
 
 
-def clear_mysql_table(table_name: str, mysql_cursor: pymysql.cursors.Cursor) -> None:
-    """Clear all data from MySQL table"""
-    # Disable foreign key checks temporarily for cleanup
-    mysql_cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
-    mysql_cursor.execute(f"DELETE FROM {table_name}")
-    # Don't re-enable FK checks yet - leave them off for sync
+def create_temp_table(table_name: str, mysql_cursor: pymysql.cursors.Cursor, logger: logging.Logger) -> bool:
+    """Create temporary table with same structure as original"""
+    temp_table_name = f"{table_name}_temp"
+    
+    try:
+        # Drop temp table if it exists from previous failed run
+        mysql_cursor.execute(f"DROP TABLE IF EXISTS {temp_table_name}")
+        
+        # Create temp table with same structure as original
+        mysql_cursor.execute(f"CREATE TABLE {temp_table_name} LIKE {table_name}")
+        
+        logger.info(f"Created temporary table: {temp_table_name}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to create temp table {temp_table_name}: {e}")
+        return False
 
 
-def sync_table_full(table_name: str, sqlite_cursor: sql.Cursor, 
-                   mysql_cursor: pymysql.cursors.Cursor, logger: logging.Logger) -> int:
-    """Perform full sync of a table (clear and reload all data)"""
+def sync_table_to_temp(table_name: str, sqlite_cursor: sql.Cursor, 
+                      mysql_cursor: pymysql.cursors.Cursor, logger: logging.Logger) -> int:
+    """Sync data from SQLite to temporary MySQL table"""
+    temp_table_name = f"{table_name}_temp"
+    
     try:
         # Get total count first
         sqlite_cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
@@ -160,19 +179,15 @@ def sync_table_full(table_name: str, sqlite_cursor: sql.Cursor,
             logger.info(f"Table {table_name}: No data to sync")
             return 0
         
-        logger.info(f"Table {table_name}: Syncing {total_rows:,} records")
+        logger.info(f"Table {table_name}: Syncing {total_rows:,} records to temp table")
         
         # Get column names
         columns = get_table_columns(table_name, sqlite_cursor)
         
-        # Clear MySQL table
-        logger.info(f"Table {table_name}: Clearing existing data")
-        clear_mysql_table(table_name, mysql_cursor)
-        
-        # Prepare INSERT statement
+        # Prepare INSERT statement for temp table
         placeholders = ','.join(['%s'] * len(columns))
         column_names = ','.join(columns)
-        insert_sql = f"INSERT INTO {table_name} ({column_names}) VALUES ({placeholders})"
+        insert_sql = f"INSERT INTO {temp_table_name} ({column_names}) VALUES ({placeholders})"
         
         # Process data in smaller batches for large tables
         batch_size = 500 if total_rows > 10000 else 1000
@@ -219,11 +234,11 @@ def sync_table_full(table_name: str, sqlite_cursor: sql.Cursor,
             
             offset += batch_size
         
-        logger.info(f"Table {table_name}: Successfully synced {total_inserted:,} records")
+        logger.info(f"Table {table_name}: Successfully synced {total_inserted:,} records to temp table")
         return total_inserted
         
     except Exception as e:
-        logger.error(f"Error syncing table {table_name}: {e}")
+        logger.error(f"Error syncing table {table_name} to temp: {e}")
         raise
 
 
@@ -297,14 +312,83 @@ def test_connection(config: dict, logger: logging.Logger) -> bool:
             tunnel.stop()
 
 
-def full_sync(config: dict, logger: logging.Logger) -> bool:
-    """Perform complete synchronization of all core tables"""
+def atomic_table_swap(tables_to_swap: List[str], mysql_cursor: pymysql.cursors.Cursor, logger: logging.Logger) -> bool:
+    """Perform atomic swap of all tables at once using RENAME TABLE"""
+    try:
+        logger.info("Starting atomic table swap...")
+        
+        # Build the RENAME TABLE statement for all tables
+        # Format: RENAME TABLE old1 TO backup1, temp1 TO old1, old2 TO backup2, temp2 TO old2, ...
+        rename_parts = []
+        
+        for table_name in tables_to_swap:
+            temp_table = f"{table_name}_temp"
+            backup_table = f"{table_name}_backup"
+            
+            # Move current table to backup, temp table to current
+            rename_parts.append(f"{table_name} TO {backup_table}")
+            rename_parts.append(f"{temp_table} TO {table_name}")
+        
+        rename_sql = "RENAME TABLE " + ", ".join(rename_parts)
+        
+        logger.info(f"Executing atomic rename: {rename_sql}")
+        mysql_cursor.execute(rename_sql)
+        
+        logger.info(f"Successfully swapped {len(tables_to_swap)} tables atomically")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Atomic table swap failed: {e}")
+        return False
+
+
+def cleanup_backup_tables(tables_to_cleanup: List[str], mysql_cursor: pymysql.cursors.Cursor, logger: logging.Logger) -> None:
+    """Clean up backup tables after successful swap"""
+    for table_name in tables_to_cleanup:
+        backup_table = f"{table_name}_backup"
+        try:
+            mysql_cursor.execute(f"DROP TABLE IF EXISTS {backup_table}")
+            logger.info(f"Cleaned up backup table: {backup_table}")
+        except Exception as e:
+            logger.warning(f"Failed to clean up backup table {backup_table}: {e}")
+
+
+def rollback_table_swap(tables_to_rollback: List[str], mysql_cursor: pymysql.cursors.Cursor, logger: logging.Logger) -> bool:
+    """Rollback table swap by restoring from backup tables"""
+    try:
+        logger.warning("Rolling back table swap...")
+        
+        # Build rollback RENAME statement
+        rename_parts = []
+        
+        for table_name in tables_to_rollback:
+            backup_table = f"{table_name}_backup"
+            temp_table = f"{table_name}_temp"
+            
+            # Move current (new) table to temp, backup to current
+            rename_parts.append(f"{table_name} TO {temp_table}")
+            rename_parts.append(f"{backup_table} TO {table_name}")
+        
+        rename_sql = "RENAME TABLE " + ", ".join(rename_parts)
+        mysql_cursor.execute(rename_sql)
+        
+        logger.info("Successfully rolled back table swap")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Rollback failed: {e}")
+        return False
+
+
+def full_sync_zero_downtime(config: dict, logger: logging.Logger) -> bool:
+    """Perform zero-downtime synchronization using temporary tables and atomic swap"""
     sqlite_conn = None
     mysql_conn = None
     tunnel = None
+    temp_tables_created = []
     
     try:
-        logger.info("Starting full synchronization...")
+        logger.info("Starting zero-downtime synchronization...")
         
         # Establish connections
         sqlite_conn = get_sqlite_connection()
@@ -313,45 +397,110 @@ def full_sync(config: dict, logger: logging.Logger) -> bool:
         sqlite_cursor = sqlite_conn.cursor()
         mysql_cursor = mysql_conn.cursor()
         
-        # Disable foreign key checks for the entire sync process
-        mysql_cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
+        # Disable autocommit for transaction control
+        mysql_conn.autocommit(False)
         
         total_synced = 0
         
-        # Sync each table in dependency order
+        # Phase 1: Create temporary tables
+        logger.info("Phase 1: Creating temporary tables...")
+        for table_name in SYNC_TABLES:
+            if not create_temp_table(table_name, mysql_cursor, logger):
+                raise Exception(f"Failed to create temp table for {table_name}")
+            temp_tables_created.append(table_name)
+        
+        mysql_conn.commit()
+        logger.info("All temporary tables created successfully")
+        
+        # Phase 2: Sync data to temporary tables
+        logger.info("Phase 2: Syncing data to temporary tables...")
         for table_name in SYNC_TABLES:
             logger.info(f"Syncing table: {table_name}")
             
-            try:
-                synced_count = sync_table_full(table_name, sqlite_cursor, mysql_cursor, logger)
-                total_synced += synced_count
-                
-                # Commit after each table
-                mysql_conn.commit()
-                logger.info(f"Table {table_name}: Committed {synced_count} records")
-                
-            except Exception as e:
-                logger.error(f"Failed to sync table {table_name}: {e}")
-                mysql_conn.rollback()
-                return False
+            synced_count = sync_table_to_temp(table_name, sqlite_cursor, mysql_cursor, logger)
+            total_synced += synced_count
+            
+            # Commit after each table
+            mysql_conn.commit()
+            logger.info(f"Table {table_name}: Committed {synced_count} records to temp table")
         
-        # Re-enable foreign key checks
-        mysql_cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
+        logger.info("All data synced to temporary tables")
         
-        # Update sync timestamp
+        # Phase 3: Verify data integrity
+        logger.info("Phase 3: Verifying data integrity...")
+        for table_name in SYNC_TABLES:
+            # Count records in temp table
+            mysql_cursor.execute(f"SELECT COUNT(*) FROM {table_name}_temp")
+            temp_count = mysql_cursor.fetchone()[0]
+            
+            # Count records in SQLite
+            sqlite_cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+            sqlite_count = sqlite_cursor.fetchone()[0]
+            
+            if temp_count != sqlite_count:
+                raise Exception(f"Data integrity check failed for {table_name}: temp={temp_count}, sqlite={sqlite_count}")
+            
+            logger.info(f"Table {table_name}: Verified {temp_count} records")
+        
+        # Phase 4: Atomic swap
+        logger.info("Phase 4: Performing atomic table swap...")
+        if not atomic_table_swap(SYNC_TABLES, mysql_cursor, logger):
+            raise Exception("Atomic table swap failed")
+        
+        mysql_conn.commit()
+        
+        # Phase 5: Update sync timestamp
+        logger.info("Phase 5: Updating sync timestamp...")
         update_mysql_sync_timestamp(mysql_cursor)
         mysql_conn.commit()
         
-        logger.info(f"Full synchronization completed: {total_synced} total records synced")
+        # Phase 6: Cleanup backup tables
+        logger.info("Phase 6: Cleaning up backup tables...")
+        cleanup_backup_tables(SYNC_TABLES, mysql_cursor, logger)
+        mysql_conn.commit()
+        
+        logger.info(f"Zero-downtime synchronization completed: {total_synced} total records synced")
         return True
         
     except Exception as e:
-        logger.error(f"Full sync failed: {e}")
+        logger.error(f"Zero-downtime sync failed: {e}")
+        
+        # Attempt rollback if swap was attempted
         if mysql_conn:
-            mysql_conn.rollback()
+            try:
+                mysql_conn.rollback()
+                
+                # Check if we need to rollback a swap
+                backup_exists = False
+                for table_name in temp_tables_created:
+                    mysql_cursor.execute(f"SHOW TABLES LIKE '{table_name}_backup'")
+                    if mysql_cursor.fetchone():
+                        backup_exists = True
+                        break
+                
+                if backup_exists:
+                    logger.info("Attempting to rollback table swap...")
+                    if rollback_table_swap(temp_tables_created, mysql_cursor, logger):
+                        mysql_conn.commit()
+                        logger.info("Rollback successful")
+                    else:
+                        logger.error("Rollback failed - manual intervention may be required")
+                        
+            except Exception as rollback_error:
+                logger.error(f"Rollback failed: {rollback_error}")
+        
         return False
         
     finally:
+        # Cleanup any remaining temp tables
+        if mysql_conn and temp_tables_created:
+            try:
+                for table_name in temp_tables_created:
+                    mysql_cursor.execute(f"DROP TABLE IF EXISTS {table_name}_temp")
+                mysql_conn.commit()
+            except Exception as cleanup_error:
+                logger.warning(f"Cleanup failed: {cleanup_error}")
+        
         if sqlite_conn:
             sqlite_conn.close()
         if mysql_conn:
@@ -381,7 +530,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument('--test', action='store_true',
                        help='Test MySQL connection and show table status')
     parser.add_argument('--full-sync', action='store_true',
-                       help='Perform complete synchronization of all tables')
+                       help='Perform zero-downtime synchronization using atomic table swaps')
     parser.add_argument('--incremental', action='store_true',
                        help='Sync only changed data since last MySQL sync')
     parser.add_argument('--dry-run', action='store_true',
@@ -407,7 +556,7 @@ def main():
             sys.exit(0 if success else 1)
         
         elif args.full_sync:
-            success = full_sync(config, logger)
+            success = full_sync_zero_downtime(config, logger)
             sys.exit(0 if success else 1)
         
         elif args.incremental:
