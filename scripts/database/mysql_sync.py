@@ -312,10 +312,31 @@ def test_connection(config: dict, logger: logging.Logger) -> bool:
             tunnel.stop()
 
 
+def cleanup_old_backup_tables(tables_to_cleanup: List[str], mysql_cursor: pymysql.cursors.Cursor, logger: logging.Logger) -> None:
+    """Clean up any existing backup tables from previous failed runs"""
+    # Temporarily disable foreign key checks for cleanup
+    mysql_cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
+    
+    for table_name in tables_to_cleanup:
+        backup_table = f"{table_name}_backup"
+        try:
+            mysql_cursor.execute(f"DROP TABLE IF EXISTS {backup_table}")
+            logger.info(f"Cleaned up old backup table: {backup_table}")
+        except Exception as e:
+            logger.warning(f"Failed to clean up old backup table {backup_table}: {e}")
+    
+    # Re-enable foreign key checks
+    mysql_cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
+
+
 def atomic_table_swap(tables_to_swap: List[str], mysql_cursor: pymysql.cursors.Cursor, logger: logging.Logger) -> bool:
     """Perform atomic swap of all tables at once using RENAME TABLE"""
     try:
         logger.info("Starting atomic table swap...")
+        
+        # First, clean up any existing backup tables from previous failed runs
+        logger.info("Cleaning up any existing backup tables...")
+        cleanup_old_backup_tables(tables_to_swap, mysql_cursor, logger)
         
         # Build the RENAME TABLE statement for all tables
         # Format: RENAME TABLE old1 TO backup1, temp1 TO old1, old2 TO backup2, temp2 TO old2, ...
@@ -358,21 +379,42 @@ def rollback_table_swap(tables_to_rollback: List[str], mysql_cursor: pymysql.cur
     try:
         logger.warning("Rolling back table swap...")
         
-        # Build rollback RENAME statement
+        # First check what tables actually exist
+        existing_tables = set()
+        mysql_cursor.execute("SHOW TABLES")
+        for (table_name,) in mysql_cursor.fetchall():
+            existing_tables.add(table_name)
+        
+        logger.info(f"Existing tables: {sorted(existing_tables)}")
+        
+        # Clean up any conflicting temp tables first
+        for table_name in tables_to_rollback:
+            temp_table = f"{table_name}_temp"
+            if temp_table in existing_tables:
+                logger.info(f"Dropping conflicting temp table: {temp_table}")
+                mysql_cursor.execute(f"DROP TABLE {temp_table}")
+        
+        # Build rollback RENAME statement only for tables that exist
         rename_parts = []
         
         for table_name in tables_to_rollback:
             backup_table = f"{table_name}_backup"
             temp_table = f"{table_name}_temp"
             
-            # Move current (new) table to temp, backup to current
-            rename_parts.append(f"{table_name} TO {temp_table}")
-            rename_parts.append(f"{backup_table} TO {table_name}")
+            # Only proceed if backup table exists
+            if backup_table in existing_tables:
+                # Move current (new) table to temp, backup to current
+                rename_parts.append(f"{table_name} TO {temp_table}")
+                rename_parts.append(f"{backup_table} TO {table_name}")
         
-        rename_sql = "RENAME TABLE " + ", ".join(rename_parts)
-        mysql_cursor.execute(rename_sql)
+        if rename_parts:
+            rename_sql = "RENAME TABLE " + ", ".join(rename_parts)
+            logger.info(f"Executing rollback: {rename_sql}")
+            mysql_cursor.execute(rename_sql)
+            logger.info("Successfully rolled back table swap")
+        else:
+            logger.warning("No backup tables found to rollback")
         
-        logger.info("Successfully rolled back table swap")
         return True
         
     except Exception as e:
