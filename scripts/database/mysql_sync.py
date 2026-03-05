@@ -187,8 +187,21 @@ def sync_table_full(table_name: str, sqlite_cursor: sql.Cursor,
             if not batch_rows:
                 break
             
-            # Convert rows to tuples for MySQL
-            data_tuples = [tuple(row) for row in batch_rows]
+            # Convert rows to tuples for MySQL with timestamp validation
+            data_tuples = []
+            for row in batch_rows:
+                if table_name == 'last_update':
+                    # Validate timestamp for last_update table (MySQL limit: 2038-01-19)
+                    row_list = list(row)
+                    if len(row_list) >= 3 and row_list[2] is not None:  # timestamp column
+                        timestamp_val = row_list[2]
+                        # MySQL timestamp range: 1970-01-01 to 2038-01-19 (2147483647)
+                        if timestamp_val > 2147483647:
+                            logger.warning(f"Capping large timestamp {timestamp_val} to MySQL limit for table_name: {row_list[0]}")
+                            row_list[2] = 2147483647  # Cap at MySQL max
+                    data_tuples.append(tuple(row_list))
+                else:
+                    data_tuples.append(tuple(row))
             
             # Insert batch
             try:

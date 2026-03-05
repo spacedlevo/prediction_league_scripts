@@ -38,7 +38,8 @@
       "WebSearch",
       "WebFetch(domain:help.pythonanywhere.com)",
       "Bash(timeout 600 python scripts/database/mysql_sync.py --full-sync)",
-      "Bash(timeout 300 python scripts/database/mysql_sync.py --full-sync)"
+      "Bash(timeout 300 python scripts/database/mysql_sync.py --full-sync)",
+      "Bash(scp keys.json predictionleague@predictions.local:/home/predictionleague/projects/prediction_league_scripts/)"
     ],
     "deny": [],
     "ask": []
