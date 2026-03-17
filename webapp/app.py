@@ -2827,8 +2827,8 @@ def api_standings():
             AND f.finished = 1
             AND pred.home_goals IS NOT NULL
             AND r.home_goals IS NOT NULL
-            GROUP BY pl.player_name
-            ORDER BY total_points DESC, exact_scores DESC, player_name ASC
+            GROUP BY pl.player_id, pl.player_name
+            ORDER BY total_points DESC, exact_scores DESC, pl.player_name ASC
         """, (season,))
         
         standings = [
@@ -3079,7 +3079,7 @@ def api_player_comparison():
             JOIN results r ON f.fixture_id = r.fixture_id
             WHERE pl.player_name IN (?, ?) AND f.season = ?
             AND f.finished = 1 AND pred.home_goals IS NOT NULL AND r.home_goals IS NOT NULL
-            GROUP BY pl.player_name
+            GROUP BY pl.player_id, pl.player_name
             ORDER BY total_points DESC
         """, (player1, player2, season))
         
@@ -3279,7 +3279,7 @@ def api_top_performers():
             AND f.finished = 1
             AND pred.home_goals IS NOT NULL
             AND r.home_goals IS NOT NULL
-            GROUP BY pl.player_name
+            GROUP BY pl.player_id, pl.player_name
             HAVING COUNT(DISTINCT pred.fixture_id) >= 5  -- Minimum 5 predictions
             ORDER BY total_points DESC, exact_scores DESC, ppg DESC
             LIMIT ?
