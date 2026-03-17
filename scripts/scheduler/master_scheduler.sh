@@ -169,7 +169,7 @@ fi
 if [[ "$ENABLE_MYSQL_SYNC" == "true" ]]; then
     sleep 5  # Additional 5s delay after monitor_and_upload
     run_script "scripts/database/mysql_sync.py" "mysql_sync" "--full-sync" &
-    log "DEBUG" "Triggered mysql_sync --full-sync (after 15s delay)"
+    log "DEBUG" "Triggered mysql_sync --full-sync (with built-in change detection, after 15s delay)"
 fi
 
 # ============================================================================

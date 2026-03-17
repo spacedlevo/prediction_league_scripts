@@ -430,7 +430,7 @@ def rollback_table_swap(tables_to_rollback: List[str], mysql_cursor: pymysql.cur
         return False
 
 
-def full_sync_zero_downtime(config: dict, logger: logging.Logger) -> bool:
+def full_sync_zero_downtime(config: dict, logger: logging.Logger, force: bool = False) -> bool:
     """Perform zero-downtime synchronization using temporary tables and atomic swap"""
     sqlite_conn = None
     mysql_conn = None
@@ -446,6 +446,13 @@ def full_sync_zero_downtime(config: dict, logger: logging.Logger) -> bool:
         
         sqlite_cursor = sqlite_conn.cursor()
         mysql_cursor = mysql_conn.cursor()
+        
+        # Check if sync is needed (unless forced)
+        if not force:
+            needs_sync, updated_tables = check_tables_need_sync(sqlite_cursor, logger)
+            if not needs_sync:
+                logger.info("No sync required - all tables are up to date")
+                return True
         
         # Disable autocommit for transaction control
         mysql_conn.autocommit(False)
@@ -499,10 +506,20 @@ def full_sync_zero_downtime(config: dict, logger: logging.Logger) -> bool:
         
         mysql_conn.commit()
         
-        # Phase 5: Update sync timestamp
-        logger.info("Phase 5: Updating sync timestamp...")
+        # Phase 5: Update MySQL sync timestamp
+        logger.info("Phase 5: Updating MySQL sync timestamp...")
         update_mysql_sync_timestamp(mysql_cursor, logger)
         mysql_conn.commit()
+        
+        # Phase 5b: Update local SQLite sync timestamp (separate operation)
+        logger.info("Phase 5b: Updating local SQLite sync timestamp...")
+        try:
+            update_local_sync_timestamp(sqlite_cursor, logger)
+            sqlite_conn.commit()
+            logger.info("Local SQLite timestamp update successful")
+        except Exception as local_error:
+            logger.error(f"Failed to update local timestamp (MySQL sync still successful): {local_error}")
+            # Don't fail the entire operation for local timestamp issues
         
         # Phase 6: Cleanup backup tables
         logger.info("Phase 6: Cleaning up backup tables...")
@@ -551,16 +568,31 @@ def full_sync_zero_downtime(config: dict, logger: logging.Logger) -> bool:
             except Exception as cleanup_error:
                 logger.warning(f"Cleanup failed: {cleanup_error}")
         
+        # Separate cleanup for SQLite and MySQL connections
         if sqlite_conn:
-            sqlite_conn.close()
+            try:
+                sqlite_conn.close()
+                logger.debug("SQLite connection closed")
+            except Exception as e:
+                logger.warning(f"Error closing SQLite connection: {e}")
+                
         if mysql_conn:
-            mysql_conn.close()
+            try:
+                mysql_conn.close()
+                logger.debug("MySQL connection closed")
+            except Exception as e:
+                logger.warning(f"Error closing MySQL connection: {e}")
+                
         if tunnel:
-            tunnel.stop()
+            try:
+                tunnel.stop()
+                logger.debug("SSH tunnel closed")
+            except Exception as e:
+                logger.warning(f"Error closing SSH tunnel: {e}")
 
 
 def update_mysql_sync_timestamp(mysql_cursor: pymysql.cursors.Cursor, logger: logging.Logger) -> None:
-    """Update the mysql_synced timestamp in last_update table"""
+    """Update the mysql_synced timestamp in MySQL last_update table"""
     now = datetime.now()
     timestamp = now.timestamp()
     formatted_time = now.strftime("%d-%m-%Y %H:%M:%S")  # Fixed format to match other entries
@@ -579,6 +611,84 @@ def update_mysql_sync_timestamp(mysql_cursor: pymysql.cursors.Cursor, logger: lo
         raise
 
 
+def update_local_sync_timestamp(sqlite_cursor: sql.Cursor, logger: logging.Logger) -> None:
+    """Update the mysql_synced timestamp in local SQLite last_update table"""
+    now = datetime.now()
+    timestamp = now.timestamp()
+    formatted_time = now.strftime("%d-%m-%Y %H:%M:%S")
+    
+    try:
+        # First check if the table exists and is accessible
+        sqlite_cursor.execute("SELECT COUNT(*) FROM last_update WHERE 1=0")
+        
+        # Insert or replace the mysql_synced timestamp
+        sqlite_cursor.execute("""
+            INSERT OR REPLACE INTO last_update (table_name, updated, timestamp) 
+            VALUES ('mysql_synced', ?, ?)
+        """, (formatted_time, timestamp))
+        
+        # Verify the update was successful
+        sqlite_cursor.execute("SELECT timestamp FROM last_update WHERE table_name = 'mysql_synced'")
+        result = sqlite_cursor.fetchone()
+        
+        if result and abs(result[0] - timestamp) < 1:  # Allow 1 second tolerance
+            logger.info(f"Successfully updated local mysql_synced timestamp: {formatted_time} ({timestamp})")
+        else:
+            logger.warning("Local timestamp update may have failed - verification mismatch")
+        
+    except Exception as e:
+        logger.error(f"Failed to update local mysql_synced timestamp: {e}")
+        logger.error(f"Attempted values: table_name='mysql_synced', updated='{formatted_time}', timestamp={timestamp}")
+        raise
+
+
+def check_tables_need_sync(sqlite_cursor: sql.Cursor, logger: logging.Logger) -> Tuple[bool, List[str]]:
+    """Check if any core tables have been updated since last mysql sync"""
+    try:
+        # Get last mysql sync timestamp
+        sqlite_cursor.execute(
+            "SELECT timestamp FROM last_update WHERE table_name = 'mysql_synced'"
+        )
+        result = sqlite_cursor.fetchone()
+        
+        if not result:
+            logger.info("No previous mysql sync found - full sync required")
+            return True, SYNC_TABLES
+        
+        last_sync_timestamp = result[0]
+        logger.info(f"Last mysql sync: {datetime.fromtimestamp(last_sync_timestamp).strftime('%d-%m-%Y %H:%M:%S')}")
+        
+        # Check each core table for updates since last sync
+        updated_tables = []
+        
+        for table_name in SYNC_TABLES:
+            # Check if table exists in last_update
+            sqlite_cursor.execute(
+                "SELECT timestamp FROM last_update WHERE table_name = ?", 
+                (table_name,)
+            )
+            table_result = sqlite_cursor.fetchone()
+            
+            if table_result and table_result[0] > last_sync_timestamp:
+                updated_tables.append(table_name)
+                table_update_time = datetime.fromtimestamp(table_result[0]).strftime('%d-%m-%Y %H:%M:%S')
+                logger.info(f"Table {table_name} updated since last sync: {table_update_time}")
+        
+        if updated_tables:
+            logger.info(f"Tables needing sync: {', '.join(updated_tables)}")
+            return True, updated_tables
+        else:
+            logger.info("No tables updated since last mysql sync - skipping")
+            return False, []
+            
+    except Exception as e:
+        logger.error(f"Error checking table sync status: {e}")
+        # If we can't determine, err on the side of syncing
+        return True, SYNC_TABLES
+
+
+
+
 def parse_arguments() -> argparse.Namespace:
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(
@@ -587,9 +697,9 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument('--test', action='store_true',
                        help='Test MySQL connection and show table status')
     parser.add_argument('--full-sync', action='store_true',
-                       help='Perform zero-downtime synchronization using atomic table swaps')
-    parser.add_argument('--incremental', action='store_true',
-                       help='Sync only changed data since last MySQL sync')
+                       help='Perform zero-downtime synchronization (only if tables changed, unless --force)')
+    parser.add_argument('--force', action='store_true',
+                       help='Force full sync even if no changes detected')
     parser.add_argument('--dry-run', action='store_true',
                        help='Show what would be synced without making changes')
     
@@ -613,15 +723,13 @@ def main():
             sys.exit(0 if success else 1)
         
         elif args.full_sync:
-            success = full_sync_zero_downtime(config, logger)
+            force_sync = args.force
+            success = full_sync_zero_downtime(config, logger, force=force_sync)
             sys.exit(0 if success else 1)
         
-        elif args.incremental:
-            logger.info("Incremental sync not yet implemented")
-            sys.exit(1)
-        
         else:
-            logger.info("No action specified. Use --test, --full-sync, or --incremental")
+            logger.info("No action specified. Use --test or --full-sync")
+            logger.info("Note: --full-sync includes built-in change detection (use --force to override)")
             sys.exit(1)
             
     except Exception as e:
