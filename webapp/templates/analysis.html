@@ -1,0 +1,719 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Page Header -->
+    <div class="bg-white shadow rounded-lg p-6">
+        <h1 class="text-3xl font-bold text-gray-900">📈 Analysis Dashboard</h1>
+        <p class="mt-2 text-gray-600">Interactive analysis cards for prediction league insights</p>
+        
+        <!-- Quick Stats Overview -->
+        {% if stats %}
+        <div class="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-3">
+            <div class="bg-blue-50 px-4 py-3 rounded-lg">
+                <dt class="text-sm font-medium text-blue-600">Total Players</dt>
+                <dd class="text-2xl font-bold text-blue-900">{{ stats[0] }}</dd>
+            </div>
+            <div class="bg-green-50 px-4 py-3 rounded-lg">
+                <dt class="text-sm font-medium text-green-600">Total Predictions</dt>
+                <dd class="text-2xl font-bold text-green-900">{{ "{:,}".format(stats[1]) }}</dd>
+            </div>
+            <div class="bg-purple-50 px-4 py-3 rounded-lg">
+                <dt class="text-sm font-medium text-purple-600">Seasons Covered</dt>
+                <dd class="text-2xl font-bold text-purple-900">{{ stats[2] }}</dd>
+            </div>
+        </div>
+        {% endif %}
+        
+        {% if season_info %}
+        <div class="mt-4 bg-gray-50 px-4 py-3 rounded-lg">
+            <p class="text-sm text-gray-600">
+                <strong>{{ current_season }} Season:</strong> 
+                Through Gameweek {{ season_info[0] or 0 }} • 
+                {{ season_info[1] or 0 }} completed fixtures
+            </p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Analysis Cards Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- Current Season Standings Card -->
+        <div class="bg-white shadow rounded-lg p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900">🏆 Current Season Standings</h2>
+                <select id="standings-season" class="border rounded px-3 py-1 text-sm">
+                    <option value="2025/2026">2025/2026</option>
+                    <option value="2024/2025">2024/2025</option>
+                    <option value="2023/2024">2023/2024</option>
+                </select>
+            </div>
+            
+            <div id="standings-loading" class="text-center py-8 text-gray-500">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                Loading standings...
+            </div>
+            
+            <div id="standings-content" class="hidden">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-2 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-left">Rank</th>
+                                <th class="px-2 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-left">Player</th>
+                                <th class="px-2 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Points</th>
+                                <th class="px-2 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">PPG</th>
+                                <th class="px-2 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Exact</th>
+                            </tr>
+                        </thead>
+                        <tbody id="standings-table" class="bg-white divide-y divide-gray-200">
+                            <!-- Data populated via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gameweek Performance Trends Card -->
+        <div class="bg-white shadow rounded-lg p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900">📅 Gameweek Trends</h2>
+                <div class="flex space-x-2">
+                    <select id="trends-player" class="border rounded px-3 py-1 text-sm">
+                        <option value="">League Average</option>
+                        <!-- Options populated via JavaScript -->
+                    </select>
+                    <select id="trends-season" class="border rounded px-3 py-1 text-sm">
+                        <option value="2025/2026">2025/2026</option>
+                        <option value="2024/2025">2024/2025</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div id="trends-loading" class="text-center py-8 text-gray-500">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                Loading trends...
+            </div>
+            
+            <div id="trends-content" class="hidden">
+                <canvas id="trends-chart" width="400" height="200"></canvas>
+            </div>
+        </div>
+
+        <!-- Scoreline Preference Heatmap Card -->
+        <div class="bg-white shadow rounded-lg p-6 lg:col-span-2">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900">🎯 Scoreline Prediction Heatmap</h2>
+                <select id="heatmap-season" class="border rounded px-3 py-1 text-sm">
+                    <option value="2025/2026">2025/2026</option>
+                    <option value="2024/2025">2024/2025</option>
+                </select>
+            </div>
+            
+            <div id="heatmap-loading" class="text-center py-8 text-gray-500">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                Loading heatmap...
+            </div>
+            
+            <div id="heatmap-content" class="hidden">
+                <div class="grid grid-cols-6 gap-1 max-w-2xl mx-auto" id="heatmap-grid">
+                    <!-- Heatmap populated via JavaScript -->
+                </div>
+                <div class="mt-4 flex justify-center space-x-4 text-sm text-gray-600">
+                    <div class="flex items-center">
+                        <div class="w-4 h-4 bg-red-200 rounded mr-1"></div>
+                        <span>Low frequency</span>
+                    </div>
+                    <div class="flex items-center">
+                        <div class="w-4 h-4 bg-yellow-300 rounded mr-1"></div>
+                        <span>Medium frequency</span>
+                    </div>
+                    <div class="flex items-center">
+                        <div class="w-4 h-4 bg-green-500 rounded mr-1"></div>
+                        <span>High frequency</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Historical Performance Comparison Card -->
+        <div class="bg-white shadow rounded-lg p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900">📊 Historical Performance</h2>
+                <select id="historical-player" class="border rounded px-3 py-1 text-sm">
+                    <option value="">Select Player</option>
+                    <!-- Options populated via JavaScript -->
+                </select>
+            </div>
+            
+            <div id="historical-loading" class="text-center py-8 text-gray-500 hidden">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                Loading historical data...
+            </div>
+            
+            <div id="historical-placeholder" class="text-center py-8 text-gray-500">
+                Select a player to view their historical performance across seasons
+            </div>
+            
+            <div id="historical-content" class="hidden">
+                <!-- Season Summary Table -->
+                <div class="mb-6">
+                    <h3 class="text-md font-medium text-gray-900 mb-3">Season Summary</h3>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-left">Season</th>
+                                    <th class="px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Predictions</th>
+                                    <th class="px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Points</th>
+                                    <th class="px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">PPG</th>
+                                    <th class="px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Exact Scores</th>
+                                </tr>
+                            </thead>
+                            <tbody id="historical-table" class="bg-white divide-y divide-gray-200">
+                                <!-- Data populated via JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Cumulative Points Chart -->
+                <div>
+                    <h3 class="text-md font-medium text-gray-900 mb-3">Cumulative Points Progression</h3>
+                    <canvas id="historical-chart" width="400" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Player vs Player Comparison Card -->
+        <div class="bg-white shadow rounded-lg p-6 lg:col-span-2">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900">⚔️ Player vs Player Comparison</h2>
+                <div class="flex space-x-2">
+                    <select id="comparison-player1" class="border rounded px-3 py-1 text-sm">
+                        <option value="">Select Player 1</option>
+                        <!-- Options populated via JavaScript -->
+                    </select>
+                    <select id="comparison-player2" class="border rounded px-3 py-1 text-sm">
+                        <option value="">Select Player 2</option>
+                        <!-- Options populated via JavaScript -->
+                    </select>
+                    <button id="comparison-btn" class="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700" disabled>
+                        Compare
+                    </button>
+                </div>
+            </div>
+            
+            <div id="comparison-loading" class="text-center py-8 text-gray-500 hidden">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                Loading comparison...
+            </div>
+            
+            <div id="comparison-placeholder" class="text-center py-8 text-gray-500">
+                Select two players to compare their prediction performance
+            </div>
+            
+            <div id="comparison-content" class="hidden">
+                <!-- Overall Stats Comparison -->
+                <div id="comparison-stats" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <!-- Populated via JavaScript -->
+                </div>
+                
+                <!-- Head-to-head Table -->
+                <div id="comparison-matches" class="overflow-x-auto">
+                    <h3 class="text-md font-medium text-gray-900 mb-2">Head-to-Head Predictions</h3>
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-2 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-left">GW</th>
+                                <th class="px-2 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-left">Match</th>
+                                <th class="px-2 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Result</th>
+                                <th class="px-2 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Player 1</th>
+                                <th class="px-2 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Player 2</th>
+                            </tr>
+                        </thead>
+                        <tbody id="comparison-table" class="bg-white divide-y divide-gray-200">
+                            <!-- Data populated via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Global variables for data caching
+let playersCache = null;
+let currentSeason = '{{ current_season }}';
+
+// Initialize the dashboard
+document.addEventListener('DOMContentLoaded', function() {
+    loadStandings();
+    loadGameweekTrends();
+    loadScorelineHeatmap();
+    loadPlayersList();
+    
+    // Event listeners for dropdowns
+    document.getElementById('standings-season').addEventListener('change', loadStandings);
+    document.getElementById('trends-season').addEventListener('change', loadGameweekTrends);
+    document.getElementById('trends-player').addEventListener('change', loadGameweekTrends);
+    document.getElementById('heatmap-season').addEventListener('change', loadScorelineHeatmap);
+    
+    // Player comparison event listeners
+    document.getElementById('comparison-player1').addEventListener('change', updateComparisonButton);
+    document.getElementById('comparison-player2').addEventListener('change', updateComparisonButton);
+    document.getElementById('comparison-btn').addEventListener('click', loadPlayerComparison);
+    
+    // Historical performance event listener
+    document.getElementById('historical-player').addEventListener('change', loadHistoricalPerformance);
+});
+
+// Load current season standings
+function loadStandings() {
+    const season = document.getElementById('standings-season').value;
+    showLoading('standings');
+    
+    fetchJson(`/api/analysis/standings?season=${season}`)
+        .then(data => {
+            if (data.error) throw new Error(data.error);
+            
+            const tbody = document.getElementById('standings-table');
+            tbody.innerHTML = '';
+            
+            data.standings.slice(0, 10).forEach(player => {
+                const row = document.createElement('tr');
+                row.className = player.rank <= 3 ? 'bg-yellow-50' : '';
+                
+                row.innerHTML = `
+                    <td class="px-2 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                        ${player.rank <= 3 ? '🏆' : ''} ${player.rank}
+                    </td>
+                    <td class="px-2 py-2 whitespace-nowrap text-sm text-gray-900">
+                        ${player.player_name}
+                    </td>
+                    <td class="px-2 py-2 whitespace-nowrap text-sm text-gray-900 text-center font-semibold">
+                        ${player.total_points}
+                    </td>
+                    <td class="px-2 py-2 whitespace-nowrap text-sm text-gray-500 text-center">
+                        ${player.ppg}
+                    </td>
+                    <td class="px-2 py-2 whitespace-nowrap text-sm text-gray-500 text-center">
+                        ${player.exact_scores}
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            hideLoading('standings');
+        })
+        .catch(error => {
+            console.error('Error loading standings:', error);
+            document.getElementById('standings-table').innerHTML = `
+                <tr><td colspan="5" class="px-2 py-4 text-center text-red-600">
+                    Error loading standings: ${error.message}
+                </td></tr>
+            `;
+            hideLoading('standings');
+        });
+}
+
+// Load gameweek performance trends
+function loadGameweekTrends() {
+    const season = document.getElementById('trends-season').value;
+    const player = document.getElementById('trends-player').value;
+    showLoading('trends');
+    
+    const url = player ? 
+        `/api/analysis/gameweek-trends?season=${season}&player=${encodeURIComponent(player)}` :
+        `/api/analysis/gameweek-trends?season=${season}`;
+    
+    fetchJson(url)
+        .then(data => {
+            if (data.error) throw new Error(data.error);
+            
+            const ctx = document.getElementById('trends-chart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (window.trendsChart) {
+                window.trendsChart.destroy();
+            }
+            
+            const labels = data.trends.map(t => `GW${t.gameweek}`);
+            const values = data.trends.map(t => t.ppg);
+            
+            window.trendsChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: player ? `${player} PPG` : 'League Average PPG',
+                        data: values,
+                        borderColor: 'rgb(59, 130, 246)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 2,
+                            ticks: {
+                                stepSize: 0.5
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        }
+                    }
+                }
+            });
+            
+            hideLoading('trends');
+        })
+        .catch(error => {
+            console.error('Error loading trends:', error);
+            hideLoading('trends');
+        });
+}
+
+// Load scoreline prediction heatmap
+function loadScorelineHeatmap() {
+    const season = document.getElementById('heatmap-season').value;
+    showLoading('heatmap');
+    
+    fetchJson(`/api/analysis/scoreline-heatmap?season=${season}`)
+        .then(data => {
+            if (data.error) throw new Error(data.error);
+            
+            const grid = document.getElementById('heatmap-grid');
+            grid.innerHTML = '';
+            
+            // Create header row
+            const headerRow = document.createElement('div');
+            headerRow.className = 'col-span-6 text-center text-xs font-medium text-gray-500 mb-1';
+            headerRow.innerHTML = 'Away Goals →';
+            grid.appendChild(headerRow);
+            
+            // Create column headers (0-5)
+            const colHeaders = document.createElement('div');
+            colHeaders.className = 'col-span-6 grid grid-cols-6 gap-1 text-center text-xs text-gray-500 mb-2';
+            colHeaders.innerHTML = '<div></div>' + Array.from({length: 6}, (_, i) => `<div>${i}</div>`).join('');
+            grid.appendChild(colHeaders);
+            
+            // Find max frequency for color scaling
+            const maxFreq = Math.max(...data.heatmap.map(h => h.frequency));
+            
+            // Create heatmap grid (6x6)
+            for (let home = 0; home <= 5; home++) {
+                for (let away = 0; away <= 5; away++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'relative h-12 w-full border border-gray-200 rounded text-xs flex items-center justify-center cursor-pointer';
+                    
+                    if (away === 0) {
+                        // Row header
+                        cell.className += ' bg-gray-100 font-medium text-gray-600';
+                        if (home === 0) {
+                            cell.innerHTML = 'H<br>↓';
+                        } else {
+                            cell.innerHTML = home;
+                        }
+                    } else {
+                        // Data cell
+                        const dataPoint = data.heatmap.find(h => h.home_goals === home && h.away_goals === away - 1);
+                        
+                        if (dataPoint) {
+                            const intensity = dataPoint.frequency / maxFreq;
+                            const color = intensity > 0.7 ? 'bg-green-500' : 
+                                        intensity > 0.4 ? 'bg-yellow-300' : 'bg-red-200';
+                            
+                            cell.className += ` ${color} text-white font-medium`;
+                            cell.innerHTML = `${dataPoint.frequency}<br><span class="text-xs">${dataPoint.success_rate}%</span>`;
+                            cell.title = `${home}-${away-1}: ${dataPoint.frequency} predictions, ${dataPoint.success_rate}% success, ${dataPoint.avg_points} avg points`;
+                        } else {
+                            cell.className += ' bg-gray-50 text-gray-400';
+                            cell.innerHTML = '0';
+                        }
+                    }
+                    
+                    grid.appendChild(cell);
+                }
+            }
+            
+            hideLoading('heatmap');
+        })
+        .catch(error => {
+            console.error('Error loading heatmap:', error);
+            hideLoading('heatmap');
+        });
+}
+
+// Load players list for dropdowns
+function loadPlayersList() {
+    if (playersCache) {
+        populatePlayerDropdowns(playersCache);
+        return;
+    }
+    
+    // Extract player names from standings to populate dropdowns
+    fetchJson('/api/analysis/standings?season=2025/2026')
+        .then(data => {
+            if (data.error) throw new Error(data.error);
+            
+            playersCache = data.standings.map(p => p.player_name).sort();
+            populatePlayerDropdowns(playersCache);
+        })
+        .catch(error => {
+            console.error('Error loading players:', error);
+        });
+}
+
+// Populate player dropdown lists
+function populatePlayerDropdowns(players) {
+    const dropdowns = ['trends-player', 'comparison-player1', 'comparison-player2', 'historical-player'];
+    
+    dropdowns.forEach(dropdownId => {
+        const dropdown = document.getElementById(dropdownId);
+        const currentValue = dropdown.value;
+        
+        // Keep existing options for special dropdowns
+        if (dropdownId === 'trends-player') {
+            // Keep "League Average" option
+            const options = Array.from(dropdown.options).slice(1); // Remove existing player options
+            options.forEach(opt => opt.remove());
+        } else {
+            // Clear all options except the first
+            dropdown.innerHTML = dropdown.options[0].outerHTML;
+        }
+        
+        // Add player options
+        players.forEach(player => {
+            const option = document.createElement('option');
+            option.value = player;
+            option.textContent = player;
+            dropdown.appendChild(option);
+        });
+        
+        // Restore previous value if it's still valid
+        if (currentValue && players.includes(currentValue)) {
+            dropdown.value = currentValue;
+        }
+    });
+}
+
+// Update comparison button state
+function updateComparisonButton() {
+    const player1 = document.getElementById('comparison-player1').value;
+    const player2 = document.getElementById('comparison-player2').value;
+    const btn = document.getElementById('comparison-btn');
+    
+    btn.disabled = !player1 || !player2 || player1 === player2;
+}
+
+// Load player vs player comparison
+function loadPlayerComparison() {
+    const player1 = document.getElementById('comparison-player1').value;
+    const player2 = document.getElementById('comparison-player2').value;
+    
+    if (!player1 || !player2) return;
+    
+    document.getElementById('comparison-placeholder').classList.add('hidden');
+    document.getElementById('comparison-loading').classList.remove('hidden');
+    
+    fetchJson(`/api/analysis/player-comparison?player1=${encodeURIComponent(player1)}&player2=${encodeURIComponent(player2)}&season=${currentSeason}`)
+        .then(data => {
+            if (data.error) throw new Error(data.error);
+            
+            // Populate stats comparison
+            const statsDiv = document.getElementById('comparison-stats');
+            statsDiv.innerHTML = `
+                <div class="bg-blue-50 p-4 rounded-lg">
+                    <h3 class="font-medium text-blue-900">${player1}</h3>
+                    <div class="mt-2 space-y-1 text-sm">
+                        <div>Points: <span class="font-semibold">${data.stats[player1]?.total_points || 0}</span></div>
+                        <div>PPG: <span class="font-semibold">${data.stats[player1]?.ppg || 0}</span></div>
+                        <div>Exact Scores: <span class="font-semibold">${data.stats[player1]?.exact_scores || 0}</span></div>
+                        <div>Predictions: <span class="font-semibold">${data.stats[player1]?.predictions_made || 0}</span></div>
+                    </div>
+                </div>
+                <div class="bg-green-50 p-4 rounded-lg">
+                    <h3 class="font-medium text-green-900">${player2}</h3>
+                    <div class="mt-2 space-y-1 text-sm">
+                        <div>Points: <span class="font-semibold">${data.stats[player2]?.total_points || 0}</span></div>
+                        <div>PPG: <span class="font-semibold">${data.stats[player2]?.ppg || 0}</span></div>
+                        <div>Exact Scores: <span class="font-semibold">${data.stats[player2]?.exact_scores || 0}</span></div>
+                        <div>Predictions: <span class="font-semibold">${data.stats[player2]?.predictions_made || 0}</span></div>
+                    </div>
+                </div>
+            `;
+            
+            // Populate matches table
+            const tbody = document.getElementById('comparison-table');
+            tbody.innerHTML = '';
+            
+            data.matches.slice(0, 20).forEach(match => { // Show last 20 matches
+                const row = document.createElement('tr');
+                const player1Better = match.player1_points > match.player2_points;
+                const player2Better = match.player2_points > match.player1_points;
+                
+                row.innerHTML = `
+                    <td class="px-2 py-2 whitespace-nowrap text-sm text-gray-900">${match.gameweek}</td>
+                    <td class="px-2 py-2 text-sm text-gray-900">${match.home_team} vs ${match.away_team}</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-sm text-gray-900 text-center font-medium">${match.actual_score}</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-sm text-center ${player1Better ? 'bg-green-100 font-semibold' : ''}">
+                        ${match.player1_prediction} (${match.player1_points}pts)
+                    </td>
+                    <td class="px-2 py-2 whitespace-nowrap text-sm text-center ${player2Better ? 'bg-green-100 font-semibold' : ''}">
+                        ${match.player2_prediction} (${match.player2_points}pts)
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            document.getElementById('comparison-loading').classList.add('hidden');
+            document.getElementById('comparison-content').classList.remove('hidden');
+        })
+        .catch(error => {
+            console.error('Error loading comparison:', error);
+            document.getElementById('comparison-loading').classList.add('hidden');
+            document.getElementById('comparison-placeholder').innerHTML = `
+                <div class="text-red-600">Error loading comparison: ${error.message}</div>
+            `;
+            document.getElementById('comparison-placeholder').classList.remove('hidden');
+        });
+}
+
+// Load historical performance comparison
+function loadHistoricalPerformance() {
+    const player = document.getElementById('historical-player').value;
+    
+    if (!player) {
+        document.getElementById('historical-content').classList.add('hidden');
+        document.getElementById('historical-placeholder').classList.remove('hidden');
+        return;
+    }
+    
+    document.getElementById('historical-placeholder').classList.add('hidden');
+    document.getElementById('historical-loading').classList.remove('hidden');
+    
+    fetchJson(`/api/analysis/historical-performance?player=${encodeURIComponent(player)}`)
+        .then(data => {
+            if (data.error) throw new Error(data.error);
+            
+            // Populate season summary table
+            const tbody = document.getElementById('historical-table');
+            tbody.innerHTML = '';
+            
+            data.performance.forEach(season => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">${season.season}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900 text-center">${season.predictions_made}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900 text-center font-semibold">${season.total_points}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900 text-center">${season.ppg}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900 text-center">${season.exact_scores}</td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            // Create cumulative points chart
+            const ctx = document.getElementById('historical-chart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (window.historicalChart) {
+                window.historicalChart.destroy();
+            }
+            
+            // Prepare datasets for each season
+            const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4'];
+            const datasets = [];
+            
+            Object.keys(data.cumulative).forEach((season, index) => {
+                const seasonData = data.cumulative[season];
+                datasets.push({
+                    label: season,
+                    data: seasonData.map(d => ({x: d.gameweek, y: d.cumulative_points})),
+                    borderColor: colors[index % colors.length],
+                    backgroundColor: colors[index % colors.length] + '20',
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.1
+                });
+            });
+            
+            window.historicalChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            position: 'bottom',
+                            title: {
+                                display: true,
+                                text: 'Gameweek'
+                            },
+                            min: 1,
+                            max: 38
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Cumulative Points'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        },
+                        title: {
+                            display: true,
+                            text: `${player} - Cumulative Points by Season`
+                        }
+                    }
+                }
+            });
+            
+            document.getElementById('historical-loading').classList.add('hidden');
+            document.getElementById('historical-content').classList.remove('hidden');
+        })
+        .catch(error => {
+            console.error('Error loading historical performance:', error);
+            document.getElementById('historical-loading').classList.add('hidden');
+            document.getElementById('historical-placeholder').innerHTML = `
+                <div class="text-red-600">Error loading historical data: ${error.message}</div>
+            `;
+            document.getElementById('historical-placeholder').classList.remove('hidden');
+        });
+}
+
+// Utility functions
+function showLoading(cardName) {
+    document.getElementById(`${cardName}-loading`).classList.remove('hidden');
+    document.getElementById(`${cardName}-content`).classList.add('hidden');
+}
+
+function hideLoading(cardName) {
+    document.getElementById(`${cardName}-loading`).classList.add('hidden');
+    document.getElementById(`${cardName}-content`).classList.remove('hidden');
+}
+</script>
+{% endblock %}
