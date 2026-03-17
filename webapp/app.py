@@ -2749,10 +2749,11 @@ def analysis():
         
         # Get basic stats for overview
         cursor.execute("""
-            SELECT COUNT(DISTINCT player_id) as players, 
+            SELECT COUNT(DISTINCT p.player_id) as players, 
                    COUNT(*) as total_predictions,
-                   COUNT(DISTINCT season) as seasons
-            FROM predictions
+                   COUNT(DISTINCT f.season) as seasons
+            FROM predictions p
+            JOIN fixtures f ON p.fixture_id = f.fixture_id
         """)
         stats = cursor.fetchone()
         
@@ -3202,6 +3203,201 @@ def api_historical_performance():
         return jsonify({
             'performance': performance_data,
             'cumulative': cumulative_data,
+            'player': player
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/analysis/seasons')
+def api_seasons():
+    """API endpoint to get all available seasons"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT DISTINCT season FROM fixtures ORDER BY season DESC")
+        seasons = [row[0] for row in cursor.fetchall()]
+        
+        conn.close()
+        return jsonify({'seasons': seasons})
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/analysis/top-performers')
+def api_top_performers():
+    """API endpoint for top performers analysis"""
+    try:
+        season = request.args.get('season', '2025/2026')
+        limit = int(request.args.get('limit', 5))
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get top performers with detailed stats
+        cursor.execute("""
+            SELECT
+                pl.player_name,
+                COUNT(DISTINCT pred.fixture_id) as predictions_made,
+                SUM(CASE
+                    WHEN pred.home_goals = r.home_goals AND pred.away_goals = r.away_goals THEN 2
+                    WHEN (pred.home_goals > pred.away_goals AND r.home_goals > r.away_goals)
+                         OR (pred.home_goals < pred.away_goals AND r.home_goals < r.away_goals)
+                         OR (pred.home_goals = pred.away_goals AND r.home_goals = r.away_goals) THEN 1
+                    ELSE 0
+                END) as total_points,
+                SUM(CASE WHEN pred.home_goals = r.home_goals AND pred.away_goals = r.away_goals THEN 1 ELSE 0 END) as exact_scores,
+                SUM(CASE
+                    WHEN pred.home_goals = r.home_goals AND pred.away_goals = r.away_goals THEN 0
+                    WHEN (pred.home_goals > pred.away_goals AND r.home_goals > r.away_goals)
+                         OR (pred.home_goals < pred.away_goals AND r.home_goals < r.away_goals)
+                         OR (pred.home_goals = pred.away_goals AND r.home_goals = r.away_goals) THEN 1
+                    ELSE 0
+                END) as correct_results,
+                AVG(CASE
+                    WHEN pred.home_goals = r.home_goals AND pred.away_goals = r.away_goals THEN 2
+                    WHEN (pred.home_goals > pred.away_goals AND r.home_goals > r.away_goals)
+                         OR (pred.home_goals < pred.away_goals AND r.home_goals < r.away_goals)
+                         OR (pred.home_goals = pred.away_goals AND r.home_goals = r.away_goals) THEN 1
+                    ELSE 0
+                END) as ppg,
+                -- Most used scoreline
+                (SELECT pred2.home_goals || '-' || pred2.away_goals 
+                 FROM predictions pred2 
+                 JOIN fixtures f2 ON pred2.fixture_id = f2.fixture_id
+                 WHERE pred2.player_id = pl.player_id AND f2.season = ?
+                 GROUP BY pred2.home_goals, pred2.away_goals 
+                 ORDER BY COUNT(*) DESC LIMIT 1) as favorite_scoreline
+            FROM players pl
+            JOIN predictions pred ON pl.player_id = pred.player_id
+            JOIN fixtures f ON pred.fixture_id = f.fixture_id
+            JOIN results r ON f.fixture_id = r.fixture_id
+            WHERE f.season = ?
+            AND f.finished = 1
+            AND pred.home_goals IS NOT NULL
+            AND r.home_goals IS NOT NULL
+            GROUP BY pl.player_name
+            HAVING COUNT(DISTINCT pred.fixture_id) >= 5  -- Minimum 5 predictions
+            ORDER BY total_points DESC, exact_scores DESC, ppg DESC
+            LIMIT ?
+        """, (season, season, limit))
+        
+        performers = [
+            {
+                'rank': i + 1,
+                'player_name': row[0],
+                'predictions_made': row[1],
+                'total_points': row[2] if row[2] else 0,
+                'exact_scores': row[3] if row[3] else 0,
+                'correct_results': row[4] if row[4] else 0,
+                'ppg': round(row[5] if row[5] else 0, 2),
+                'favorite_scoreline': row[6] if row[6] else 'N/A'
+            }
+            for i, row in enumerate(cursor.fetchall())
+        ]
+        
+        conn.close()
+        return jsonify({'performers': performers, 'season': season})
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/analysis/result-types')
+def api_result_types():
+    """API endpoint for result type analysis (Home Win/Draw/Away Win)"""
+    try:
+        season = request.args.get('season', '2025/2026')
+        player = request.args.get('player', None)
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        if player:
+            # Individual player analysis
+            cursor.execute("""
+                SELECT
+                    CASE
+                        WHEN pred.home_goals > pred.away_goals THEN 'Home Win'
+                        WHEN pred.home_goals < pred.away_goals THEN 'Away Win'
+                        ELSE 'Draw'
+                    END as predicted_result,
+                    COUNT(*) as frequency,
+                    SUM(CASE WHEN pred.home_goals = r.home_goals AND pred.away_goals = r.away_goals THEN 1 ELSE 0 END) as exact_hits,
+                    SUM(CASE
+                        WHEN (pred.home_goals > pred.away_goals AND r.home_goals > r.away_goals)
+                             OR (pred.home_goals < pred.away_goals AND r.home_goals < r.away_goals)
+                             OR (pred.home_goals = pred.away_goals AND r.home_goals = r.away_goals) THEN 1
+                        ELSE 0
+                    END) as correct_results,
+                    AVG(CASE
+                        WHEN pred.home_goals = r.home_goals AND pred.away_goals = r.away_goals THEN 2
+                        WHEN (pred.home_goals > pred.away_goals AND r.home_goals > r.away_goals)
+                             OR (pred.home_goals < pred.away_goals AND r.home_goals < r.away_goals)
+                             OR (pred.home_goals = pred.away_goals AND r.home_goals = r.away_goals) THEN 1
+                        ELSE 0
+                    END) as avg_points
+                FROM players pl
+                JOIN predictions pred ON pl.player_id = pred.player_id
+                JOIN fixtures f ON pred.fixture_id = f.fixture_id
+                JOIN results r ON f.fixture_id = r.fixture_id
+                WHERE pl.player_name = ? AND f.season = ?
+                AND f.finished = 1 AND pred.home_goals IS NOT NULL AND r.home_goals IS NOT NULL
+                GROUP BY predicted_result
+                ORDER BY frequency DESC
+            """, (player, season))
+        else:
+            # League-wide analysis
+            cursor.execute("""
+                SELECT
+                    CASE
+                        WHEN pred.home_goals > pred.away_goals THEN 'Home Win'
+                        WHEN pred.home_goals < pred.away_goals THEN 'Away Win'
+                        ELSE 'Draw'
+                    END as predicted_result,
+                    COUNT(*) as frequency,
+                    SUM(CASE WHEN pred.home_goals = r.home_goals AND pred.away_goals = r.away_goals THEN 1 ELSE 0 END) as exact_hits,
+                    SUM(CASE
+                        WHEN (pred.home_goals > pred.away_goals AND r.home_goals > r.away_goals)
+                             OR (pred.home_goals < pred.away_goals AND r.home_goals < r.away_goals)
+                             OR (pred.home_goals = pred.away_goals AND r.home_goals = r.away_goals) THEN 1
+                        ELSE 0
+                    END) as correct_results,
+                    AVG(CASE
+                        WHEN pred.home_goals = r.home_goals AND pred.away_goals = r.away_goals THEN 2
+                        WHEN (pred.home_goals > pred.away_goals AND r.home_goals > r.away_goals)
+                             OR (pred.home_goals < pred.away_goals AND r.home_goals < r.away_goals)
+                             OR (pred.home_goals = pred.away_goals AND r.home_goals = r.away_goals) THEN 1
+                        ELSE 0
+                    END) as avg_points
+                FROM predictions pred
+                JOIN fixtures f ON pred.fixture_id = f.fixture_id
+                JOIN results r ON f.fixture_id = r.fixture_id
+                WHERE f.season = ?
+                AND f.finished = 1 AND pred.home_goals IS NOT NULL AND r.home_goals IS NOT NULL
+                GROUP BY predicted_result
+                ORDER BY frequency DESC
+            """, (season,))
+        
+        result_types = [
+            {
+                'result_type': row[0],
+                'frequency': row[1],
+                'exact_hits': row[2],
+                'correct_results': row[3],
+                'success_rate': round((row[3] / row[1]) * 100, 1) if row[1] > 0 else 0,
+                'avg_points': round(row[4] if row[4] else 0, 2)
+            }
+            for row in cursor.fetchall()
+        ]
+        
+        conn.close()
+        return jsonify({
+            'result_types': result_types,
+            'season': season,
             'player': player
         })
         

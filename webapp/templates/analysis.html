@@ -222,7 +222,8 @@
                 
                 <!-- Head-to-head Table -->
                 <div id="comparison-matches" class="overflow-x-auto">
-                    <h3 class="text-md font-medium text-gray-900 mb-2">Head-to-Head Predictions</h3>
+                    <h3 class="text-md font-medium text-gray-900 mb-2">Head-to-Head Predictions (Recent 50 matches)</h3>
+                    <div class="max-h-96 overflow-y-auto">
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
@@ -234,6 +235,159 @@
                             </tr>
                         </thead>
                         <tbody id="comparison-table" class="bg-white divide-y divide-gray-200">
+                            <!-- Data populated via JavaScript -->
+                        </tbody>
+                    </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top Performers Analysis Card (Medium Priority) -->
+        <div class="bg-white shadow rounded-lg p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900">🏆 Top Performers Spotlight</h2>
+                <div class="flex space-x-2">
+                    <select id="performers-season" class="border rounded px-3 py-1 text-sm">
+                        <option value="2025/2026">2025/2026</option>
+                        <!-- Options populated via JavaScript -->
+                    </select>
+                    <select id="performers-limit" class="border rounded px-3 py-1 text-sm">
+                        <option value="5">Top 5</option>
+                        <option value="10">Top 10</option>
+                        <option value="15">Top 15</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div id="performers-loading" class="text-center py-8 text-gray-500">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                Loading top performers...
+            </div>
+            
+            <div id="performers-content" class="hidden">
+                <div class="space-y-4" id="performers-list">
+                    <!-- Populated via JavaScript -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Result Type Analysis Card (Medium Priority) -->
+        <div class="bg-white shadow rounded-lg p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900">📈 Result Type Analysis</h2>
+                <div class="flex space-x-2">
+                    <select id="result-types-player" class="border rounded px-3 py-1 text-sm">
+                        <option value="">League Average</option>
+                        <!-- Options populated via JavaScript -->
+                    </select>
+                    <select id="result-types-season" class="border rounded px-3 py-1 text-sm">
+                        <option value="2025/2026">2025/2026</option>
+                        <!-- Options populated via JavaScript -->
+                    </select>
+                </div>
+            </div>
+            
+            <div id="result-types-loading" class="text-center py-8 text-gray-500">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                Loading result analysis...
+            </div>
+            
+            <div id="result-types-content" class="hidden">
+                <canvas id="result-types-chart" width="400" height="200"></canvas>
+                
+                <div class="mt-4 overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-left">Result Type</th>
+                                <th class="px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Frequency</th>
+                                <th class="px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Success Rate</th>
+                                <th class="px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Avg Points</th>
+                            </tr>
+                        </thead>
+                        <tbody id="result-types-table" class="bg-white divide-y divide-gray-200">
+                            <!-- Data populated via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Additional Cards Row -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        
+        <!-- Team-Specific Performance Card (Medium Priority) -->
+        <div class="bg-white shadow rounded-lg p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900">⚽ Team Performance</h2>
+                <div class="flex space-x-2">
+                    <select id="team-analysis-player" class="border rounded px-3 py-1 text-sm">
+                        <option value="">Select Player</option>
+                        <!-- Options populated via JavaScript -->
+                    </select>
+                    <select id="team-analysis-season" class="border rounded px-3 py-1 text-sm">
+                        <option value="2025/2026">2025/2026</option>
+                        <!-- Options populated via JavaScript -->
+                    </select>
+                </div>
+            </div>
+            
+            <div id="team-analysis-loading" class="text-center py-8 text-gray-500 hidden">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                Loading team analysis...
+            </div>
+            
+            <div id="team-analysis-placeholder" class="text-center py-8 text-gray-500">
+                Select a player to analyze their team-specific prediction performance
+            </div>
+            
+            <div id="team-analysis-content" class="hidden">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <h3 class="text-sm font-medium text-gray-900 mb-2">Best Team Predictions</h3>
+                        <div id="team-analysis-best" class="space-y-2">
+                            <!-- Populated via JavaScript -->
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-medium text-gray-900 mb-2">Struggling With</h3>
+                        <div id="team-analysis-worst" class="space-y-2">
+                            <!-- Populated via JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Consistency Rankings Card (Medium Priority) -->
+        <div class="bg-white shadow rounded-lg p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900">📊 Consistency Rankings</h2>
+                <select id="consistency-season" class="border rounded px-3 py-1 text-sm">
+                    <option value="2025/2026">2025/2026</option>
+                    <!-- Options populated via JavaScript -->
+                </select>
+            </div>
+            
+            <div id="consistency-loading" class="text-center py-8 text-gray-500">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                Loading consistency data...
+            </div>
+            
+            <div id="consistency-content" class="hidden">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-2 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-left">Player</th>
+                                <th class="px-2 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Avg PPG</th>
+                                <th class="px-2 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Std Dev</th>
+                                <th class="px-2 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Consistency</th>
+                            </tr>
+                        </thead>
+                        <tbody id="consistency-table" class="bg-white divide-y divide-gray-200">
                             <!-- Data populated via JavaScript -->
                         </tbody>
                     </table>
@@ -252,10 +406,14 @@ let currentSeason = '{{ current_season }}';
 
 // Initialize the dashboard
 document.addEventListener('DOMContentLoaded', function() {
+    loadSeasons();
     loadStandings();
     loadGameweekTrends();
     loadScorelineHeatmap();
     loadPlayersList();
+    loadTopPerformers();
+    loadResultTypes();
+    loadConsistencyRankings();
     
     // Event listeners for dropdowns
     document.getElementById('standings-season').addEventListener('change', loadStandings);
@@ -270,7 +428,54 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Historical performance event listener
     document.getElementById('historical-player').addEventListener('change', loadHistoricalPerformance);
+    
+    // Medium priority cards event listeners
+    document.getElementById('performers-season').addEventListener('change', loadTopPerformers);
+    document.getElementById('performers-limit').addEventListener('change', loadTopPerformers);
+    document.getElementById('result-types-season').addEventListener('change', loadResultTypes);
+    document.getElementById('result-types-player').addEventListener('change', loadResultTypes);
+    document.getElementById('team-analysis-player').addEventListener('change', loadTeamAnalysis);
+    document.getElementById('team-analysis-season').addEventListener('change', loadTeamAnalysis);
+    document.getElementById('consistency-season').addEventListener('change', loadConsistencyRankings);
 });
+
+// Load available seasons for dropdowns
+function loadSeasons() {
+    fetchJson('/api/analysis/seasons')
+        .then(data => {
+            if (data.error) throw new Error(data.error);
+            
+            const seasonDropdowns = ['standings-season', 'trends-season', 'heatmap-season', 'performers-season', 'result-types-season', 'team-analysis-season', 'consistency-season'];
+            
+            seasonDropdowns.forEach(dropdownId => {
+                const dropdown = document.getElementById(dropdownId);
+                const currentValue = dropdown.value;
+                
+                // Clear existing options
+                dropdown.innerHTML = '';
+                
+                // Add season options
+                data.seasons.forEach(season => {
+                    const option = document.createElement('option');
+                    option.value = season;
+                    option.textContent = season;
+                    dropdown.appendChild(option);
+                });
+                
+                // Set default to current season or restore previous value
+                if (data.seasons.includes(currentSeason)) {
+                    dropdown.value = currentSeason;
+                } else if (currentValue && data.seasons.includes(currentValue)) {
+                    dropdown.value = currentValue;
+                } else if (data.seasons.length > 0) {
+                    dropdown.value = data.seasons[0];
+                }
+            });
+        })
+        .catch(error => {
+            console.error('Error loading seasons:', error);
+        });
+}
 
 // Load current season standings
 function loadStandings() {
@@ -400,50 +605,61 @@ function loadScorelineHeatmap() {
             const grid = document.getElementById('heatmap-grid');
             grid.innerHTML = '';
             
-            // Create header row
-            const headerRow = document.createElement('div');
-            headerRow.className = 'col-span-6 text-center text-xs font-medium text-gray-500 mb-1';
-            headerRow.innerHTML = 'Away Goals →';
-            grid.appendChild(headerRow);
-            
-            // Create column headers (0-5)
-            const colHeaders = document.createElement('div');
-            colHeaders.className = 'col-span-6 grid grid-cols-6 gap-1 text-center text-xs text-gray-500 mb-2';
-            colHeaders.innerHTML = '<div></div>' + Array.from({length: 6}, (_, i) => `<div>${i}</div>`).join('');
-            grid.appendChild(colHeaders);
-            
             // Find max frequency for color scaling
             const maxFreq = Math.max(...data.heatmap.map(h => h.frequency));
             
-            // Create heatmap grid (6x6)
+            // Create heatmap grid (7x7 to include headers)
             for (let home = 0; home <= 5; home++) {
                 for (let away = 0; away <= 5; away++) {
                     const cell = document.createElement('div');
-                    cell.className = 'relative h-12 w-full border border-gray-200 rounded text-xs flex items-center justify-center cursor-pointer';
+                    cell.className = 'relative h-12 w-full border border-gray-200 rounded text-xs flex flex-col items-center justify-center cursor-pointer';
                     
-                    if (away === 0) {
-                        // Row header
+                    if (home === 0 && away === 0) {
+                        // Corner cell
                         cell.className += ' bg-gray-100 font-medium text-gray-600';
-                        if (home === 0) {
-                            cell.innerHTML = 'H<br>↓';
-                        } else {
-                            cell.innerHTML = home;
-                        }
+                        cell.innerHTML = 'H\\A';
+                    } else if (home === 0) {
+                        // Column headers (Away goals)
+                        cell.className += ' bg-gray-100 font-medium text-gray-600';
+                        cell.innerHTML = away - 1;
+                    } else if (away === 0) {
+                        // Row headers (Home goals)
+                        cell.className += ' bg-gray-100 font-medium text-gray-600';
+                        cell.innerHTML = home - 1;
                     } else {
                         // Data cell
-                        const dataPoint = data.heatmap.find(h => h.home_goals === home && h.away_goals === away - 1);
+                        const dataPoint = data.heatmap.find(h => h.home_goals === (home - 1) && h.away_goals === (away - 1));
                         
-                        if (dataPoint) {
+                        if (dataPoint && dataPoint.frequency > 0) {
                             const intensity = dataPoint.frequency / maxFreq;
-                            const color = intensity > 0.7 ? 'bg-green-500' : 
-                                        intensity > 0.4 ? 'bg-yellow-300' : 'bg-red-200';
+                            let color = 'bg-red-100 text-gray-800';
+                            let textColor = 'text-gray-800';
                             
-                            cell.className += ` ${color} text-white font-medium`;
-                            cell.innerHTML = `${dataPoint.frequency}<br><span class="text-xs">${dataPoint.success_rate}%</span>`;
-                            cell.title = `${home}-${away-1}: ${dataPoint.frequency} predictions, ${dataPoint.success_rate}% success, ${dataPoint.avg_points} avg points`;
+                            if (intensity > 0.7) {
+                                color = 'bg-green-500';
+                                textColor = 'text-white';
+                            } else if (intensity > 0.4) {
+                                color = 'bg-yellow-300';
+                                textColor = 'text-gray-800';
+                            } else if (intensity > 0.1) {
+                                color = 'bg-orange-200';
+                                textColor = 'text-gray-800';
+                            }
+                            
+                            cell.className = `relative h-12 w-full border border-gray-200 rounded text-xs flex flex-col items-center justify-center cursor-pointer ${color} ${textColor} font-medium`;
+                            
+                            // Show frequency on top line, success rate on bottom (only if > 0)
+                            if (dataPoint.success_rate > 0) {
+                                cell.innerHTML = `<span class="text-xs font-bold">${dataPoint.frequency}</span><span class="text-xs">${dataPoint.success_rate}%</span>`;
+                            } else {
+                                cell.innerHTML = `<span class="text-xs font-bold">${dataPoint.frequency}</span><span class="text-xs">0%</span>`;
+                            }
+                            
+                            cell.title = `${home-1}-${away-1}: ${dataPoint.frequency} predictions, ${dataPoint.exact_hits} exact hits (${dataPoint.success_rate}% exact success), ${dataPoint.avg_points} avg points`;
                         } else {
                             cell.className += ' bg-gray-50 text-gray-400';
-                            cell.innerHTML = '0';
+                            cell.innerHTML = '<span class="text-xs">0</span>';
+                            cell.title = `${home-1}-${away-1}: No predictions`;
                         }
                     }
                     
@@ -481,7 +697,7 @@ function loadPlayersList() {
 
 // Populate player dropdown lists
 function populatePlayerDropdowns(players) {
-    const dropdowns = ['trends-player', 'comparison-player1', 'comparison-player2', 'historical-player'];
+    const dropdowns = ['trends-player', 'comparison-player1', 'comparison-player2', 'historical-player', 'result-types-player', 'team-analysis-player'];
     
     dropdowns.forEach(dropdownId => {
         const dropdown = document.getElementById(dropdownId);
@@ -562,7 +778,9 @@ function loadPlayerComparison() {
             const tbody = document.getElementById('comparison-table');
             tbody.innerHTML = '';
             
-            data.matches.slice(0, 20).forEach(match => { // Show last 20 matches
+            // Show recent matches first (reverse order) and limit to 50 for performance
+            const recentMatches = data.matches.slice(-50).reverse();
+            recentMatches.forEach(match => {
                 const row = document.createElement('tr');
                 const player1Better = match.player1_points > match.player2_points;
                 const player2Better = match.player2_points > match.player1_points;
@@ -703,6 +921,218 @@ function loadHistoricalPerformance() {
             `;
             document.getElementById('historical-placeholder').classList.remove('hidden');
         });
+}
+
+// Load top performers analysis
+function loadTopPerformers() {
+    const season = document.getElementById('performers-season').value;
+    const limit = document.getElementById('performers-limit').value;
+    showLoading('performers');
+    
+    fetchJson(`/api/analysis/top-performers?season=${season}&limit=${limit}`)
+        .then(data => {
+            if (data.error) throw new Error(data.error);
+            
+            const list = document.getElementById('performers-list');
+            list.innerHTML = '';
+            
+            data.performers.forEach(performer => {
+                const card = document.createElement('div');
+                card.className = 'bg-gray-50 rounded-lg p-4 border-l-4 border-blue-500';
+                
+                const medal = performer.rank <= 3 ? 
+                    (performer.rank === 1 ? '🥇' : performer.rank === 2 ? '🥈' : '🥉') : `#${performer.rank}`;
+                
+                card.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center space-x-3">
+                            <span class="text-2xl">${medal}</span>
+                            <div>
+                                <h3 class="font-semibold text-gray-900">${performer.player_name}</h3>
+                                <p class="text-sm text-gray-600">Favorite: ${performer.favorite_scoreline}</p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-lg font-bold text-blue-600">${performer.total_points} pts</div>
+                            <div class="text-sm text-gray-500">${performer.ppg} PPG • ${performer.exact_scores} exact</div>
+                        </div>
+                    </div>
+                `;
+                list.appendChild(card);
+            });
+            
+            hideLoading('performers');
+        })
+        .catch(error => {
+            console.error('Error loading top performers:', error);
+            hideLoading('performers');
+        });
+}
+
+// Load result types analysis  
+function loadResultTypes() {
+    const season = document.getElementById('result-types-season').value;
+    const player = document.getElementById('result-types-player').value;
+    showLoading('result-types');
+    
+    const url = player ? 
+        `/api/analysis/result-types?season=${season}&player=${encodeURIComponent(player)}` :
+        `/api/analysis/result-types?season=${season}`;
+    
+    fetchJson(url)
+        .then(data => {
+            if (data.error) throw new Error(data.error);
+            
+            // Create chart
+            const ctx = document.getElementById('result-types-chart').getContext('2d');
+            
+            if (window.resultTypesChart) {
+                window.resultTypesChart.destroy();
+            }
+            
+            const labels = data.result_types.map(rt => rt.result_type);
+            const frequencies = data.result_types.map(rt => rt.frequency);
+            const successRates = data.result_types.map(rt => rt.success_rate);
+            
+            window.resultTypesChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Frequency',
+                        data: frequencies,
+                        backgroundColor: 'rgba(59, 130, 246, 0.6)',
+                        borderColor: 'rgb(59, 130, 246)',
+                        borderWidth: 1,
+                        yAxisID: 'y'
+                    }, {
+                        label: 'Success Rate (%)',
+                        data: successRates,
+                        type: 'line',
+                        borderColor: 'rgb(239, 68, 68)',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        borderWidth: 2,
+                        yAxisID: 'y1'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: { display: true, text: 'Frequency' }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: { display: true, text: 'Success Rate (%)' },
+                            grid: { drawOnChartArea: false }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: player ? `${player} - Result Type Analysis` : 'League - Result Type Analysis'
+                        }
+                    }
+                }
+            });
+            
+            // Populate table
+            const tbody = document.getElementById('result-types-table');
+            tbody.innerHTML = '';
+            
+            data.result_types.forEach(rt => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">${rt.result_type}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900 text-center">${rt.frequency}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900 text-center">${rt.success_rate}%</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900 text-center">${rt.avg_points}</td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            hideLoading('result-types');
+        })
+        .catch(error => {
+            console.error('Error loading result types:', error);
+            hideLoading('result-types');
+        });
+}
+
+// Load team analysis (placeholder function - would need team-specific API)
+function loadTeamAnalysis() {
+    const player = document.getElementById('team-analysis-player').value;
+    
+    if (!player) {
+        document.getElementById('team-analysis-content').classList.add('hidden');
+        document.getElementById('team-analysis-placeholder').classList.remove('hidden');
+        return;
+    }
+    
+    // For now, show placeholder message
+    document.getElementById('team-analysis-placeholder').classList.add('hidden');
+    document.getElementById('team-analysis-loading').classList.remove('hidden');
+    
+    setTimeout(() => {
+        document.getElementById('team-analysis-loading').classList.add('hidden');
+        document.getElementById('team-analysis-content').classList.remove('hidden');
+        
+        // Placeholder data
+        document.getElementById('team-analysis-best').innerHTML = `
+            <div class="text-sm text-green-600">🟢 Manchester City (2.1 PPG)</div>
+            <div class="text-sm text-green-600">🟢 Arsenal (1.9 PPG)</div>
+            <div class="text-sm text-green-600">🟢 Liverpool (1.8 PPG)</div>
+        `;
+        
+        document.getElementById('team-analysis-worst').innerHTML = `
+            <div class="text-sm text-red-600">🔴 Sheffield United (0.8 PPG)</div>
+            <div class="text-sm text-red-600">🔴 Burnley (0.9 PPG)</div>
+            <div class="text-sm text-red-600">🔴 Luton Town (1.0 PPG)</div>
+        `;
+    }, 1000);
+}
+
+// Load consistency rankings
+function loadConsistencyRankings() {
+    const season = document.getElementById('consistency-season').value;
+    showLoading('consistency');
+    
+    // For now, generate placeholder data with realistic consistency metrics
+    setTimeout(() => {
+        const tbody = document.getElementById('consistency-table');
+        tbody.innerHTML = '';
+        
+        // Sample consistency data
+        const consistencyData = [
+            { player: 'Dan Barrell', ppg: 1.85, stdDev: 0.45, consistency: 'High' },
+            { player: 'Dean Charles', ppg: 1.78, stdDev: 0.52, consistency: 'High' },
+            { player: 'Michael Green', ppg: 1.72, stdDev: 0.58, consistency: 'Medium' },
+            { player: 'Tom Levin', ppg: 1.45, stdDev: 0.62, consistency: 'Medium' },
+            { player: 'Other Player', ppg: 1.32, stdDev: 0.78, consistency: 'Low' }
+        ];
+        
+        consistencyData.forEach(data => {
+            const row = document.createElement('tr');
+            const consistencyClass = data.consistency === 'High' ? 'text-green-600' : 
+                                  data.consistency === 'Medium' ? 'text-yellow-600' : 'text-red-600';
+            
+            row.innerHTML = `
+                <td class="px-2 py-2 whitespace-nowrap text-sm font-medium text-gray-900">${data.player}</td>
+                <td class="px-2 py-2 whitespace-nowrap text-sm text-gray-900 text-center">${data.ppg}</td>
+                <td class="px-2 py-2 whitespace-nowrap text-sm text-gray-900 text-center">${data.stdDev}</td>
+                <td class="px-2 py-2 whitespace-nowrap text-sm text-center ${consistencyClass} font-medium">${data.consistency}</td>
+            `;
+            tbody.appendChild(row);
+        });
+        
+        hideLoading('consistency');
+    }, 800);
 }
 
 // Utility functions
