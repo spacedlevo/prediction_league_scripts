@@ -2760,8 +2760,8 @@ def analysis():
         # Get current season info
         current_season = '2025/2026'
         cursor.execute("""
-            SELECT MAX(gameweek) as current_gameweek,
-                   COUNT(DISTINCT fixture_id) as completed_fixtures
+            SELECT MAX(f.gameweek) as current_gameweek,
+                   COUNT(DISTINCT f.fixture_id) as completed_fixtures
             FROM fixtures f 
             JOIN results r ON f.fixture_id = r.fixture_id
             WHERE f.season = ? AND f.finished = 1
