@@ -168,8 +168,8 @@ fi
 # mysql_sync.py - runs every minute after 15s delay (after SQLite upload)
 if [[ "$ENABLE_MYSQL_SYNC" == "true" ]]; then
     sleep 5  # Additional 5s delay after monitor_and_upload
-    run_script "scripts/database/mysql_sync.py" "mysql_sync" &
-    log "DEBUG" "Triggered mysql_sync (after 15s delay)"
+    run_script "scripts/database/mysql_sync.py" "mysql_sync" "--full-sync" &
+    log "DEBUG" "Triggered mysql_sync --full-sync (after 15s delay)"
 fi
 
 # ============================================================================

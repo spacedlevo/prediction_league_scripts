@@ -210,10 +210,18 @@ def sync_table_to_temp(table_name: str, sqlite_cursor: sql.Cursor,
                     row_list = list(row)
                     if len(row_list) >= 3 and row_list[2] is not None:  # timestamp column
                         timestamp_val = row_list[2]
-                        # MySQL timestamp range: 1970-01-01 to 2038-01-19 (2147483647)
-                        if timestamp_val > 2147483647:
-                            logger.warning(f"Capping large timestamp {timestamp_val} to MySQL limit for table_name: {row_list[0]}")
-                            row_list[2] = 2147483647  # Cap at MySQL max
+                        
+                        # Check for invalid timestamp values like 999999999.999999
+                        if timestamp_val == 999999999.999999 or timestamp_val > 2147483647:
+                            # Use current timestamp for invalid values
+                            current_timestamp = datetime.now().timestamp()
+                            logger.warning(f"Replacing invalid timestamp {timestamp_val} with current timestamp {current_timestamp} for table_name: {row_list[0]}")
+                            row_list[2] = current_timestamp
+                        elif timestamp_val < 0:
+                            # Handle negative timestamps
+                            current_timestamp = datetime.now().timestamp()
+                            logger.warning(f"Replacing negative timestamp {timestamp_val} with current timestamp {current_timestamp} for table_name: {row_list[0]}")
+                            row_list[2] = current_timestamp
                     data_tuples.append(tuple(row_list))
                 else:
                     data_tuples.append(tuple(row))
@@ -493,7 +501,7 @@ def full_sync_zero_downtime(config: dict, logger: logging.Logger) -> bool:
         
         # Phase 5: Update sync timestamp
         logger.info("Phase 5: Updating sync timestamp...")
-        update_mysql_sync_timestamp(mysql_cursor)
+        update_mysql_sync_timestamp(mysql_cursor, logger)
         mysql_conn.commit()
         
         # Phase 6: Cleanup backup tables
@@ -551,17 +559,24 @@ def full_sync_zero_downtime(config: dict, logger: logging.Logger) -> bool:
             tunnel.stop()
 
 
-def update_mysql_sync_timestamp(mysql_cursor: pymysql.cursors.Cursor) -> None:
+def update_mysql_sync_timestamp(mysql_cursor: pymysql.cursors.Cursor, logger: logging.Logger) -> None:
     """Update the mysql_synced timestamp in last_update table"""
     now = datetime.now()
     timestamp = now.timestamp()
-    formatted_time = now.strftime("%d-%m-%Y. %H:%M:%S")
+    formatted_time = now.strftime("%d-%m-%Y %H:%M:%S")  # Fixed format to match other entries
     
-    mysql_cursor.execute("""
-        INSERT INTO last_update (table_name, updated, timestamp) 
-        VALUES ('mysql_synced', %s, %s)
-        ON DUPLICATE KEY UPDATE updated = VALUES(updated), timestamp = VALUES(timestamp)
-    """, (formatted_time, timestamp))
+    try:
+        mysql_cursor.execute("""
+            INSERT INTO last_update (table_name, updated, timestamp) 
+            VALUES ('mysql_synced', %s, %s)
+            ON DUPLICATE KEY UPDATE updated = VALUES(updated), timestamp = VALUES(timestamp)
+        """, (formatted_time, timestamp))
+        
+        logger.info(f"Updated mysql_synced timestamp: {formatted_time} ({timestamp})")
+        
+    except Exception as e:
+        logger.error(f"Failed to update mysql_synced timestamp: {e}")
+        raise
 
 
 def parse_arguments() -> argparse.Namespace:
