@@ -97,7 +97,9 @@
             </div>
             
             <div id="trends-content" class="hidden">
-                <canvas id="trends-chart" width="400" height="200"></canvas>
+                <div class="chart-container">
+                    <canvas id="trends-chart"></canvas>
+                </div>
             </div>
         </div>
 
@@ -181,7 +183,9 @@
                 <!-- Cumulative Points Chart -->
                 <div>
                     <h3 class="text-md font-medium text-gray-900 mb-3">Cumulative Points Progression</h3>
-                    <canvas id="historical-chart" width="400" height="200"></canvas>
+                    <div class="chart-container">
+                        <canvas id="historical-chart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
@@ -294,7 +298,9 @@
             </div>
             
             <div id="result-types-content" class="hidden">
-                <canvas id="result-types-chart" width="400" height="200"></canvas>
+                <div class="chart-container">
+                    <canvas id="result-types-chart"></canvas>
+                </div>
                 
                 <div class="mt-4 overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200">
