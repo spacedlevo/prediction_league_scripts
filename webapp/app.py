@@ -48,6 +48,22 @@ FPL_FORM_GWS = 5
 # Simple cache for FPL API responses (key -> (timestamp, data))
 _fpl_api_cache = {}
 
+# Simple cache for analysis endpoints (key -> (timestamp, data))
+_analysis_cache = {}
+CACHE_DURATION = 300  # 5 minutes
+
+def cache_analysis_response(cache_key, response_data):
+    """Cache analysis response data"""
+    _analysis_cache[cache_key] = (time.time(), response_data)
+
+def get_cached_analysis_response(cache_key):
+    """Get cached analysis response if still valid"""
+    if cache_key in _analysis_cache:
+        timestamp, data = _analysis_cache[cache_key]
+        if time.time() - timestamp < CACHE_DURATION:
+            return data
+    return None
+
 
 def convert_to_uk_time(timestamp_or_dt, format_str='%d/%m/%Y %H:%M'):
     """Convert timestamp or datetime to UK timezone and format"""
@@ -2790,6 +2806,12 @@ def api_standings():
     """API endpoint for current season standings"""
     try:
         season = request.args.get('season', '2025/2026')
+        
+        # Check cache first
+        cache_key = f"standings_{season}"
+        cached_response = get_cached_analysis_response(cache_key)
+        if cached_response:
+            return jsonify(cached_response)
         conn = get_db_connection()
         cursor = conn.cursor()
         
@@ -2845,7 +2867,11 @@ def api_standings():
         ]
         
         conn.close()
-        return jsonify({'standings': standings})
+        
+        # Cache the response
+        response_data = {'standings': standings}
+        cache_analysis_response(cache_key, response_data)
+        return jsonify(response_data)
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -2998,7 +3024,8 @@ def api_player_comparison():
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Get head-to-head comparison for specific matches
+        # Get head-to-head comparison for specific matches (limited for performance)
+        limit = int(request.args.get('limit', 25))  # Default limit of 25 matches
         cursor.execute("""
             SELECT
                 f.gameweek,
@@ -3036,8 +3063,9 @@ def api_player_comparison():
             AND f.season = ? AND f.finished = 1
             AND p1.home_goals IS NOT NULL AND r.home_goals IS NOT NULL
             AND p2.home_goals IS NOT NULL
-            ORDER BY f.gameweek, f.fixture_id
-        """, (player1, player2, season))
+            ORDER BY f.gameweek DESC, f.fixture_id DESC
+            LIMIT ?
+        """, (player1, player2, season, limit))
         
         matches = [
             {
@@ -3164,13 +3192,16 @@ def api_historical_performance():
             for row in cursor.fetchall()
         ]
         
-        # Get cumulative points progression for each season (for chart)
+        # Get cumulative points progression for recent seasons only (for performance)
         cumulative_data = {}
-        for season_data in performance_data:
-            season = season_data['season']
-            
-            cursor.execute("""
+        recent_seasons = [s['season'] for s in performance_data[-3:]]  # Only last 3 seasons for chart
+        
+        if recent_seasons:
+            # Single query for all recent seasons' cumulative data
+            placeholders = ','.join(['?' for _ in recent_seasons])
+            cursor.execute(f"""
                 SELECT
+                    f.season,
                     f.gameweek,
                     SUM(CASE
                         WHEN pred.home_goals = r.home_goals AND pred.away_goals = r.away_goals THEN 2
@@ -3183,21 +3214,24 @@ def api_historical_performance():
                 JOIN predictions pred ON pl.player_id = pred.player_id
                 JOIN fixtures f ON pred.fixture_id = f.fixture_id
                 JOIN results r ON f.fixture_id = r.fixture_id
-                WHERE pl.player_name = ? AND f.season = ?
+                WHERE pl.player_name = ? AND f.season IN ({placeholders})
                 AND f.finished = 1 AND pred.home_goals IS NOT NULL AND r.home_goals IS NOT NULL
-                GROUP BY f.gameweek
-                ORDER BY f.gameweek
-            """, (player, season))
+                GROUP BY f.season, f.gameweek
+                ORDER BY f.season, f.gameweek
+            """, [player] + recent_seasons)
             
-            gameweek_data = cursor.fetchall()
-            cumulative = 0
-            cumulative_points = []
-            
-            for gw, points in gameweek_data:
-                cumulative += points if points else 0
-                cumulative_points.append({'gameweek': gw, 'cumulative_points': cumulative})
-            
-            cumulative_data[season] = cumulative_points
+            # Process results into cumulative data
+            season_gameweek_data = cursor.fetchall()
+            for season in recent_seasons:
+                season_data = [(gw, pts) for s, gw, pts in season_gameweek_data if s == season]
+                cumulative = 0
+                cumulative_points = []
+                
+                for gw, points in season_data:
+                    cumulative += points if points else 0
+                    cumulative_points.append({'gameweek': gw, 'cumulative_points': cumulative})
+                
+                cumulative_data[season] = cumulative_points
         
         conn.close()
         return jsonify({

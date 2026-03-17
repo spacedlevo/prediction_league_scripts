@@ -222,7 +222,7 @@
                 
                 <!-- Head-to-head Table -->
                 <div id="comparison-matches" class="overflow-x-auto">
-                    <h3 class="text-md font-medium text-gray-900 mb-2">Head-to-Head Predictions (Recent 50 matches)</h3>
+                    <h3 class="text-md font-medium text-gray-900 mb-2">Head-to-Head Predictions (Recent 25 matches)</h3>
                     <div class="max-h-96 overflow-y-auto">
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
@@ -404,16 +404,79 @@
 let playersCache = null;
 let currentSeason = '{{ current_season }}';
 
-// Initialize the dashboard
+// Debounce mechanism to prevent excessive API calls
+let pendingRequests = new Set();
+let loadingQueue = [];
+
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Utility function for fetching JSON data with error handling and deduplication
+async function fetchJson(url) {
+    // Prevent duplicate requests
+    if (pendingRequests.has(url)) {
+        console.log('Request already pending for:', url);
+        return Promise.reject(new Error('Duplicate request prevented'));
+    }
+    
+    pendingRequests.add(url);
+    
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        pendingRequests.delete(url);
+        return data;
+    } catch (error) {
+        pendingRequests.delete(url);
+        console.error('Fetch error:', error);
+        throw error;
+    }
+}
+
+// Initialize the dashboard with prioritized loading
 document.addEventListener('DOMContentLoaded', function() {
+    // Load essential components first
     loadSeasons();
     loadStandings();
-    loadGameweekTrends();
-    loadScorelineHeatmap();
-    loadPlayersList();
-    loadTopPerformers();
-    loadResultTypes();
-    loadConsistencyRankings();
+    
+    // Setup intersection observer for lazy loading
+    setupLazyLoading();
+    
+    // Load secondary components with delay to reduce initial load
+    setTimeout(() => {
+        if (isCardVisible('trends-loading')) {
+            loadGameweekTrends();
+        }
+        if (isCardVisible('heatmap-loading')) {
+            loadScorelineHeatmap();
+        }
+    }, 500);
+    
+    // Load heavy components with further delay
+    setTimeout(() => {
+        loadPlayersList();
+        if (isCardVisible('performers-loading')) {
+            loadTopPerformers();
+        }
+        if (isCardVisible('result-types-loading')) {
+            loadResultTypes();
+        }
+        if (isCardVisible('consistency-loading')) {
+            loadConsistencyRankings();
+        }
+    }, 1000);
     
     // Event listeners for dropdowns
     document.getElementById('standings-season').addEventListener('change', loadStandings);
@@ -778,8 +841,8 @@ function loadPlayerComparison() {
             const tbody = document.getElementById('comparison-table');
             tbody.innerHTML = '';
             
-            // Show recent matches first (reverse order) and limit to 50 for performance
-            const recentMatches = data.matches.slice(-50).reverse();
+            // Show recent matches first (reverse order) and limit to 25 for performance
+            const recentMatches = data.matches.slice(-25).reverse();
             recentMatches.forEach(match => {
                 const row = document.createElement('tr');
                 const player1Better = match.player1_points > match.player2_points;
@@ -1144,6 +1207,72 @@ function showLoading(cardName) {
 function hideLoading(cardName) {
     document.getElementById(`${cardName}-loading`).classList.add('hidden');
     document.getElementById(`${cardName}-content`).classList.remove('hidden');
+}
+
+// Check if element is visible in viewport
+function isCardVisible(elementId) {
+    const element = document.getElementById(elementId);
+    if (!element) return false;
+    
+    const rect = element.getBoundingClientRect();
+    const windowHeight = window.innerHeight || document.documentElement.clientHeight;
+    
+    return rect.top < windowHeight && rect.bottom > 0;
+}
+
+// Setup intersection observer for lazy loading of cards
+function setupLazyLoading() {
+    const observerOptions = {
+        root: null,
+        rootMargin: '50px',
+        threshold: 0.1
+    };
+    
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const cardId = entry.target.id;
+                
+                // Load data for cards when they come into view
+                switch(cardId) {
+                    case 'trends-loading':
+                        if (!entry.target.dataset.loaded) {
+                            loadGameweekTrends();
+                            entry.target.dataset.loaded = 'true';
+                        }
+                        break;
+                    case 'heatmap-loading':
+                        if (!entry.target.dataset.loaded) {
+                            loadScorelineHeatmap();
+                            entry.target.dataset.loaded = 'true';
+                        }
+                        break;
+                    case 'performers-loading':
+                        if (!entry.target.dataset.loaded) {
+                            loadTopPerformers();
+                            entry.target.dataset.loaded = 'true';
+                        }
+                        break;
+                    case 'result-types-loading':
+                        if (!entry.target.dataset.loaded) {
+                            loadResultTypes();
+                            entry.target.dataset.loaded = 'true';
+                        }
+                        break;
+                    case 'consistency-loading':
+                        if (!entry.target.dataset.loaded) {
+                            loadConsistencyRankings();
+                            entry.target.dataset.loaded = 'true';
+                        }
+                        break;
+                }
+            }
+        });
+    }, observerOptions);
+    
+    // Observe all loading elements
+    const loadingElements = document.querySelectorAll('[id$="-loading"]');
+    loadingElements.forEach(el => observer.observe(el));
 }
 </script>
 {% endblock %}
