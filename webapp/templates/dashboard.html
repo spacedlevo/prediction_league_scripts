@@ -255,7 +255,10 @@
                             {% for player in current_invalid %}
                             <li class="flex justify-between items-center">
                                 <span class="text-yellow-800">{{ player.player_name }}</span>
-                                <span class="text-yellow-600 text-xs">{{ player.valid_count }}/{{ player.total_fixtures }}</span>
+                                <button onclick="showMissingFixtures('{{ player.player_name }}', {{ missing_predictions.current.gameweek }})" 
+                                        class="text-yellow-600 text-xs hover:text-yellow-800 hover:underline cursor-pointer">
+                                    {{ player.valid_count }}/{{ player.total_fixtures }}
+                                </button>
                             </li>
                             {% endfor %}
                         </ul>
@@ -313,7 +316,10 @@
                             {% for player in next_invalid %}
                             <li class="flex justify-between items-center">
                                 <span class="text-yellow-800">{{ player.player_name }}</span>
-                                <span class="text-yellow-600 text-xs">{{ player.valid_count }}/{{ player.total_fixtures }}</span>
+                                <button onclick="showMissingFixtures('{{ player.player_name }}', {{ missing_predictions.next.gameweek }})" 
+                                        class="text-yellow-600 text-xs hover:text-yellow-800 hover:underline cursor-pointer">
+                                    {{ player.valid_count }}/{{ player.total_fixtures }}
+                                </button>
                             </li>
                             {% endfor %}
                         </ul>
@@ -716,8 +722,19 @@ function showMissingFixtures(playerName, gameweek) {
                     <div class="space-y-2">
                         ${data.missing_fixtures.map(fixture => `
                             <div class="bg-gray-50 rounded p-3">
-                                <div class="font-medium text-gray-900">${fixture.fixture_display}</div>
-                                <div class="text-sm text-gray-600">${fixture.kickoff_time}</div>
+                                <div class="flex justify-between items-start">
+                                    <div>
+                                        <div class="font-medium text-gray-900">${fixture.fixture_display}</div>
+                                        <div class="text-sm text-gray-600">${fixture.kickoff_time}</div>
+                                    </div>
+                                    <span class="text-xs px-2 py-1 rounded ${
+                                        fixture.prediction_status === 'No prediction' 
+                                            ? 'bg-red-100 text-red-800' 
+                                            : 'bg-yellow-100 text-yellow-800'
+                                    }">
+                                        ${fixture.prediction_status}
+                                    </span>
+                                </div>
                             </div>
                         `).join('')}
                     </div>

@@ -2004,18 +2004,28 @@ def get_detailed_missing_fixtures(cursor, player_name: str, gameweek: int) -> Li
         
         player_id = player_result[0]
         
-        # Get all fixtures for the gameweek that don't have predictions from this player
+        # Get all fixtures for the gameweek that either:
+        # 1. Don't have predictions from this player, OR
+        # 2. Have placeholder predictions (9-9)
         cursor.execute("""
             SELECT 
                 f.fixture_id,
                 t_home.team_name as home_team,
                 t_away.team_name as away_team,
-                strftime('%Y-%m-%d %H:%M', f.kickoff_dttm) as kickoff_time
+                strftime('%Y-%m-%d %H:%M', f.kickoff_dttm) as kickoff_time,
+                p.home_goals,
+                p.away_goals,
+                CASE 
+                    WHEN p.fixture_id IS NULL THEN 'No prediction'
+                    WHEN p.home_goals = 9 AND p.away_goals = 9 THEN 'Placeholder (9-9)'
+                    ELSE 'Has prediction'
+                END as prediction_status
             FROM fixtures f
             JOIN teams t_home ON f.home_teamid = t_home.team_id
             JOIN teams t_away ON f.away_teamid = t_away.team_id
             LEFT JOIN predictions p ON f.fixture_id = p.fixture_id AND p.player_id = ?
-            WHERE f.gameweek = ? AND f.season = '2025/2026' AND p.fixture_id IS NULL
+            WHERE f.gameweek = ? AND f.season = '2025/2026' 
+            AND (p.fixture_id IS NULL OR (p.home_goals = 9 AND p.away_goals = 9))
             ORDER BY f.kickoff_dttm
         """, (player_id, gameweek))
         
@@ -2027,7 +2037,8 @@ def get_detailed_missing_fixtures(cursor, player_name: str, gameweek: int) -> Li
                 'home_team': result[1],
                 'away_team': result[2],
                 'kickoff_time': result[3],
-                'fixture_display': f"{result[1]} vs {result[2]}"
+                'fixture_display': f"{result[1]} vs {result[2]}",
+                'prediction_status': result[6]
             })
             
     except Exception as e:
