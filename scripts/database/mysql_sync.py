@@ -670,6 +670,8 @@ def check_tables_need_sync(sqlite_cursor: sql.Cursor, logger: logging.Logger) ->
             table_result = sqlite_cursor.fetchone()
             
             if table_result and table_result[0] > last_sync_timestamp:
+                if table_name == 'cleaned_predictions':
+                    table_name = 'predictions' 
                 updated_tables.append(table_name)
                 table_update_time = datetime.fromtimestamp(table_result[0]).strftime('%d-%m-%Y %H:%M:%S')
                 logger.info(f"Table {table_name} updated since last sync: {table_update_time}")
