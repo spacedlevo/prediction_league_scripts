@@ -45,7 +45,6 @@ SYNC_TABLES = [
     'fixtures',     # References teams
     'results',      # References fixtures
     'predictions',  # References players and fixtures
-    'cleaned_predictions'   # Change tracking
 ]
 
 
@@ -205,9 +204,10 @@ def sync_table_to_temp(table_name: str, sqlite_cursor: sql.Cursor,
             # Convert rows to tuples for MySQL with timestamp validation
             data_tuples = []
             for row in batch_rows:
+                row_list = list(row)
+                
                 if table_name == 'last_update':
                     # Validate timestamp for last_update table (MySQL limit: 2038-01-19)
-                    row_list = list(row)
                     if len(row_list) >= 3 and row_list[2] is not None:  # timestamp column
                         timestamp_val = row_list[2]
                         
@@ -222,9 +222,25 @@ def sync_table_to_temp(table_name: str, sqlite_cursor: sql.Cursor,
                             current_timestamp = datetime.now().timestamp()
                             logger.warning(f"Replacing negative timestamp {timestamp_val} with current timestamp {current_timestamp} for table_name: {row_list[0]}")
                             row_list[2] = current_timestamp
-                    data_tuples.append(tuple(row_list))
-                else:
-                    data_tuples.append(tuple(row))
+                
+                elif table_name == 'predictions':
+                    # Handle NULL timestamps for predictions table (created_at, updated_at)
+                    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    
+                    # Check if we have the timestamp columns (created_at at index 7, updated_at at index 8)
+                    if len(row_list) > 7:
+                        # If created_at is NULL, set to current timestamp
+                        if row_list[7] is None:
+                            row_list[7] = current_time
+                            logger.debug(f"Setting NULL created_at to {current_time} for prediction_id: {row_list[0]}")
+                    
+                    if len(row_list) > 8:
+                        # If updated_at is NULL, set to current timestamp
+                        if row_list[8] is None:
+                            row_list[8] = current_time
+                            logger.debug(f"Setting NULL updated_at to {current_time} for prediction_id: {row_list[0]}")
+                
+                data_tuples.append(tuple(row_list))
             
             # Insert batch
             try:
@@ -669,9 +685,7 @@ def check_tables_need_sync(sqlite_cursor: sql.Cursor, logger: logging.Logger) ->
             )
             table_result = sqlite_cursor.fetchone()
             
-            if table_result and table_result[0] > last_sync_timestamp:
-                if table_name == 'cleaned_predictions':
-                    table_name = 'predictions' 
+            if table_result and table_result[0] > last_sync_timestamp:        
                 updated_tables.append(table_name)
                 table_update_time = datetime.fromtimestamp(table_result[0]).strftime('%d-%m-%Y %H:%M:%S')
                 logger.info(f"Table {table_name} updated since last sync: {table_update_time}")
