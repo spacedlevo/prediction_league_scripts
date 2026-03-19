@@ -45,7 +45,7 @@ SYNC_TABLES = [
     'fixtures',     # References teams
     'results',      # References fixtures
     'predictions',  # References players and fixtures
-    'clean_predictions'   # Change tracking
+    'cleaned_predictions'   # Change tracking
 ]
 
 
