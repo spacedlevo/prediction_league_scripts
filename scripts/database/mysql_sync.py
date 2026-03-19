@@ -677,6 +677,11 @@ def check_tables_need_sync(sqlite_cursor: sql.Cursor, logger: logging.Logger) ->
         # Check each core table for updates since last sync
         updated_tables = []
         
+        # Also check for cleaned_predictions which maps to predictions table
+        table_mapping = {
+            'cleaned_predictions': 'predictions'
+        }
+        
         for table_name in SYNC_TABLES:
             # Check if table exists in last_update
             sqlite_cursor.execute(
@@ -689,6 +694,21 @@ def check_tables_need_sync(sqlite_cursor: sql.Cursor, logger: logging.Logger) ->
                 updated_tables.append(table_name)
                 table_update_time = datetime.fromtimestamp(table_result[0]).strftime('%d-%m-%Y %H:%M:%S')
                 logger.info(f"Table {table_name} updated since last sync: {table_update_time}")
+        
+        # Check for mapped tables (e.g., cleaned_predictions -> predictions)
+        for trigger_name, actual_table in table_mapping.items():
+            if actual_table in SYNC_TABLES:
+                sqlite_cursor.execute(
+                    "SELECT timestamp FROM last_update WHERE table_name = ?", 
+                    (trigger_name,)
+                )
+                trigger_result = sqlite_cursor.fetchone()
+                
+                if trigger_result and trigger_result[0] > last_sync_timestamp:
+                    if actual_table not in updated_tables:
+                        updated_tables.append(actual_table)
+                        trigger_update_time = datetime.fromtimestamp(trigger_result[0]).strftime('%d-%m-%Y %H:%M:%S')
+                        logger.info(f"Table {actual_table} updated via {trigger_name} since last sync: {trigger_update_time}")
         
         if updated_tables:
             logger.info(f"Tables needing sync: {', '.join(updated_tables)}")
