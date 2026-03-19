@@ -993,6 +993,35 @@ def acknowledge_verification_issues():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/missing-fixtures')
+@require_auth
+def api_missing_fixtures():
+    """API endpoint to get detailed missing fixtures for a specific player and gameweek"""
+    try:
+        player_name = request.args.get('player')
+        gameweek = request.args.get('gameweek', type=int)
+        
+        if not player_name or not gameweek:
+            return jsonify({'error': 'player and gameweek parameters required'}), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        missing_fixtures = get_detailed_missing_fixtures(cursor, player_name, gameweek)
+        
+        conn.close()
+        
+        return jsonify({
+            'player_name': player_name,
+            'gameweek': gameweek,
+            'missing_fixtures': missing_fixtures,
+            'total_missing': len(missing_fixtures)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 def get_fixtures_with_odds_multi_season(cursor, season_filter='2025/2026', logger=None):
     """Get fixtures with odds data from both fixture_odds_summary and football_stats fallback"""
     
@@ -1960,6 +1989,51 @@ def get_players_missing_predictions(cursor) -> Dict:
         missing_data = {'current': {}, 'next': {}}
     
     return missing_data
+
+
+def get_detailed_missing_fixtures(cursor, player_name: str, gameweek: int) -> List[Dict]:
+    """Get detailed list of missing fixtures for a specific player and gameweek"""
+    missing_fixtures = []
+    
+    try:
+        # Get player ID
+        cursor.execute("SELECT player_id FROM players WHERE player_name = ? AND active = 1", (player_name,))
+        player_result = cursor.fetchone()
+        if not player_result:
+            return missing_fixtures
+        
+        player_id = player_result[0]
+        
+        # Get all fixtures for the gameweek that don't have predictions from this player
+        cursor.execute("""
+            SELECT 
+                f.fixture_id,
+                t_home.team_name as home_team,
+                t_away.team_name as away_team,
+                strftime('%Y-%m-%d %H:%M', f.kickoff_dttm) as kickoff_time
+            FROM fixtures f
+            JOIN teams t_home ON f.home_teamid = t_home.team_id
+            JOIN teams t_away ON f.away_teamid = t_away.team_id
+            LEFT JOIN predictions p ON f.fixture_id = p.fixture_id AND p.player_id = ?
+            WHERE f.gameweek = ? AND f.season = '2025/2026' AND p.fixture_id IS NULL
+            ORDER BY f.kickoff_dttm
+        """, (player_id, gameweek))
+        
+        results = cursor.fetchall()
+        
+        for result in results:
+            missing_fixtures.append({
+                'fixture_id': result[0],
+                'home_team': result[1],
+                'away_team': result[2],
+                'kickoff_time': result[3],
+                'fixture_display': f"{result[1]} vs {result[2]}"
+            })
+            
+    except Exception as e:
+        print(f"Error getting detailed missing fixtures: {e}")
+    
+    return missing_fixtures
 
 
 def get_players_with_identical_predictions(cursor) -> Dict:

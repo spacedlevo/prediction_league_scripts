@@ -236,7 +236,10 @@
                             {% for player in current_missing %}
                             <li class="flex justify-between items-center">
                                 <span class="text-red-800">{{ player.player_name }}</span>
-                                <span class="text-red-600 text-xs">{{ player.missing_count }} missing</span>
+                                <button onclick="showMissingFixtures('{{ player.player_name }}', {{ missing_predictions.current.gameweek }})" 
+                                        class="text-red-600 text-xs hover:text-red-800 hover:underline cursor-pointer">
+                                    {{ player.missing_count }} missing
+                                </button>
                             </li>
                             {% endfor %}
                         </ul>
@@ -291,7 +294,10 @@
                             {% for player in next_missing %}
                             <li class="flex justify-between items-center">
                                 <span class="text-blue-800">{{ player.player_name }}</span>
-                                <span class="text-blue-600 text-xs">{{ player.predictions_count }}/{{ player.total_fixtures }}</span>
+                                <button onclick="showMissingFixtures('{{ player.player_name }}', {{ missing_predictions.next.gameweek }})" 
+                                        class="text-blue-600 text-xs hover:text-blue-800 hover:underline cursor-pointer">
+                                    {{ player.predictions_count }}/{{ player.total_fixtures }}
+                                </button>
                             </li>
                             {% endfor %}
                         </ul>
@@ -673,6 +679,98 @@ function moment(timestamp) {
             return date.toLocaleString();
         }
     };
+}
+
+// Show missing fixtures for a specific player and gameweek
+function showMissingFixtures(playerName, gameweek) {
+    // Create loading modal
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    modal.innerHTML = `
+        <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-medium text-gray-900">Missing Fixtures</h3>
+                <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-gray-600">
+                    <span class="text-xl">&times;</span>
+                </button>
+            </div>
+            <div class="text-center py-4">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <p class="mt-2 text-gray-600">Loading fixtures...</p>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    
+    // Fetch missing fixtures data
+    fetch(`/api/missing-fixtures?player=${encodeURIComponent(playerName)}&gameweek=${gameweek}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            
+            let fixturesHtml = '';
+            if (data.missing_fixtures && data.missing_fixtures.length > 0) {
+                fixturesHtml = `
+                    <div class="space-y-2">
+                        ${data.missing_fixtures.map(fixture => `
+                            <div class="bg-gray-50 rounded p-3">
+                                <div class="font-medium text-gray-900">${fixture.fixture_display}</div>
+                                <div class="text-sm text-gray-600">${fixture.kickoff_time}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            } else {
+                fixturesHtml = `
+                    <div class="text-center py-4 text-gray-500">
+                        <div class="text-2xl mb-2">✅</div>
+                        <p>No missing fixtures!</p>
+                    </div>
+                `;
+            }
+            
+            modal.querySelector('.bg-white').innerHTML = `
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-medium text-gray-900">Missing Fixtures</h3>
+                    <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-gray-600">
+                        <span class="text-xl">&times;</span>
+                    </button>
+                </div>
+                <div class="mb-4">
+                    <h4 class="font-medium text-gray-900">${playerName}</h4>
+                    <p class="text-sm text-gray-600">Gameweek ${gameweek} - ${data.total_missing} missing prediction${data.total_missing !== 1 ? 's' : ''}</p>
+                </div>
+                <div class="max-h-64 overflow-y-auto">
+                    ${fixturesHtml}
+                </div>
+                <div class="mt-4 text-right">
+                    <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                        Close
+                    </button>
+                </div>
+            `;
+        })
+        .catch(error => {
+            modal.querySelector('.bg-white').innerHTML = `
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-medium text-gray-900">Error</h3>
+                    <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-gray-600">
+                        <span class="text-xl">&times;</span>
+                    </button>
+                </div>
+                <div class="text-center py-4 text-red-600">
+                    <div class="text-2xl mb-2">❌</div>
+                    <p>Error loading fixtures: ${error.message}</p>
+                </div>
+                <div class="mt-4 text-right">
+                    <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
+                        Close
+                    </button>
+                </div>
+            `;
+        });
 }
 </script>
 {% endblock %}
