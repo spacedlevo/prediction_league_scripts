@@ -1024,12 +1024,18 @@ def insert_predictions_to_database(predictions, gameweek, cursor, logger):
         predicted_result = calculate_predicted_result(home_goals, away_goals)
         
         try:
-            # Insert or replace prediction
+            # Insert or replace prediction with proper metadata handling
             cursor.execute("""
-                INSERT OR REPLACE INTO predictions (
+                INSERT INTO predictions (
                     player_id, fixture_id, fpl_fixture_id, 
-                    home_goals, away_goals, predicted_result
-                ) VALUES (?, ?, ?, ?, ?, ?)
+                    home_goals, away_goals, predicted_result,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT(player_id, fixture_id) DO UPDATE SET
+                    home_goals = excluded.home_goals,
+                    away_goals = excluded.away_goals,
+                    predicted_result = excluded.predicted_result,
+                    updated_at = CURRENT_TIMESTAMP
             """, (player_id, fixture_id, fpl_fixture_id, home_goals, away_goals, predicted_result))
             
             inserted_count += 1
