@@ -101,3 +101,27 @@ CREATE TABLE last_update (
     updated VARCHAR(100),
     timestamp DECIMAL(15,6)
 ) ENGINE=InnoDB;
+
+-- Cup competition tables
+CREATE TABLE cup_config (
+    config_id    INT AUTO_INCREMENT PRIMARY KEY,
+    season       VARCHAR(9)  NOT NULL,
+    num_rounds   INT         NOT NULL,
+    start_gameweek INT       NOT NULL,
+    generated_at DATETIME    NOT NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE cup_matches (
+    match_id        INT AUTO_INCREMENT PRIMARY KEY,
+    season          VARCHAR(9)  NOT NULL,
+    round_number    INT         NOT NULL,
+    match_number    INT         NOT NULL,
+    player1_id      INT,
+    player2_id      INT,
+    player1_seed    INT,
+    player2_seed    INT,
+    is_bye          TINYINT(1)  NOT NULL DEFAULT 0,
+    gameweek        INT         NOT NULL,
+    next_match_id   INT,
+    next_match_slot TINYINT(1)
+) ENGINE=InnoDB;

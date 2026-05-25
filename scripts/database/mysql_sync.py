@@ -45,6 +45,8 @@ SYNC_TABLES = [
     'fixtures',     # References teams
     'results',      # References fixtures
     'predictions',  # References players and fixtures
+    'cup_config',   # Cup competition configuration
+    'cup_matches',  # Cup bracket matches
 ]
 
 
