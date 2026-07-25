@@ -6,7 +6,7 @@ Update CURRENT_SEASON here when transitioning to a new season.
 """
 
 # Current Premier League season
-CURRENT_SEASON = "2025/2026"
+CURRENT_SEASON = "2026/2027"
 
 
 def get_football_data_url_code():

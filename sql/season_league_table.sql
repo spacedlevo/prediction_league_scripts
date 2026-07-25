@@ -33,13 +33,14 @@ WITH prediction_points AS (
         CASE 
             WHEN p.home_goals = 9 AND p.away_goals = 9 THEN 0
             WHEN p.home_goals = r.home_goals AND p.away_goals = r.away_goals 
-            THEN 1
+            THEN 3
             ELSE 0
         END AS score_points
         
     FROM predictions p
     JOIN fixtures f ON p.fixture_id = f.fixture_id
     JOIN players pl ON p.player_id = pl.player_id
+		AND pundit <> 1
     JOIN results r ON f.fixture_id = r.fixture_id
     WHERE f.season = '2025/2026'
       AND r.home_goals IS NOT NULL 

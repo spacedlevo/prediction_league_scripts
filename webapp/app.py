@@ -441,7 +441,7 @@ def api_fpl_players():
                 form, points_per_game, selected_by_percent, transfers_in,
                 defensive_contribution, yellow_cards, red_cards, team_id
             FROM fpl_players_bootstrap 
-            WHERE season = '2025/2026'
+            WHERE season = '2026/2027'
         """
         
         params = []
@@ -758,7 +758,7 @@ def debug_info():
         cursor.execute("""
             SELECT COUNT(*) FROM fixtures f
             LEFT JOIN fixture_odds_summary s ON f.fixture_id = s.fixture_id
-            WHERE f.gameweek = ? AND f.season = '2025/2026'
+            WHERE f.gameweek = ? AND f.season = '2026/2027'
         """, (gameweek,))
         fixture_count = cursor.fetchone()[0]
         
@@ -800,7 +800,7 @@ def predictions_analysis():
         cursor.execute("""
             SELECT DISTINCT gameweek 
             FROM fixtures 
-            WHERE season = '2025/2026'
+            WHERE season = '2026/2027'
             ORDER BY gameweek
         """)
         available_gameweeks = [row[0] for row in cursor.fetchall()]
@@ -846,7 +846,7 @@ def get_gameweek_predictions(gameweek):
             JOIN teams at ON f.away_teamid = at.team_id
             LEFT JOIN fixture_odds_summary s ON f.fixture_id = s.fixture_id
             LEFT JOIN results r ON f.fixture_id = r.fixture_id
-            WHERE f.gameweek = ? AND f.season = '2025/2026'
+            WHERE f.gameweek = ? AND f.season = '2026/2027'
             ORDER BY f.kickoff_dttm
         """, (gameweek,))
         
@@ -966,7 +966,7 @@ def acknowledge_verification_issues():
                     JOIN fixtures f ON pv.fixture_id = f.fixture_id
                     WHERE pv.category = 'Score Mismatch'
                     AND f.gameweek = ?
-                    AND f.season = '2025/2026'
+                    AND f.season = '2026/2027'
                 )
             """, (gameweek,))
             message = f"Acknowledged all issues for Gameweek {gameweek}"
@@ -1022,7 +1022,7 @@ def api_missing_fixtures():
         return jsonify({'error': str(e)}), 500
 
 
-def get_fixtures_with_odds_multi_season(cursor, season_filter='2025/2026', logger=None):
+def get_fixtures_with_odds_multi_season(cursor, season_filter='2026/2027', logger=None):
     """Get fixtures with odds data from both fixture_odds_summary and football_stats fallback"""
     
     # Primary query - use fixture_odds_summary when available
@@ -1169,7 +1169,7 @@ def get_season_performance():
     
     try:
         # Get season parameter from query string (default to current season)
-        season = request.args.get('season', '2025/2026')
+        season = request.args.get('season', '2026/2027')
         logger.info(f"Season performance analysis requested for: {season}")
         
         conn = get_db_connection()
@@ -1275,7 +1275,7 @@ def get_season_recommendation():
         cursor = conn.cursor()
 
         # Get season parameter (default to current season)
-        season = request.args.get('season', '2025/2026')
+        season = request.args.get('season', '2026/2027')
         logger.info(f"Season recommendation requested for: {season}")
 
         # Get latest recommendation for the season
@@ -1591,7 +1591,7 @@ def get_strategy_display_name(strategy):
     return names.get(strategy, strategy.title())
 
 
-def get_current_season_recommendation(season='2025/2026'):
+def get_current_season_recommendation(season='2026/2027'):
     """Get the current recommended strategy for a season"""
     try:
         conn = get_db_connection()
@@ -1684,7 +1684,7 @@ def generate_prediction_for_fixture(fixture, strategy):
 
     elif strategy == 'adaptive':
         # Get current season recommendation to determine which strategy to use
-        season = fixture.get('season', '2025/2026')
+        season = fixture.get('season', '2026/2027')
         recommended_strategy = get_current_season_recommendation(season)
 
         if recommended_strategy == '1-0':
@@ -1812,7 +1812,7 @@ def get_predictions_progress(cursor) -> Dict:
         
         # Process current gameweek
         if current_gameweek:
-            cursor.execute("SELECT COUNT(*) FROM fixtures WHERE gameweek = ? AND season = '2025/2026'", (current_gameweek,))
+            cursor.execute("SELECT COUNT(*) FROM fixtures WHERE gameweek = ? AND season = '2026/2027'", (current_gameweek,))
             total_fixtures = cursor.fetchone()[0]
             
             # Count players with complete valid predictions
@@ -1823,7 +1823,7 @@ def get_predictions_progress(cursor) -> Dict:
                     FROM predictions p
                     JOIN fixtures f ON p.fixture_id = f.fixture_id
                     JOIN players pl ON p.player_id = pl.player_id
-                    WHERE f.gameweek = ? AND f.season = '2025/2026' AND pl.active = 1
+                    WHERE f.gameweek = ? AND f.season = '2026/2027' AND pl.active = 1
                     GROUP BY p.player_id
                     HAVING COUNT(*) = ? AND SUM(CASE WHEN p.home_goals != 9 OR p.away_goals != 9 THEN 1 ELSE 0 END) = ?
                 )
@@ -1841,7 +1841,7 @@ def get_predictions_progress(cursor) -> Dict:
         
         # Process next gameweek
         if next_gameweek:
-            cursor.execute("SELECT COUNT(*) FROM fixtures WHERE gameweek = ? AND season = '2025/2026'", (next_gameweek,))
+            cursor.execute("SELECT COUNT(*) FROM fixtures WHERE gameweek = ? AND season = '2026/2027'", (next_gameweek,))
             total_fixtures = cursor.fetchone()[0]
             
             # Count players with complete valid predictions
@@ -1852,7 +1852,7 @@ def get_predictions_progress(cursor) -> Dict:
                     FROM predictions p
                     JOIN fixtures f ON p.fixture_id = f.fixture_id
                     JOIN players pl ON p.player_id = pl.player_id
-                    WHERE f.gameweek = ? AND f.season = '2025/2026' AND pl.active = 1
+                    WHERE f.gameweek = ? AND f.season = '2026/2027' AND pl.active = 1
                     GROUP BY p.player_id
                     HAVING COUNT(*) = ? AND SUM(CASE WHEN p.home_goals != 9 OR p.away_goals != 9 THEN 1 ELSE 0 END) = ?
                 )
@@ -1893,7 +1893,7 @@ def get_players_missing_predictions(cursor) -> Dict:
             missing_data['current']['gameweek'] = current_gameweek
             
             # Get total fixtures for current gameweek in current season
-            cursor.execute("SELECT COUNT(*) FROM fixtures WHERE gameweek = ? AND season = '2025/2026'", (current_gameweek,))
+            cursor.execute("SELECT COUNT(*) FROM fixtures WHERE gameweek = ? AND season = '2026/2027'", (current_gameweek,))
             total_fixtures = cursor.fetchone()[0]
             
             # Get all active players
@@ -1910,7 +1910,7 @@ def get_players_missing_predictions(cursor) -> Dict:
                            SUM(CASE WHEN home_goals != 9 OR away_goals != 9 THEN 1 ELSE 0 END) as valid_predictions
                     FROM predictions p
                     JOIN fixtures f ON p.fixture_id = f.fixture_id
-                    WHERE p.player_id = ? AND f.gameweek = ? AND f.season = '2025/2026'
+                    WHERE p.player_id = ? AND f.gameweek = ? AND f.season = '2026/2027'
                 """, (player_id, current_gameweek))
                 
                 result = cursor.fetchone()
@@ -1941,7 +1941,7 @@ def get_players_missing_predictions(cursor) -> Dict:
             missing_data['next']['gameweek'] = next_gameweek
             
             # Get total fixtures for next gameweek
-            cursor.execute("SELECT COUNT(*) FROM fixtures WHERE gameweek = ? AND season = '2025/2026'", (next_gameweek,))
+            cursor.execute("SELECT COUNT(*) FROM fixtures WHERE gameweek = ? AND season = '2026/2027'", (next_gameweek,))
             total_fixtures = cursor.fetchone()[0]
             
             # Get all active players
@@ -1958,7 +1958,7 @@ def get_players_missing_predictions(cursor) -> Dict:
                            SUM(CASE WHEN home_goals != 9 OR away_goals != 9 THEN 1 ELSE 0 END) as valid_predictions
                     FROM predictions p
                     JOIN fixtures f ON p.fixture_id = f.fixture_id
-                    WHERE p.player_id = ? AND f.gameweek = ? AND f.season = '2025/2026'
+                    WHERE p.player_id = ? AND f.gameweek = ? AND f.season = '2026/2027'
                 """, (player_id, next_gameweek))
                 
                 result = cursor.fetchone()
@@ -2024,7 +2024,7 @@ def get_detailed_missing_fixtures(cursor, player_name: str, gameweek: int) -> Li
             JOIN teams t_home ON f.home_teamid = t_home.team_id
             JOIN teams t_away ON f.away_teamid = t_away.team_id
             LEFT JOIN predictions p ON f.fixture_id = p.fixture_id AND p.player_id = ?
-            WHERE f.gameweek = ? AND f.season = '2025/2026' 
+            WHERE f.gameweek = ? AND f.season = '2026/2027' 
             AND (p.fixture_id IS NULL OR (p.home_goals = 9 AND p.away_goals = 9))
             ORDER BY f.kickoff_dttm
         """, (player_id, gameweek))
@@ -2080,7 +2080,7 @@ def get_players_with_identical_predictions(cursor) -> Dict:
                 JOIN players pl ON p.player_id = pl.player_id
                 JOIN teams t_home ON f.home_teamid = t_home.team_id
                 JOIN teams t_away ON f.away_teamid = t_away.team_id
-                WHERE f.gameweek = ? AND f.season = '2025/2026'
+                WHERE f.gameweek = ? AND f.season = '2026/2027'
                   AND NOT (p.home_goals = 9 AND p.away_goals = 9)
                   AND pl.active = 1
                 GROUP BY p.player_id, p.home_goals, p.away_goals
@@ -2104,7 +2104,7 @@ def get_players_with_identical_predictions(cursor) -> Dict:
                 })
             
             # Check total fixtures for current gameweek
-            cursor.execute("SELECT COUNT(*) FROM fixtures WHERE gameweek = ? AND season = '2025/2026'", (current_gameweek,))
+            cursor.execute("SELECT COUNT(*) FROM fixtures WHERE gameweek = ? AND season = '2026/2027'", (current_gameweek,))
             total_fixtures = cursor.fetchone()[0]
             
             for player_name, predictions in current_player_data.items():
@@ -2135,7 +2135,7 @@ def get_players_with_identical_predictions(cursor) -> Dict:
                 JOIN players pl ON p.player_id = pl.player_id
                 JOIN teams t_home ON f.home_teamid = t_home.team_id
                 JOIN teams t_away ON f.away_teamid = t_away.team_id
-                WHERE f.gameweek = ? AND f.season = '2025/2026'
+                WHERE f.gameweek = ? AND f.season = '2026/2027'
                   AND NOT (p.home_goals = 9 AND p.away_goals = 9)
                   AND pl.active = 1
                 GROUP BY p.player_id, p.home_goals, p.away_goals
@@ -2159,7 +2159,7 @@ def get_players_with_identical_predictions(cursor) -> Dict:
                 })
             
             # Check total fixtures for next gameweek
-            cursor.execute("SELECT COUNT(*) FROM fixtures WHERE gameweek = ? AND season = '2025/2026'", (next_gameweek,))
+            cursor.execute("SELECT COUNT(*) FROM fixtures WHERE gameweek = ? AND season = '2026/2027'", (next_gameweek,))
             total_fixtures = cursor.fetchone()[0]
             
             for player_name, predictions in next_player_data.items():
@@ -2199,7 +2199,7 @@ def get_verification_mismatches(cursor) -> Dict:
             JOIN teams ht ON f.home_teamid = ht.team_id
             JOIN teams at ON f.away_teamid = at.team_id
             WHERE pv.category = 'Score Mismatch'
-            AND f.season = '2025/2026'
+            AND f.season = '2026/2027'
             AND (pv.acknowledged IS NULL OR pv.acknowledged = 0)
             ORDER BY f.gameweek DESC, p.player_name
         """)
@@ -2239,10 +2239,10 @@ def get_dashboard_stats(cursor) -> Dict:
         stats['active_players'] = cursor.fetchone()[0]
         
         # Fixture counts
-        cursor.execute("SELECT COUNT(*) FROM fixtures WHERE season = '2025/2026'")
+        cursor.execute("SELECT COUNT(*) FROM fixtures WHERE season = '2026/2027'")
         stats['total_fixtures'] = cursor.fetchone()[0]
         
-        cursor.execute("SELECT COUNT(*) FROM fixtures WHERE season = '2025/2026' AND finished = 1")
+        cursor.execute("SELECT COUNT(*) FROM fixtures WHERE season = '2026/2027' AND finished = 1")
         stats['completed_fixtures'] = cursor.fetchone()[0]
         
         # Current gameweek
@@ -2254,7 +2254,7 @@ def get_dashboard_stats(cursor) -> Dict:
         cursor.execute("""
             SELECT COUNT(*) FROM predictions p 
             JOIN fixtures f ON p.fixture_id = f.fixture_id 
-            WHERE f.season = '2025/2026'
+            WHERE f.season = '2026/2027'
         """)
         stats['total_predictions'] = cursor.fetchone()[0]
         
@@ -2263,7 +2263,7 @@ def get_dashboard_stats(cursor) -> Dict:
             SELECT f.gameweek, COUNT(*) as prediction_count
             FROM predictions p
             JOIN fixtures f ON p.fixture_id = f.fixture_id
-            WHERE f.season = '2025/2026'
+            WHERE f.season = '2026/2027'
             GROUP BY f.gameweek
             ORDER BY f.gameweek DESC
             LIMIT 5
@@ -2348,14 +2348,14 @@ def get_fpl_stats(cursor) -> Dict:
     
     try:
         # Total players in bootstrap
-        cursor.execute("SELECT COUNT(*) FROM fpl_players_bootstrap WHERE season = '2025/2026'")
+        cursor.execute("SELECT COUNT(*) FROM fpl_players_bootstrap WHERE season = '2026/2027'")
         stats['total_fpl_players'] = cursor.fetchone()[0]
         
         # Players by position
         cursor.execute("""
             SELECT position, COUNT(*) as count
             FROM fpl_players_bootstrap 
-            WHERE season = '2025/2026'
+            WHERE season = '2026/2027'
             GROUP BY position
             ORDER BY 
                 CASE position 
@@ -2383,7 +2383,7 @@ def get_top_fpl_players(cursor) -> Dict:
         cursor.execute("""
             SELECT player_name, total_points, value, team_id
             FROM fpl_players_bootstrap 
-            WHERE season = '2025/2026' AND total_points > 0
+            WHERE season = '2026/2027' AND total_points > 0
             ORDER BY total_points DESC 
             LIMIT 10
         """)
@@ -2393,7 +2393,7 @@ def get_top_fpl_players(cursor) -> Dict:
         cursor.execute("""
             SELECT player_name, transfers_in, total_points, value
             FROM fpl_players_bootstrap 
-            WHERE season = '2025/2026' AND transfers_in > 0
+            WHERE season = '2026/2027' AND transfers_in > 0
             ORDER BY transfers_in DESC 
             LIMIT 10
         """)
@@ -2403,7 +2403,7 @@ def get_top_fpl_players(cursor) -> Dict:
         cursor.execute("""
             SELECT player_name, defensive_contribution, total_points, position
             FROM fpl_players_bootstrap 
-            WHERE season = '2025/2026' AND defensive_contribution > 0
+            WHERE season = '2026/2027' AND defensive_contribution > 0
             ORDER BY defensive_contribution DESC 
             LIMIT 10
         """)
@@ -2414,7 +2414,7 @@ def get_top_fpl_players(cursor) -> Dict:
             SELECT player_name, (goals_scored + assists) as goal_contributions, 
                    goals_scored, assists, total_points
             FROM fpl_players_bootstrap 
-            WHERE season = '2025/2026' AND (goals_scored + assists) > 0
+            WHERE season = '2026/2027' AND (goals_scored + assists) > 0
             ORDER BY (goals_scored + assists) DESC 
             LIMIT 10
         """)
@@ -2424,7 +2424,7 @@ def get_top_fpl_players(cursor) -> Dict:
         cursor.execute("""
             SELECT player_name, expected_goal_involvements, total_points, position, minutes
             FROM fpl_players_bootstrap 
-            WHERE season = '2025/2026' AND expected_goal_involvements > 0 AND minutes > 0
+            WHERE season = '2026/2027' AND expected_goal_involvements > 0 AND minutes > 0
             ORDER BY expected_goal_involvements DESC 
             LIMIT 10
         """)
@@ -2434,7 +2434,7 @@ def get_top_fpl_players(cursor) -> Dict:
         cursor.execute("""
             SELECT player_name, selected_by_percent, total_points, value
             FROM fpl_players_bootstrap 
-            WHERE season = '2025/2026' AND selected_by_percent > 0
+            WHERE season = '2026/2027' AND selected_by_percent > 0
             ORDER BY selected_by_percent DESC 
             LIMIT 10
         """)
@@ -2859,7 +2859,7 @@ def analysis():
         stats = cursor.fetchone()
         
         # Get current season info
-        current_season = '2025/2026'
+        current_season = '2026/2027'
         cursor.execute("""
             SELECT MAX(f.gameweek) as current_gameweek,
                    COUNT(DISTINCT f.fixture_id) as completed_fixtures
@@ -2882,7 +2882,7 @@ def analysis():
         return render_template('analysis.html', 
                              stats=None, 
                              season_info=None,
-                             current_season='2025/2026',
+                             current_season='2026/2027',
                              page_title='Analysis Dashboard')
 
 
@@ -2890,7 +2890,7 @@ def analysis():
 def api_standings():
     """API endpoint for current season standings"""
     try:
-        season = request.args.get('season', '2025/2026')
+        season = request.args.get('season', '2026/2027')
         
         # Check cache first
         cache_key = f"standings_{season}"
@@ -2966,7 +2966,7 @@ def api_standings():
 def api_scoreline_heatmap():
     """API endpoint for scoreline prediction heatmap"""
     try:
-        season = request.args.get('season', '2025/2026')
+        season = request.args.get('season', '2026/2027')
         conn = get_db_connection()
         cursor = conn.cursor()
         
@@ -3019,7 +3019,7 @@ def api_scoreline_heatmap():
 def api_gameweek_trends():
     """API endpoint for gameweek performance trends"""
     try:
-        season = request.args.get('season', '2025/2026')
+        season = request.args.get('season', '2026/2027')
         player = request.args.get('player', None)
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -3101,7 +3101,7 @@ def api_player_comparison():
     try:
         player1 = request.args.get('player1')
         player2 = request.args.get('player2')
-        season = request.args.get('season', '2025/2026')
+        season = request.args.get('season', '2026/2027')
         
         if not player1 or not player2:
             return jsonify({'error': 'Both player1 and player2 parameters required'}), 400
@@ -3350,7 +3350,7 @@ def api_seasons():
 def api_top_performers():
     """API endpoint for top performers analysis"""
     try:
-        season = request.args.get('season', '2025/2026')
+        season = request.args.get('season', '2026/2027')
         limit = int(request.args.get('limit', 5))
         
         conn = get_db_connection()
@@ -3429,7 +3429,7 @@ def api_top_performers():
 def api_result_types():
     """API endpoint for result type analysis (Home Win/Draw/Away Win)"""
     try:
-        season = request.args.get('season', '2025/2026')
+        season = request.args.get('season', '2026/2027')
         player = request.args.get('player', None)
         
         conn = get_db_connection()
