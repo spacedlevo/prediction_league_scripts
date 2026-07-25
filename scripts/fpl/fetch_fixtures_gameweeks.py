@@ -563,8 +563,9 @@ def process_fixtures(cursor, fixtures_data, team_mapping, season, logger):
         cursor.executemany("""
             INSERT INTO fixtures (
                 fpl_fixture_id, kickoff_dttm, home_teamid, away_teamid,
-                finished, started, provisional_finished, season, gameweek, pulse_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                finished, started, provisional_finished, season, gameweek, pulse_id,
+                created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         """, fixtures_to_insert)
         
     # Batch update existing fixtures
