@@ -321,90 +321,14 @@
         </div>
     </div>
 
-    <!-- Additional Cards Row -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-        
-        <!-- Team-Specific Performance Card (Medium Priority) -->
-        <div class="bg-white shadow rounded-lg p-6">
-            <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-semibold text-gray-900">⚽ Team Performance</h2>
-                <div class="flex space-x-2">
-                    <select id="team-analysis-player" class="border rounded px-3 py-1 text-sm">
-                        <option value="">Select Player</option>
-                        <!-- Options populated via JavaScript -->
-                    </select>
-                    <select id="team-analysis-season" class="border rounded px-3 py-1 text-sm">
-                        <option value="2025/2026">2025/2026</option>
-                        <!-- Options populated via JavaScript -->
-                    </select>
-                </div>
-            </div>
-            
-            <div id="team-analysis-loading" class="text-center py-8 text-gray-500 hidden">
-                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                Loading team analysis...
-            </div>
-            
-            <div id="team-analysis-placeholder" class="text-center py-8 text-gray-500">
-                Select a player to analyze their team-specific prediction performance
-            </div>
-            
-            <div id="team-analysis-content" class="hidden">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <h3 class="text-sm font-medium text-gray-900 mb-2">Best Team Predictions</h3>
-                        <div id="team-analysis-best" class="space-y-2">
-                            <!-- Populated via JavaScript -->
-                        </div>
-                    </div>
-                    <div>
-                        <h3 class="text-sm font-medium text-gray-900 mb-2">Struggling With</h3>
-                        <div id="team-analysis-worst" class="space-y-2">
-                            <!-- Populated via JavaScript -->
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Consistency Rankings Card (Medium Priority) -->
-        <div class="bg-white shadow rounded-lg p-6">
-            <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-semibold text-gray-900">📊 Consistency Rankings</h2>
-                <select id="consistency-season" class="border rounded px-3 py-1 text-sm">
-                    <option value="2025/2026">2025/2026</option>
-                    <!-- Options populated via JavaScript -->
-                </select>
-            </div>
-            
-            <div id="consistency-loading" class="text-center py-8 text-gray-500">
-                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                Loading consistency data...
-            </div>
-            
-            <div id="consistency-content" class="hidden">
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-2 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-left">Player</th>
-                                <th class="px-2 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Avg PPG</th>
-                                <th class="px-2 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Std Dev</th>
-                                <th class="px-2 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Consistency</th>
-                            </tr>
-                        </thead>
-                        <tbody id="consistency-table" class="bg-white divide-y divide-gray-200">
-                            <!-- Data populated via JavaScript -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
+<style>
+.chart-container { position: relative; height: 250px; }
+</style>
 <script>
 // Global variables for data caching
 let playersCache = null;
@@ -453,59 +377,33 @@ async function fetchJson(url) {
 
 // Initialize the dashboard with prioritized loading
 document.addEventListener('DOMContentLoaded', function() {
-    // Load essential components first
+    // Load essential above-fold components immediately
     loadSeasons();
     loadStandings();
-    
-    // Setup intersection observer for lazy loading
+    loadPlayersList();
+
+    // Setup intersection observer for lazy loading of below-fold cards
     setupLazyLoading();
-    
-    // Load secondary components with delay to reduce initial load
-    setTimeout(() => {
-        if (isCardVisible('trends-loading')) {
-            loadGameweekTrends();
-        }
-        if (isCardVisible('heatmap-loading')) {
-            loadScorelineHeatmap();
-        }
-    }, 500);
-    
-    // Load heavy components with further delay
-    setTimeout(() => {
-        loadPlayersList();
-        if (isCardVisible('performers-loading')) {
-            loadTopPerformers();
-        }
-        if (isCardVisible('result-types-loading')) {
-            loadResultTypes();
-        }
-        if (isCardVisible('consistency-loading')) {
-            loadConsistencyRankings();
-        }
-    }, 1000);
-    
+
     // Event listeners for dropdowns
     document.getElementById('standings-season').addEventListener('change', loadStandings);
     document.getElementById('trends-season').addEventListener('change', loadGameweekTrends);
     document.getElementById('trends-player').addEventListener('change', loadGameweekTrends);
     document.getElementById('heatmap-season').addEventListener('change', loadScorelineHeatmap);
-    
+
     // Player comparison event listeners
     document.getElementById('comparison-player1').addEventListener('change', updateComparisonButton);
     document.getElementById('comparison-player2').addEventListener('change', updateComparisonButton);
     document.getElementById('comparison-btn').addEventListener('click', loadPlayerComparison);
-    
+
     // Historical performance event listener
     document.getElementById('historical-player').addEventListener('change', loadHistoricalPerformance);
-    
+
     // Medium priority cards event listeners
     document.getElementById('performers-season').addEventListener('change', loadTopPerformers);
     document.getElementById('performers-limit').addEventListener('change', loadTopPerformers);
     document.getElementById('result-types-season').addEventListener('change', loadResultTypes);
     document.getElementById('result-types-player').addEventListener('change', loadResultTypes);
-    document.getElementById('team-analysis-player').addEventListener('change', loadTeamAnalysis);
-    document.getElementById('team-analysis-season').addEventListener('change', loadTeamAnalysis);
-    document.getElementById('consistency-season').addEventListener('change', loadConsistencyRankings);
 });
 
 // Load available seasons for dropdowns
@@ -514,7 +412,7 @@ function loadSeasons() {
         .then(data => {
             if (data.error) throw new Error(data.error);
             
-            const seasonDropdowns = ['standings-season', 'trends-season', 'heatmap-season', 'performers-season', 'result-types-season', 'team-analysis-season', 'consistency-season'];
+            const seasonDropdowns = ['standings-season', 'trends-season', 'heatmap-season', 'performers-season', 'result-types-season'];
             
             seasonDropdowns.forEach(dropdownId => {
                 const dropdown = document.getElementById(dropdownId);
@@ -558,10 +456,11 @@ function loadStandings() {
             const tbody = document.getElementById('standings-table');
             tbody.innerHTML = '';
             
-            data.standings.slice(0, 10).forEach(player => {
+            const displayed = data.standings.slice(0, 10);
+            displayed.forEach(player => {
                 const row = document.createElement('tr');
                 row.className = player.rank <= 3 ? 'bg-yellow-50' : '';
-                
+
                 row.innerHTML = `
                     <td class="px-2 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
                         ${player.rank <= 3 ? '🏆' : ''} ${player.rank}
@@ -581,8 +480,15 @@ function loadStandings() {
                 `;
                 tbody.appendChild(row);
             });
-            
+
             hideLoading('standings');
+
+            if (data.standings.length > 10) {
+                const note = document.createElement('p');
+                note.className = 'text-xs text-gray-500 mt-2 text-center';
+                note.textContent = `Showing top 10 of ${data.standings.length} players`;
+                document.getElementById('standings-content').appendChild(note);
+            }
         })
         .catch(error => {
             console.error('Error loading standings:', error);
@@ -639,7 +545,7 @@ function loadGameweekTrends() {
                     scales: {
                         y: {
                             beginAtZero: true,
-                            max: 2,
+                            suggestedMax: 2,
                             ticks: {
                                 stepSize: 0.5
                             }
@@ -752,7 +658,7 @@ function loadPlayersList() {
     }
     
     // Extract player names from standings to populate dropdowns
-    fetchJson('/api/analysis/standings?season=2025/2026')
+    fetchJson(`/api/analysis/standings?season=${currentSeason}`)
         .then(data => {
             if (data.error) throw new Error(data.error);
             
@@ -766,7 +672,7 @@ function loadPlayersList() {
 
 // Populate player dropdown lists
 function populatePlayerDropdowns(players) {
-    const dropdowns = ['trends-player', 'comparison-player1', 'comparison-player2', 'historical-player', 'result-types-player', 'team-analysis-player'];
+    const dropdowns = ['trends-player', 'comparison-player1', 'comparison-player2', 'historical-player', 'result-types-player'];
     
     dropdowns.forEach(dropdownId => {
         const dropdown = document.getElementById(dropdownId);
@@ -1134,76 +1040,6 @@ function loadResultTypes() {
         });
 }
 
-// Load team analysis (placeholder function - would need team-specific API)
-function loadTeamAnalysis() {
-    const player = document.getElementById('team-analysis-player').value;
-    
-    if (!player) {
-        document.getElementById('team-analysis-content').classList.add('hidden');
-        document.getElementById('team-analysis-placeholder').classList.remove('hidden');
-        return;
-    }
-    
-    // For now, show placeholder message
-    document.getElementById('team-analysis-placeholder').classList.add('hidden');
-    document.getElementById('team-analysis-loading').classList.remove('hidden');
-    
-    setTimeout(() => {
-        document.getElementById('team-analysis-loading').classList.add('hidden');
-        document.getElementById('team-analysis-content').classList.remove('hidden');
-        
-        // Placeholder data
-        document.getElementById('team-analysis-best').innerHTML = `
-            <div class="text-sm text-green-600">🟢 Manchester City (2.1 PPG)</div>
-            <div class="text-sm text-green-600">🟢 Arsenal (1.9 PPG)</div>
-            <div class="text-sm text-green-600">🟢 Liverpool (1.8 PPG)</div>
-        `;
-        
-        document.getElementById('team-analysis-worst').innerHTML = `
-            <div class="text-sm text-red-600">🔴 Sheffield United (0.8 PPG)</div>
-            <div class="text-sm text-red-600">🔴 Burnley (0.9 PPG)</div>
-            <div class="text-sm text-red-600">🔴 Luton Town (1.0 PPG)</div>
-        `;
-    }, 1000);
-}
-
-// Load consistency rankings
-function loadConsistencyRankings() {
-    const season = document.getElementById('consistency-season').value;
-    showLoading('consistency');
-    
-    // For now, generate placeholder data with realistic consistency metrics
-    setTimeout(() => {
-        const tbody = document.getElementById('consistency-table');
-        tbody.innerHTML = '';
-        
-        // Sample consistency data
-        const consistencyData = [
-            { player: 'Dan Barrell', ppg: 1.85, stdDev: 0.45, consistency: 'High' },
-            { player: 'Dean Charles', ppg: 1.78, stdDev: 0.52, consistency: 'High' },
-            { player: 'Michael Green', ppg: 1.72, stdDev: 0.58, consistency: 'Medium' },
-            { player: 'Tom Levin', ppg: 1.45, stdDev: 0.62, consistency: 'Medium' },
-            { player: 'Other Player', ppg: 1.32, stdDev: 0.78, consistency: 'Low' }
-        ];
-        
-        consistencyData.forEach(data => {
-            const row = document.createElement('tr');
-            const consistencyClass = data.consistency === 'High' ? 'text-green-600' : 
-                                  data.consistency === 'Medium' ? 'text-yellow-600' : 'text-red-600';
-            
-            row.innerHTML = `
-                <td class="px-2 py-2 whitespace-nowrap text-sm font-medium text-gray-900">${data.player}</td>
-                <td class="px-2 py-2 whitespace-nowrap text-sm text-gray-900 text-center">${data.ppg}</td>
-                <td class="px-2 py-2 whitespace-nowrap text-sm text-gray-900 text-center">${data.stdDev}</td>
-                <td class="px-2 py-2 whitespace-nowrap text-sm text-center ${consistencyClass} font-medium">${data.consistency}</td>
-            `;
-            tbody.appendChild(row);
-        });
-        
-        hideLoading('consistency');
-    }, 800);
-}
-
 // Utility functions
 function showLoading(cardName) {
     document.getElementById(`${cardName}-loading`).classList.remove('hidden');
@@ -1262,12 +1098,6 @@ function setupLazyLoading() {
                     case 'result-types-loading':
                         if (!entry.target.dataset.loaded) {
                             loadResultTypes();
-                            entry.target.dataset.loaded = 'true';
-                        }
-                        break;
-                    case 'consistency-loading':
-                        if (!entry.target.dataset.loaded) {
-                            loadConsistencyRankings();
                             entry.target.dataset.loaded = 'true';
                         }
                         break;

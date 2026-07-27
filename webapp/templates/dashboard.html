@@ -4,8 +4,18 @@
 <div class="space-y-6">
     <!-- Page Header -->
     <div class="bg-white shadow rounded-lg p-6">
-        <h1 class="text-2xl font-bold text-gray-900 mb-2">📊 Database Overview</h1>
-        <p class="text-gray-600">Real-time statistics and health monitoring for your prediction league database.</p>
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900 mb-1">📊 Database Overview</h1>
+                <p class="text-gray-600">Real-time statistics and health monitoring for your prediction league database.</p>
+            </div>
+            <div class="flex items-center space-x-3">
+                <span class="text-xs text-gray-400" id="lastRefreshed"></span>
+                <button onclick="location.reload()" class="px-3 py-1.5 text-sm text-gray-600 border border-gray-300 rounded hover:bg-gray-50">
+                    Refresh
+                </button>
+            </div>
+        </div>
     </div>
     
     <!-- Quick Stats Cards -->
@@ -347,6 +357,9 @@
                 <h3 class="text-lg font-medium text-red-900 flex items-center">
                     <span class="text-xl mr-2">⚠️</span>
                     Prediction Verification Issues
+                    <span class="ml-2 bg-red-200 text-red-800 text-xs font-bold px-2 py-0.5 rounded-full">
+                        {{ verification_mismatches.values() | map('length') | sum }}
+                    </span>
                 </h3>
                 <button onclick="acknowledgeVerificationIssues()" class="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700 transition-colors">
                     Clear All
@@ -448,39 +461,17 @@
     </div>
     {% endif %}
     
-    <!-- Charts Section -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Prediction Coverage Chart -->
-        <div class="bg-white shadow rounded-lg p-6">
-            <h3 class="text-lg font-medium text-gray-900 mb-4">📈 Predictions by Gameweek</h3>
-            {% if stats.get('recent_predictions') %}
-                <canvas id="predictionsChart" width="400" height="200"></canvas>
-            {% else %}
-                <div class="text-center py-8 text-gray-500">
-                    <div class="text-4xl mb-2">📭</div>
-                    <p>No prediction data available</p>
-                </div>
-            {% endif %}
-        </div>
-        
-        <!-- Quick Actions -->
-        <div class="bg-white shadow rounded-lg p-6">
-            <h3 class="text-lg font-medium text-gray-900 mb-4">⚡ Quick Actions</h3>
-            <div class="space-y-3">
-                <a href="{{ url_for('admin') }}" 
-                   class="block w-full bg-blue-600 hover:bg-blue-700 text-white text-center py-2 px-4 rounded-md text-sm font-medium">
-                    👥 Manage Players
-                </a>
-                <a href="{{ url_for('scripts') }}" 
-                   class="block w-full bg-green-600 hover:bg-green-700 text-white text-center py-2 px-4 rounded-md text-sm font-medium">
-                    🔧 Run Scripts
-                </a>
-                <a href="{{ url_for('fpl_insights') }}" 
-                   class="block w-full bg-purple-600 hover:bg-purple-700 text-white text-center py-2 px-4 rounded-md text-sm font-medium">
-                    ⭐ FPL Analysis
-                </a>
+    <!-- Predictions by Gameweek Chart -->
+    <div class="bg-white shadow rounded-lg p-6">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">📈 Predictions by Gameweek</h3>
+        {% if stats.get('recent_predictions') %}
+            <canvas id="predictionsChart" width="800" height="200"></canvas>
+        {% else %}
+            <div class="text-center py-8 text-gray-500">
+                <div class="text-4xl mb-2">📭</div>
+                <p>No prediction data available</p>
             </div>
-        </div>
+        {% endif %}
     </div>
     
     <!-- Recent Updates Table -->
@@ -511,9 +502,14 @@
                                 {{ update.table_name }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                                    {{ update.updated }}
-                                </span>
+                                {% set status_lower = update.updated|lower if update.updated else '' %}
+                                {% if status_lower in ['success', 'updated', 'ok'] %}
+                                    <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">{{ update.updated }}</span>
+                                {% elif status_lower in ['failed', 'error'] %}
+                                    <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">{{ update.updated }}</span>
+                                {% else %}
+                                    <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">{{ update.updated }}</span>
+                                {% endif %}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                 {{ update.formatted_timestamp }}
@@ -541,15 +537,10 @@
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Gameweek
-                            </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Deadline
-                            </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Status
-                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gameweek</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Deadline</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time Until</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
@@ -561,19 +552,20 @@
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                 {{ deadline.formatted_deadline }}
                             </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {% if deadline.deadline_unix %}
+                                    <span class="time-until" data-unix="{{ deadline.deadline_unix }}">—</span>
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 {% if deadline.current_gameweek %}
-                                    <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                                        Current
-                                    </span>
+                                    <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Current</span>
                                 {% elif deadline.next_gameweek %}
-                                    <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                                        Next
-                                    </span>
+                                    <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">Next</span>
                                 {% else %}
-                                    <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
-                                        Upcoming
-                                    </span>
+                                    <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">Upcoming</span>
                                 {% endif %}
                             </td>
                         </tr>
@@ -594,10 +586,24 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Show last refreshed time
+    const lastRefreshed = document.getElementById('lastRefreshed');
+    if (lastRefreshed) {
+        const now = new Date();
+        lastRefreshed.textContent = 'Last refreshed ' + now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    // Populate time-until columns
+    document.querySelectorAll('.time-until').forEach(function(el) {
+        const unix = parseInt(el.dataset.unix);
+        if (!unix) return;
+        el.textContent = formatTimeUntil(unix);
+    });
+
     // Predictions Chart
     {% if stats.get('recent_predictions') %}
     const predictionsCtx = document.getElementById('predictionsChart').getContext('2d');
-    const predictionsChart = new Chart(predictionsCtx, {
+    new Chart(predictionsCtx, {
         type: 'bar',
         data: {
             labels: [{% for pred in stats.recent_predictions %}'GW {{ pred.gameweek }}'{% if not loop.last %},{% endif %}{% endfor %}],
@@ -614,25 +620,39 @@ document.addEventListener('DOMContentLoaded', function() {
             scales: {
                 y: {
                     beginAtZero: true,
-                    ticks: {
-                        stepSize: 1
-                    }
+                    title: { display: true, text: 'Predictions' },
+                    ticks: { stepSize: 1 }
                 }
             },
             plugins: {
-                legend: {
-                    display: false
-                }
+                legend: { display: false }
             }
         }
     });
     {% endif %}
-    
-    // Auto-refresh dashboard every 30 seconds
+
+    // Auto-refresh — skip if a modal is open
     setTimeout(function() {
-        location.reload();
+        if (!document.querySelector('.fixed.inset-0')) {
+            location.reload();
+        }
     }, 30000);
 });
+
+function formatTimeUntil(unixTs) {
+    const now = Math.floor(Date.now() / 1000);
+    const diff = unixTs - now;
+
+    if (diff <= 0) return 'Passed';
+
+    const days = Math.floor(diff / 86400);
+    const hours = Math.floor((diff % 86400) / 3600);
+    const minutes = Math.floor((diff % 3600) / 60);
+
+    if (days > 0) return `${days}d ${hours}h`;
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    return `${minutes}m`;
+}
 
 // Acknowledge verification issues
 function acknowledgeVerificationIssues(gameweek = null) {

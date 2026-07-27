@@ -798,18 +798,25 @@ def predictions_analysis():
         
         # Get available gameweeks for dropdown
         cursor.execute("""
-            SELECT DISTINCT gameweek 
-            FROM fixtures 
+            SELECT DISTINCT gameweek
+            FROM fixtures
             WHERE season = '2026/2027'
             ORDER BY gameweek
         """)
         available_gameweeks = [row[0] for row in cursor.fetchall()]
-        
+
+        # Get available seasons for performance selector
+        cursor.execute("""
+            SELECT DISTINCT season FROM fixtures ORDER BY season DESC
+        """)
+        available_seasons = [row[0] for row in cursor.fetchall()]
+
         conn.close()
-        
+
         return render_template('predictions.html',
                              current_gameweek=gameweek,
                              available_gameweeks=available_gameweeks,
+                             available_seasons=available_seasons,
                              page_title='Predictions Analysis')
     
     except Exception as e:
@@ -817,6 +824,7 @@ def predictions_analysis():
         return render_template('predictions.html',
                              current_gameweek=1,
                              available_gameweeks=[],
+                             available_seasons=[],
                              page_title='Predictions Analysis')
 
 
@@ -1222,14 +1230,15 @@ def get_season_performance():
             })
         
         # Calculate performance for each strategy
-        strategies = ['adaptive', 'fixed', 'fixed-2-0', 'fixed-1-0', 'calibrated', 'home-away', 'poisson', 'smart-goals']
+        strategies = ['fixed', 'fixed-2-0', 'fixed-1-0', 'calibrated', 'home-away', 'poisson', 'smart-goals']
         strategy_performance = []
-        
+
         logger.info("Calculating performance for each strategy...")
         for strategy in strategies:
             logger.info(f"Calculating performance for {strategy} strategy...")
             performance = calculate_strategy_performance(fixtures_data, strategy)
             performance['strategy_name'] = get_strategy_display_name(strategy)
+            performance['strategy_key'] = strategy
             strategy_performance.append(performance)
             logger.info(f"{strategy} strategy: {performance['total_points']} points, {performance['accuracy_rate']:.1f}% accuracy")
         
@@ -2329,11 +2338,24 @@ def get_future_gameweek_deadlines(cursor) -> List:
                 'current_gameweek': deadline[2],
                 'next_gameweek': deadline[3],
                 'finished': deadline[4],
-                'formatted_deadline': 'Unknown'
+                'formatted_deadline': 'Unknown',
+                'deadline_unix': None
             }
 
             if deadline[1]:
                 deadline_dict['formatted_deadline'] = convert_to_uk_time(deadline[1], '%a %d %b %Y, %H:%M')
+                try:
+                    raw = deadline[1]
+                    if isinstance(raw, (int, float)):
+                        deadline_dict['deadline_unix'] = int(raw)
+                    elif isinstance(raw, str):
+                        dt = datetime.fromisoformat(raw.replace('Z', '+00:00'))
+                        deadline_dict['deadline_unix'] = int(dt.timestamp())
+                    else:
+                        raw_utc = raw if raw.tzinfo else raw.replace(tzinfo=timezone.utc)
+                        deadline_dict['deadline_unix'] = int(raw_utc.timestamp())
+                except Exception:
+                    pass
 
             formatted_deadlines.append(deadline_dict)
 

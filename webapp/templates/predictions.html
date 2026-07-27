@@ -8,69 +8,6 @@
         <p class="text-gray-600">Automated predictions based on betting odds with multiple strategies and scoring analysis.</p>
     </div>
 
-    <!-- Strategy Recommendation Widget -->
-    <div id="recommendationWidget" class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 shadow rounded-lg p-6 hidden">
-        <div class="flex items-start justify-between">
-            <div class="flex items-center">
-                <div class="flex-shrink-0">
-                    <div class="h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center">
-                        <span class="text-blue-600 font-bold">🎯</span>
-                    </div>
-                </div>
-                <div class="ml-4">
-                    <h3 class="text-lg font-semibold text-blue-900" id="recommendationTitle">Strategy Recommendation</h3>
-                    <p class="text-sm text-blue-700" id="recommendationSubtitle">Analyzing current season patterns...</p>
-                </div>
-            </div>
-            <div class="flex-shrink-0">
-                <div class="bg-blue-600 text-white px-3 py-1 rounded-full text-sm font-medium" id="confidenceBadge">
-                    Loading...
-                </div>
-            </div>
-        </div>
-
-        <div class="mt-4">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <!-- Current Season Stats -->
-                <div class="bg-white rounded-lg p-4 border border-blue-100">
-                    <h4 class="text-sm font-medium text-gray-900 mb-2">Current Season</h4>
-                    <div class="space-y-1 text-sm text-gray-600">
-                        <div>Matches: <span id="seasonMatches" class="font-medium text-gray-900">-</span></div>
-                        <div>Low-scoring: <span id="seasonLowScoring" class="font-medium text-gray-900">-</span></div>
-                        <div>Avg Goals/Game: <span id="seasonAvgGoals" class="font-medium text-gray-900">-</span></div>
-                    </div>
-                </div>
-
-                <!-- Recommendation -->
-                <div class="bg-white rounded-lg p-4 border border-blue-100">
-                    <h4 class="text-sm font-medium text-gray-900 mb-2">Recommended Strategy</h4>
-                    <div class="text-lg font-bold text-blue-600" id="recommendedStrategy">Loading...</div>
-                    <div class="text-xs text-gray-500 mt-1" id="expectedImprovement">Expected improvement: +0.00 pts/game</div>
-                </div>
-
-                <!-- Switch Timing -->
-                <div class="bg-white rounded-lg p-4 border border-blue-100">
-                    <h4 class="text-sm font-medium text-gray-900 mb-2">Switch Timing</h4>
-                    <div class="text-sm text-gray-600" id="switchAction">Monitor</div>
-                    <div class="text-xs text-gray-500 mt-1" id="nextReview">Next review: Week -</div>
-                </div>
-            </div>
-
-            <!-- Detailed Recommendation -->
-            <div class="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-100">
-                <h4 class="text-sm font-medium text-blue-900 mb-2">📊 Analysis & Recommendation</h4>
-                <p class="text-sm text-blue-800" id="recommendationReason">Loading season analysis...</p>
-                <p class="text-sm text-blue-700 mt-2" id="timingGuidance">Loading timing guidance...</p>
-            </div>
-
-            <!-- Historical Context -->
-            <div class="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200 hidden" id="historicalContext">
-                <h4 class="text-xs font-medium text-gray-700 mb-2">📈 Historical Context</h4>
-                <div class="text-xs text-gray-600" id="historicalSimilar">Similar seasons: Loading...</div>
-            </div>
-        </div>
-    </div>
-
     <!-- Gameweek and Season Selectors -->
     <div class="bg-white shadow rounded-lg p-6">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -85,19 +22,16 @@
                     {% endfor %}
                 </select>
             </div>
-            
+
             <!-- Season Selector for Performance Analysis -->
             <div class="flex flex-col">
                 <h2 class="text-lg font-semibold text-gray-900 mb-2">Performance Analysis Season</h2>
                 <select id="seasonSelect" class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-                    <option value="2025/2026" selected>2025/2026 (Current)</option>
-                    <option value="2024/2025">2024/2025</option>
-                    <option value="2023/2024">2023/2024</option>
-                    <option value="2022/2023">2022/2023</option>
-                    <option value="2021/2022">2021/2022</option>
-                    <option value="2020/2021">2020/2021</option>
+                    {% for season in available_seasons %}
+                    <option value="{{ season }}" {% if loop.first %}selected{% endif %}>{{ season }}</option>
+                    {% endfor %}
                     <option value="all">All Seasons Combined</option>
-                    <option value="historical">Historical Seasons (2020-2025)</option>
+                    <option value="historical">Historical Seasons (pre-current)</option>
                 </select>
             </div>
         </div>
@@ -106,12 +40,9 @@
     <!-- Strategy Tabs -->
     <div class="bg-white shadow rounded-lg">
         <div class="border-b border-gray-200">
-            <nav class="-mb-px flex space-x-8 px-6 pt-4">
-                <button class="strategy-tab border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm" data-strategy="fixed">
+            <nav class="-mb-px flex space-x-8 px-6 pt-4 overflow-x-auto">
+                <button class="strategy-tab active border-blue-500 text-blue-600 border-b-2 whitespace-nowrap py-2 px-1 font-medium text-sm" data-strategy="fixed">
                     Fixed (2-1 Favourite)
-                </button>
-                <button class="strategy-tab active border-transparent text-blue-600 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm" data-strategy="adaptive">
-                    🎯 Recommended
                 </button>
                 <button class="strategy-tab border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm" data-strategy="calibrated">
                     Calibrated
@@ -130,7 +61,7 @@
                 </button>
             </nav>
         </div>
-        
+
         <!-- Strategy Content -->
         <div class="p-6">
             <!-- Loading State -->
@@ -138,7 +69,7 @@
                 <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                 <p class="mt-2 text-sm text-gray-500">Loading predictions...</p>
             </div>
-            
+
             <!-- Fixtures Table -->
             <div id="fixturesContainer" class="hidden">
                 <div class="mb-4 flex justify-between items-center">
@@ -147,12 +78,12 @@
                         Potential Points: <span id="totalPoints">0</span>
                     </div>
                 </div>
-                
+
                 <!-- Strategy Description -->
                 <div id="strategyDescription" class="mb-6 p-4 bg-blue-50 rounded-lg">
                     <p class="text-sm text-blue-800"></p>
                 </div>
-                
+
                 <!-- Bulk Score Input (Custom Strategy Only) -->
                 <div id="bulkScoreInput" class="mb-6 p-4 bg-gray-50 rounded-lg hidden">
                     <h4 class="text-sm font-medium text-gray-900 mb-3">Quick Fill Options</h4>
@@ -175,33 +106,20 @@
                         </button>
                     </div>
                 </div>
-                
+
                 <!-- Fixtures Table -->
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Match
-                                </th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Home Odds
-                                </th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Draw Odds
-                                </th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Away Odds
-                                </th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Prediction
-                                </th>
-                                <th id="actualResultHeader" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden">
-                                    Actual Result
-                                </th>
-                                <th id="pointsHeader" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden">
-                                    Points
-                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Match</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kickoff</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Home Odds</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Draw Odds</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Away Odds</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prediction</th>
+                                <th id="actualResultHeader" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden">Actual Result</th>
+                                <th id="pointsHeader" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden">Points</th>
                             </tr>
                         </thead>
                         <tbody id="fixturesTableBody" class="bg-white divide-y divide-gray-200">
@@ -236,17 +154,15 @@
         </div>
     </div>
 
-    <!-- Best Performing Models This Year -->
+    <!-- Best Performing Models This Season -->
     <div class="bg-white shadow rounded-lg p-6">
         <h2 class="text-lg font-semibold text-gray-900 mb-4">📊 Best Performing Models This Season</h2>
-        
-        <!-- Loading State for Performance Table -->
+
         <div id="performanceTableLoading" class="text-center py-8">
             <div class="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
             <p class="mt-2 text-sm text-gray-500">Loading performance data...</p>
         </div>
-        
-        <!-- Performance Comparison Table -->
+
         <div id="performanceTable" class="hidden">
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
@@ -262,11 +178,10 @@
                         </tr>
                     </thead>
                     <tbody id="performanceTableBody" class="bg-white divide-y divide-gray-200">
-                        <!-- Performance data will be populated here -->
                     </tbody>
                 </table>
             </div>
-            
+
             <!-- Performance Insights -->
             <div class="mt-6 p-4 bg-yellow-50 rounded-lg">
                 <h3 class="text-sm font-medium text-yellow-800 mb-2">📈 Performance Insights</h3>
@@ -275,8 +190,7 @@
                 </div>
             </div>
         </div>
-        
-        <!-- No Data State -->
+
         <div id="noPerformanceData" class="text-center py-8 hidden">
             <div class="text-gray-400 text-4xl mb-2">📊</div>
             <p class="text-gray-500">No performance data available yet</p>
@@ -289,15 +203,12 @@
 {% block scripts %}
 <script>
 let currentGameweek = {{ current_gameweek }};
-let currentStrategy = 'adaptive';
-let currentSeason = '2025/2026';
+let currentStrategy = 'fixed';
+let currentSeason = document.getElementById('seasonSelect').value;
 let fixturesData = [];
-let recommendationData = null;
 
-// Strategy descriptions
 const strategyDescriptions = {
     fixed: "Favourite team always wins 2-1. Simple and consistent approach using the team with lower odds.",
-    adaptive: "Uses the recommended strategy based on current season analysis. Automatically adapts between 1-0 and 2-1 predictions based on scoring patterns.",
     'fixed-2-0': "Favourite team always wins 2-0. Clean sheet strategy backing the favourite with a shutout win.",
     'fixed-1-0': "Favourite team always wins 1-0. Conservative strategy backing narrow wins by the favourite.",
     calibrated: "Variable scorelines based on favourite strength: ≤1.50 odds = 3-0/2-0, 1.51-2.00 = 2-1, 2.01-2.50 = 1-0, >2.50 = 1-1",
@@ -307,22 +218,17 @@ const strategyDescriptions = {
     custom: "Enter your own predictions and see how many points you would score"
 };
 
-// Initialize page will be done at the end
-
 function setupEventListeners() {
-    // Gameweek selector
     document.getElementById('gameweekSelect').addEventListener('change', function() {
         currentGameweek = parseInt(this.value);
         loadFixtures(currentGameweek);
     });
-    
-    // Season selector
+
     document.getElementById('seasonSelect').addEventListener('change', function() {
         currentSeason = this.value;
-        loadSeasonPerformance(); // Reload performance data for new season
+        loadSeasonPerformance();
     });
-    
-    // Strategy tabs
+
     document.querySelectorAll('.strategy-tab').forEach(tab => {
         tab.addEventListener('click', function() {
             switchStrategy(this.dataset.strategy);
@@ -332,26 +238,24 @@ function setupEventListeners() {
 
 function switchStrategy(strategy) {
     currentStrategy = strategy;
-    
-    // Update tab appearance
+
     document.querySelectorAll('.strategy-tab').forEach(tab => {
         tab.classList.remove('active', 'text-blue-600', 'border-blue-500');
         tab.classList.add('text-gray-500', 'border-transparent');
     });
-    
+
     const activeTab = document.querySelector(`[data-strategy="${strategy}"]`);
     activeTab.classList.remove('text-gray-500', 'border-transparent');
     activeTab.classList.add('active', 'text-blue-600', 'border-blue-500');
-    
-    // Update content
+
     updateStrategyContent();
     generatePredictions();
+    highlightActiveStrategyRow();
 }
 
 function updateStrategyContent() {
     const titleMap = {
         fixed: 'Fixed Strategy Predictions (2-1 Favourite)',
-        adaptive: 'Adaptive Strategy Predictions (Season-Based Recommendation)',
         'fixed-2-0': 'Fixed Strategy Predictions (2-0 Favourite)',
         'fixed-1-0': 'Fixed Strategy Predictions (1-0 Favourite)',
         calibrated: 'Calibrated Predictions (Variable Scorelines)',
@@ -360,11 +264,10 @@ function updateStrategyContent() {
         'smart-goals': 'Smart Goals Strategy (1X2 + Over/Under)',
         custom: 'Custom Predictions'
     };
-    
-    document.getElementById('strategyTitle').textContent = titleMap[currentStrategy];
-    document.querySelector('#strategyDescription p').textContent = strategyDescriptions[currentStrategy];
-    
-    // Show/hide bulk score input for custom strategy
+
+    document.getElementById('strategyTitle').textContent = titleMap[currentStrategy] || currentStrategy;
+    document.querySelector('#strategyDescription p').textContent = strategyDescriptions[currentStrategy] || '';
+
     const bulkScoreInput = document.getElementById('bulkScoreInput');
     if (currentStrategy === 'custom') {
         bulkScoreInput.classList.remove('hidden');
@@ -375,13 +278,9 @@ function updateStrategyContent() {
 
 function loadFixtures(gameweek) {
     showLoading();
-    
+
     fetch(`/api/predictions/gameweek/${gameweek}`)
         .then(response => {
-            console.log('API Response status:', response.status);
-            console.log('API Response headers:', response.headers);
-            
-            // Check if we're being redirected to login
             if (response.status === 200 && response.headers.get('content-type')?.includes('application/json')) {
                 return response.json();
             } else if (response.status === 302 || response.url.includes('/login')) {
@@ -389,20 +288,16 @@ function loadFixtures(gameweek) {
             } else if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             } else {
-                // Try to parse as JSON anyway
                 return response.json();
             }
         })
         .then(data => {
-            console.log('API Response data:', data);
             fixturesData = data.fixtures || [];
             hideLoading();
             generatePredictions();
         })
         .catch(error => {
-            console.error('Error loading fixtures:', error);
             hideLoading();
-            
             if (error.message.includes('Authentication required')) {
                 showError('Please log in first to view predictions data');
             } else {
@@ -429,29 +324,28 @@ function showError(message) {
 
 function generatePredictions() {
     if (fixturesData.length === 0) return;
-    
+
     const tbody = document.getElementById('fixturesTableBody');
     tbody.innerHTML = '';
-    
+
     let totalPoints = 0;
     let hasResults = false;
-    
+
     fixturesData.forEach(fixture => {
         const prediction = calculatePrediction(fixture, currentStrategy);
         const row = createFixtureRow(fixture, prediction);
         tbody.appendChild(row);
-        
+
         if (fixture.actual_home_goals !== null) {
             hasResults = true;
             const points = calculatePoints(prediction, fixture);
             totalPoints += points;
         }
     });
-    
-    // Show/hide results columns
+
     const hasResultsToShow = hasResults && fixturesData.some(f => f.actual_home_goals !== null);
     toggleResultsColumns(hasResultsToShow);
-    
+
     if (hasResultsToShow) {
         document.getElementById('totalPoints').textContent = totalPoints;
         document.getElementById('pointsDisplay').classList.remove('hidden');
@@ -465,159 +359,105 @@ function generatePredictions() {
 function calculatePrediction(fixture, strategy) {
     const homeOdds = parseFloat(fixture.home_odds) || 999;
     const awayOdds = parseFloat(fixture.away_odds) || 999;
-    const drawOdds = parseFloat(fixture.draw_odds) || 999;
-    
+
     let homeScore, awayScore;
-    
+
     switch (strategy) {
         case 'fixed':
-            if (homeOdds <= awayOdds) {
-                homeScore = 2; awayScore = 1;
-            } else {
-                homeScore = 1; awayScore = 2;
-            }
-            break;
-
-        case 'adaptive':
-            // Use recommended strategy from season analysis
-            const recommendedStrategy = recommendationData ? recommendationData.recommendation.recommended_strategy : '2-1';
-            if (recommendedStrategy === '1-0') {
-                // Use 1-0 strategy
-                if (homeOdds <= awayOdds) {
-                    homeScore = 1; awayScore = 0;
-                } else {
-                    homeScore = 0; awayScore = 1;
-                }
-            } else {
-                // Default to 2-1 strategy
-                if (homeOdds <= awayOdds) {
-                    homeScore = 2; awayScore = 1;
-                } else {
-                    homeScore = 1; awayScore = 2;
-                }
-            }
+            if (homeOdds <= awayOdds) { homeScore = 2; awayScore = 1; }
+            else { homeScore = 1; awayScore = 2; }
             break;
 
         case 'fixed-2-0':
-            if (homeOdds <= awayOdds) {
-                homeScore = 2; awayScore = 0;
-            } else {
-                homeScore = 0; awayScore = 2;
-            }
+            if (homeOdds <= awayOdds) { homeScore = 2; awayScore = 0; }
+            else { homeScore = 0; awayScore = 2; }
             break;
-            
+
         case 'fixed-1-0':
-            if (homeOdds <= awayOdds) {
-                homeScore = 1; awayScore = 0;
-            } else {
-                homeScore = 0; awayScore = 1;
-            }
+            if (homeOdds <= awayOdds) { homeScore = 1; awayScore = 0; }
+            else { homeScore = 0; awayScore = 1; }
             break;
-            
+
         case 'calibrated':
             const favouriteOdds = Math.min(homeOdds, awayOdds);
             const isHomeFav = homeOdds <= awayOdds;
-            
-            if (favouriteOdds <= 1.50) {
-                [homeScore, awayScore] = isHomeFav ? [3, 0] : [0, 3];
-            } else if (favouriteOdds <= 2.00) {
-                [homeScore, awayScore] = isHomeFav ? [2, 1] : [1, 2];
-            } else if (favouriteOdds <= 2.50) {
-                [homeScore, awayScore] = isHomeFav ? [1, 0] : [0, 1];
-            } else {
-                homeScore = 1; awayScore = 1;
-            }
+
+            if (favouriteOdds <= 1.50) { [homeScore, awayScore] = isHomeFav ? [3, 0] : [0, 3]; }
+            else if (favouriteOdds <= 2.00) { [homeScore, awayScore] = isHomeFav ? [2, 1] : [1, 2]; }
+            else if (favouriteOdds <= 2.50) { [homeScore, awayScore] = isHomeFav ? [1, 0] : [0, 1]; }
+            else { homeScore = 1; awayScore = 1; }
             break;
-            
+
         case 'home-away':
-            if (homeOdds <= awayOdds) {
-                homeScore = 2; awayScore = 0; // Home favourite
-            } else {
-                homeScore = 1; awayScore = 2; // Away favourite
-            }
+            if (homeOdds <= awayOdds) { homeScore = 2; awayScore = 0; }
+            else { homeScore = 1; awayScore = 2; }
             break;
-            
+
         case 'poisson':
-            // Placeholder for Poisson model - for now use calibrated approach
-            const poissonFavouriteOdds = Math.min(homeOdds, awayOdds);
+            const poissonFavOdds = Math.min(homeOdds, awayOdds);
             const isPoissonHomeFav = homeOdds <= awayOdds;
-            
-            if (poissonFavouriteOdds <= 1.50) {
-                [homeScore, awayScore] = isPoissonHomeFav ? [2, 0] : [0, 2];
-            } else if (poissonFavouriteOdds <= 2.00) {
-                [homeScore, awayScore] = isPoissonHomeFav ? [2, 1] : [1, 2];
-            } else {
-                [homeScore, awayScore] = isPoissonHomeFav ? [1, 0] : [0, 1];
-            }
+
+            if (poissonFavOdds <= 1.50) { [homeScore, awayScore] = isPoissonHomeFav ? [2, 0] : [0, 2]; }
+            else if (poissonFavOdds <= 2.00) { [homeScore, awayScore] = isPoissonHomeFav ? [2, 1] : [1, 2]; }
+            else { [homeScore, awayScore] = isPoissonHomeFav ? [1, 0] : [0, 1]; }
             break;
-            
+
         case 'smart-goals':
-            // Combined 1X2 + Over/Under strategy
-            const smartFavouriteOdds = Math.min(homeOdds, awayOdds);
+            const smartFavOdds = Math.min(homeOdds, awayOdds);
             const smartIsHomeFav = homeOdds <= awayOdds;
-            
-            // Get Over/Under odds (use fallback if not available)
             const over25Odds = parseFloat(fixture.over_2_5_odds) || 1.90;
             const under25Odds = parseFloat(fixture.under_2_5_odds) || 1.90;
             const goalsMarketFavoursHigh = over25Odds < under25Odds;
-            
-            if (smartFavouriteOdds <= 1.67) { // Short favourite
+
+            if (smartFavOdds <= 1.67) {
                 if (goalsMarketFavoursHigh) {
-                    if (over25Odds <= 1.70) {
-                        // Very heavy over 2.5 odds
-                        [homeScore, awayScore] = smartIsHomeFav ? [3, 1] : [1, 3];
-                    } else {
-                        // Heavy over 2.5 odds
-                        [homeScore, awayScore] = smartIsHomeFav ? [2, 1] : [1, 2];
-                    }
+                    if (over25Odds <= 1.70) { [homeScore, awayScore] = smartIsHomeFav ? [3, 1] : [1, 3]; }
+                    else { [homeScore, awayScore] = smartIsHomeFav ? [2, 1] : [1, 2]; }
                 } else {
-                    // Under 2.5 favoured
                     [homeScore, awayScore] = smartIsHomeFav ? [1, 0] : [0, 1];
                 }
             } else {
-                // Not a short favourite, use standard calibrated approach
-                if (smartFavouriteOdds <= 2.00) {
-                    [homeScore, awayScore] = smartIsHomeFav ? [2, 1] : [1, 2];
-                } else if (smartFavouriteOdds <= 2.50) {
-                    [homeScore, awayScore] = smartIsHomeFav ? [1, 0] : [0, 1];
-                } else {
-                    homeScore = 1; awayScore = 1;
-                }
+                if (smartFavOdds <= 2.00) { [homeScore, awayScore] = smartIsHomeFav ? [2, 1] : [1, 2]; }
+                else if (smartFavOdds <= 2.50) { [homeScore, awayScore] = smartIsHomeFav ? [1, 0] : [0, 1]; }
+                else { homeScore = 1; awayScore = 1; }
             }
             break;
-            
+
         default:
             homeScore = 1; awayScore = 1;
     }
-    
+
     return { homeScore, awayScore };
 }
 
 function createFixtureRow(fixture, prediction) {
     const row = document.createElement('tr');
-    
-    // Determine result if available
+
     let resultCell = '';
     let pointsCell = '';
-    
+
     if (fixture.actual_home_goals !== null && fixture.actual_away_goals !== null) {
         const actualResult = `${fixture.actual_home_goals}-${fixture.actual_away_goals}`;
         const points = calculatePoints(prediction, fixture);
-        
         resultCell = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${actualResult}</td>`;
         pointsCell = `<td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${points > 0 ? 'text-green-600' : 'text-gray-400'}">${points}</td>`;
     } else {
         resultCell = '<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-400">-</td>';
         pointsCell = '<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-400">-</td>';
     }
-    
-    const predictionText = currentStrategy === 'custom' ? 
+
+    const predictionText = currentStrategy === 'custom' ?
         `<input type="text" class="custom-prediction w-20 px-2 py-1 border border-gray-300 rounded text-center text-sm" placeholder="1-1" data-fixture-id="${fixture.fixture_id}" data-home="${fixture.home_team}" data-away="${fixture.away_team}">` :
         `${prediction.homeScore}-${prediction.awayScore}`;
-    
+
+    const kickoffDisplay = fixture.kickoff_time || '-';
+
     row.innerHTML = `
         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
             ${fixture.home_team} vs ${fixture.away_team}
+        </td>
+        <td class="px-4 py-4 whitespace-nowrap text-xs text-gray-500">
+            ${kickoffDisplay}
         </td>
         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
             ${fixture.home_odds ? parseFloat(fixture.home_odds).toFixed(2) : '-'}
@@ -634,38 +474,28 @@ function createFixtureRow(fixture, prediction) {
         ${resultCell}
         ${pointsCell}
     `;
-    
+
     return row;
 }
 
 function calculatePoints(prediction, fixture) {
     if (fixture.actual_home_goals === null || fixture.actual_away_goals === null) return 0;
-    
+
     const actualHome = parseInt(fixture.actual_home_goals);
     const actualAway = parseInt(fixture.actual_away_goals);
     const predHome = prediction.homeScore;
     const predAway = prediction.awayScore;
-    
-    let points = 0;
-    
-    // Exact score (2 points total: 1 for result + 1 for exact score)
-    if (actualHome === predHome && actualAway === predAway) {
-        points = 2;
-    }
-    // Correct result only (1 point)
-    else if ((actualHome > actualAway && predHome > predAway) ||
-             (actualHome < actualAway && predHome < predAway) ||
-             (actualHome === actualAway && predHome === predAway)) {
-        points = 1;
-    }
-    
-    return points;
+
+    if (actualHome === predHome && actualAway === predAway) return 2;
+    if ((actualHome > actualAway && predHome > predAway) ||
+        (actualHome < actualAway && predHome < predAway) ||
+        (actualHome === actualAway && predHome === predAway)) return 1;
+    return 0;
 }
 
 function toggleResultsColumns(show) {
     const actualHeader = document.getElementById('actualResultHeader');
     const pointsHeader = document.getElementById('pointsHeader');
-    
     if (show) {
         actualHeader.classList.remove('hidden');
         pointsHeader.classList.remove('hidden');
@@ -682,16 +512,16 @@ function updatePerformanceSummary(totalPoints) {
         const actual = { homeScore: fixture.actual_home_goals, awayScore: fixture.actual_away_goals };
         return getResult(prediction) === getResult(actual);
     }).length;
-    
+
     const exactScores = fixturesWithResults.filter(fixture => {
         const prediction = calculatePrediction(fixture, currentStrategy);
-        return prediction.homeScore === fixture.actual_home_goals && 
+        return prediction.homeScore === fixture.actual_home_goals &&
                prediction.awayScore === fixture.actual_away_goals;
     }).length;
-    
-    const accuracy = fixturesWithResults.length > 0 ? 
+
+    const accuracy = fixturesWithResults.length > 0 ?
         Math.round((correctResults / fixturesWithResults.length) * 100) : 0;
-    
+
     document.getElementById('performanceSummary').classList.remove('hidden');
     document.getElementById('correctResults').textContent = correctResults;
     document.getElementById('exactScores').textContent = exactScores;
@@ -706,58 +536,37 @@ function getResult(score) {
 }
 
 function setupCustomPredictions() {
-    // Add event listeners to custom prediction inputs
     document.addEventListener('input', function(e) {
         if (e.target.classList.contains('custom-prediction')) {
             handleCustomPredictionInput(e.target);
         }
     });
-    
-    // Bulk score input functionality
+
     document.getElementById('applyBulkScore').addEventListener('click', function() {
         const bulkScore = document.getElementById('bulkScore').value.trim();
-        if (bulkScore) {
-            applyBulkScore(bulkScore);
-        }
+        if (bulkScore) applyBulkScore(bulkScore);
     });
-    
-    // Bulk preset buttons
+
     document.querySelectorAll('.bulk-preset').forEach(button => {
         button.addEventListener('click', function() {
-            const score = this.dataset.score;
-            applyBulkScore(score);
+            applyBulkScore(this.dataset.score);
         });
     });
-    
-    // Clear all scores
-    document.getElementById('clearAllScores').addEventListener('click', function() {
-        clearAllCustomPredictions();
-    });
-    
-    // Allow Enter key in bulk score input
+
+    document.getElementById('clearAllScores').addEventListener('click', clearAllCustomPredictions);
+
     document.getElementById('bulkScore').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            const bulkScore = this.value.trim();
-            if (bulkScore) {
-                applyBulkScore(bulkScore);
-            }
-        }
+        if (e.key === 'Enter' && this.value.trim()) applyBulkScore(this.value.trim());
     });
 }
 
 function handleCustomPredictionInput(input) {
     const value = input.value.trim();
-    const fixtureId = input.dataset.fixtureId;
-    
-    // Validate input format (e.g., "2-1")
-    const scoreRegex = /^(\d+)-(\d+)$/;
-    const match = value.match(scoreRegex);
-    
+    const match = value.match(/^(\d+)-(\d+)$/);
+
     if (match) {
         input.classList.remove('border-red-500');
         input.classList.add('border-green-500');
-        
-        // Calculate points in real-time if results are available
         calculateCustomPoints();
     } else if (value !== '') {
         input.classList.remove('border-green-500');
@@ -771,27 +580,19 @@ function calculateCustomPoints() {
     const inputs = document.querySelectorAll('.custom-prediction');
     let totalPoints = 0;
     let validPredictions = 0;
-    
+
     inputs.forEach(input => {
-        const value = input.value.trim();
-        const scoreRegex = /^(\d+)-(\d+)$/;
-        const match = value.match(scoreRegex);
-        
+        const match = input.value.trim().match(/^(\d+)-(\d+)$/);
         if (match) {
             const fixtureId = parseInt(input.dataset.fixtureId);
             const fixture = fixturesData.find(f => f.fixture_id === fixtureId);
-            
+
             if (fixture && fixture.actual_home_goals !== null) {
-                const prediction = {
-                    homeScore: parseInt(match[1]),
-                    awayScore: parseInt(match[2])
-                };
-                
+                const prediction = { homeScore: parseInt(match[1]), awayScore: parseInt(match[2]) };
                 const points = calculatePoints(prediction, fixture);
                 totalPoints += points;
                 validPredictions++;
-                
-                // Update the points cell for this row
+
                 const row = input.closest('tr');
                 const pointsCell = row.querySelector('td:last-child');
                 if (pointsCell) {
@@ -801,7 +602,7 @@ function calculateCustomPoints() {
             }
         }
     });
-    
+
     if (validPredictions > 0) {
         document.getElementById('totalPoints').textContent = totalPoints;
         document.getElementById('pointsDisplay').classList.remove('hidden');
@@ -813,30 +614,20 @@ function updateCustomPerformanceSummary(totalPoints, validPredictions) {
     const inputs = document.querySelectorAll('.custom-prediction');
     let correctResults = 0;
     let exactScores = 0;
-    
+
     inputs.forEach(input => {
-        const value = input.value.trim();
-        const scoreRegex = /^(\d+)-(\d+)$/;
-        const match = value.match(scoreRegex);
-        
+        const match = input.value.trim().match(/^(\d+)-(\d+)$/);
         if (match) {
             const fixtureId = parseInt(input.dataset.fixtureId);
             const fixture = fixturesData.find(f => f.fixture_id === fixtureId);
-            
+
             if (fixture && fixture.actual_home_goals !== null) {
-                const prediction = {
-                    homeScore: parseInt(match[1]),
-                    awayScore: parseInt(match[2])
-                };
-                
-                // Check exact score
-                if (prediction.homeScore === fixture.actual_home_goals && 
+                const prediction = { homeScore: parseInt(match[1]), awayScore: parseInt(match[2]) };
+                if (prediction.homeScore === fixture.actual_home_goals &&
                     prediction.awayScore === fixture.actual_away_goals) {
                     exactScores++;
-                    correctResults++; // Exact score includes correct result
-                }
-                // Check correct result
-                else if (getResult(prediction) === getResult({
+                    correctResults++;
+                } else if (getResult(prediction) === getResult({
                     homeScore: fixture.actual_home_goals,
                     awayScore: fixture.actual_away_goals
                 })) {
@@ -845,9 +636,8 @@ function updateCustomPerformanceSummary(totalPoints, validPredictions) {
             }
         }
     });
-    
+
     const accuracy = validPredictions > 0 ? Math.round((correctResults / validPredictions) * 100) : 0;
-    
     document.getElementById('performanceSummary').classList.remove('hidden');
     document.getElementById('correctResults').textContent = correctResults;
     document.getElementById('exactScores').textContent = exactScores;
@@ -856,95 +646,54 @@ function updateCustomPerformanceSummary(totalPoints, validPredictions) {
 }
 
 function applyBulkScore(score) {
-    const scoreRegex = /^(\d+)-(\d+)$/;
-    const match = score.match(scoreRegex);
-    
-    if (!match) {
+    if (!score.match(/^(\d+)-(\d+)$/)) {
         alert('Please enter a valid score format (e.g., "2-1")');
         return;
     }
-    
-    // Apply to all custom prediction inputs
-    const inputs = document.querySelectorAll('.custom-prediction');
-    inputs.forEach(input => {
+
+    document.querySelectorAll('.custom-prediction').forEach(input => {
         input.value = score;
         input.classList.remove('border-red-500');
         input.classList.add('border-green-500');
     });
-    
-    // Recalculate points
+
     calculateCustomPoints();
-    
-    // Clear the bulk input
     document.getElementById('bulkScore').value = '';
 }
 
 function clearAllCustomPredictions() {
-    const inputs = document.querySelectorAll('.custom-prediction');
-    inputs.forEach(input => {
+    document.querySelectorAll('.custom-prediction').forEach(input => {
         input.value = '';
         input.classList.remove('border-green-500', 'border-red-500');
     });
-    
-    // Hide points display
     document.getElementById('pointsDisplay').classList.add('hidden');
     document.getElementById('performanceSummary').classList.add('hidden');
 }
 
 function loadSeasonPerformance() {
-    console.log('=== Loading Season Performance Data ===');
-    
-    // Show loading state
     document.getElementById('performanceTableLoading').classList.remove('hidden');
     document.getElementById('performanceTable').classList.add('hidden');
     document.getElementById('noPerformanceData').classList.add('hidden');
-    
-    // Load performance comparison for all strategies
-    const apiUrl = `/api/predictions/season-performance?season=${encodeURIComponent(currentSeason)}`;
-    console.log('Fetching season performance for:', currentSeason, 'from:', apiUrl);
-    
-    fetch(apiUrl)
+
+    fetch(`/api/predictions/season-performance?season=${encodeURIComponent(currentSeason)}`)
         .then(response => {
-            console.log('API Response Status:', response.status);
-            console.log('API Response Headers:', response.headers);
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
+            if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             return response.json();
         })
         .then(data => {
-            console.log('API Response Data:', data);
-            
-            // Check for debug information
-            if (data.debug) {
-                console.log('Debug Info:', data.debug);
-                console.log(`Database has ${data.debug.total_fixtures} fixtures, ${data.debug.total_results} results, ${data.debug.total_odds} odds`);
-                console.log(`Complete fixtures available: ${data.debug.complete_fixtures}`);
-            }
-            
-            // Check for API errors
             if (data.error) {
-                console.error('API Error:', data.error);
                 showNoPerformanceDataWithError(`API Error: ${data.error}`);
                 return;
             }
-            
-            // Check for strategies data
+
             if (data.strategies && data.strategies.length > 0) {
-                console.log(`Found ${data.strategies.length} strategies with data`);
                 displayPerformanceTable(data.strategies);
                 generatePerformanceInsights(data.strategies);
             } else {
-                console.warn('No strategies data available');
-                const message = data.message || 'No performance data available';
-                showNoPerformanceDataWithError(message);
+                showNoPerformanceDataWithError(data.message || 'No performance data available');
             }
         })
         .catch(error => {
-            console.error('Error loading season performance:', error);
-            console.error('Error stack:', error.stack);
             showNoPerformanceDataWithError(`Network Error: ${error.message}`);
         });
 }
@@ -952,31 +701,27 @@ function loadSeasonPerformance() {
 function displayPerformanceTable(strategies) {
     const tbody = document.getElementById('performanceTableBody');
     tbody.innerHTML = '';
-    
-    // Sort strategies by total points (descending)
+
     strategies.sort((a, b) => b.total_points - a.total_points);
-    
+
     strategies.forEach((strategy, index) => {
         const row = document.createElement('tr');
-        
-        // Add ranking indicator
-        let rankingClass = '';
+
         let rankingIcon = '';
-        if (index === 0) {
-            rankingClass = 'bg-yellow-50 border-yellow-200';
-            rankingIcon = '🏆';
-        } else if (index === 1) {
-            rankingClass = 'bg-gray-50 border-gray-200';
-            rankingIcon = '🥈';
-        } else if (index === 2) {
-            rankingClass = 'bg-orange-50 border-orange-200';
-            rankingIcon = '🥉';
-        }
-        
-        row.className = rankingClass;
+        let baseClass = '';
+        if (index === 0) { baseClass = 'bg-yellow-50'; rankingIcon = '🏆'; }
+        else if (index === 1) { baseClass = 'bg-gray-50'; rankingIcon = '🥈'; }
+        else if (index === 2) { baseClass = 'bg-orange-50'; rankingIcon = '🥉'; }
+
+        // Highlight the currently active strategy
+        const isActive = strategy.strategy_key === currentStrategy;
+        const activeClass = isActive ? 'ring-2 ring-inset ring-blue-400' : '';
+
+        row.className = `${baseClass} ${activeClass}`;
         row.innerHTML = `
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                 ${rankingIcon} ${strategy.strategy_name}
+                ${isActive ? '<span class="ml-2 text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">current</span>' : ''}
             </td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                 <span class="font-semibold">${strategy.total_points}</span>
@@ -999,173 +744,89 @@ function displayPerformanceTable(strategies) {
         `;
         tbody.appendChild(row);
     });
-    
-    // Show the performance table
+
     document.getElementById('performanceTableLoading').classList.add('hidden');
     document.getElementById('performanceTable').classList.remove('hidden');
 }
 
+function highlightActiveStrategyRow() {
+    // Re-render the performance table rows to update the "current" highlight
+    const tbody = document.getElementById('performanceTableBody');
+    if (!tbody || tbody.children.length === 0) return;
+
+    tbody.querySelectorAll('tr').forEach(row => {
+        const badge = row.querySelector('.bg-blue-100');
+        if (badge) badge.remove();
+        row.classList.remove('ring-2', 'ring-inset', 'ring-blue-400');
+    });
+
+    // Find row matching current strategy by name (best we can do without re-fetch)
+    const strategyNameMap = {
+        fixed: 'Fixed (2-1 Favourite)',
+        'fixed-2-0': 'Fixed (2-0 Favourite)',
+        'fixed-1-0': 'Fixed (1-0 Favourite)',
+        calibrated: 'Calibrated Scorelines',
+        'home-away': 'Home/Away Bias',
+        poisson: 'Poisson Model',
+        'smart-goals': 'Smart Goals (1X2 + Over/Under)'
+    };
+    const activeDisplayName = strategyNameMap[currentStrategy];
+
+    tbody.querySelectorAll('tr').forEach(row => {
+        const nameCell = row.querySelector('td:first-child');
+        if (nameCell && nameCell.textContent.includes(activeDisplayName)) {
+            row.classList.add('ring-2', 'ring-inset', 'ring-blue-400');
+            const span = document.createElement('span');
+            span.className = 'ml-2 text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded';
+            span.textContent = 'current';
+            nameCell.appendChild(span);
+        }
+    });
+}
+
 function generatePerformanceInsights(strategies) {
     const bestStrategy = strategies[0];
-    const insights = document.getElementById('performanceInsights');
-    
     const totalGames = bestStrategy.games_analyzed;
     const bestAccuracy = Math.max(...strategies.map(s => s.accuracy_rate));
-    const bestExactScorer = strategies.reduce((prev, current) => 
+    const bestExactScorer = strategies.reduce((prev, current) =>
         prev.exact_scores > current.exact_scores ? prev : current
     );
-    
+
     let seasonLabel = currentSeason;
-    if (currentSeason === 'all') {
-        seasonLabel = 'All Seasons Combined';
-    } else if (currentSeason === 'historical') {
-        seasonLabel = 'Historical Seasons (2020-2024)';
-    }
-    
-    insights.innerHTML = `
+    if (currentSeason === 'all') seasonLabel = 'All Seasons Combined';
+    else if (currentSeason === 'historical') seasonLabel = 'Historical Seasons (pre-current)';
+
+    document.getElementById('performanceInsights').innerHTML = `
         <div class="space-y-2">
             <p><strong>Best Overall (${seasonLabel}):</strong> ${bestStrategy.strategy_name} with ${bestStrategy.total_points} points from ${totalGames} games</p>
             <p><strong>Most Accurate:</strong> ${strategies.find(s => s.accuracy_rate === bestAccuracy).strategy_name} (${bestAccuracy.toFixed(1)}% accuracy)</p>
             <p><strong>Best at Exact Scores:</strong> ${bestExactScorer.strategy_name} with ${bestExactScorer.exact_scores} perfect predictions</p>
-            <p><strong>Analysis Period:</strong> ${seasonLabel} - ${totalGames} completed fixtures with available odds and results</p>
+            <p><strong>Analysis Period:</strong> ${seasonLabel} — ${totalGames} completed fixtures with available odds and results</p>
         </div>
     `;
-}
-
-function showNoPerformanceData() {
-    document.getElementById('performanceTableLoading').classList.add('hidden');
-    document.getElementById('noPerformanceData').classList.remove('hidden');
 }
 
 function showNoPerformanceDataWithError(errorMessage) {
     document.getElementById('performanceTableLoading').classList.add('hidden');
     document.getElementById('performanceTable').classList.add('hidden');
-    
-    // Update the no data section with error details
+
     const noDataSection = document.getElementById('noPerformanceData');
     noDataSection.innerHTML = `
         <div class="text-gray-400 text-4xl mb-2">📊</div>
         <p class="text-gray-500 font-medium">No performance data available yet</p>
         <p class="text-sm text-gray-400 mt-2">Performance comparison will show once fixtures have results</p>
         <div class="mt-4 p-3 bg-red-50 rounded-lg border border-red-200">
-            <p class="text-sm text-red-700 font-medium">Debug Information:</p>
             <p class="text-xs text-red-600 mt-1 font-mono">${errorMessage}</p>
-            <p class="text-xs text-gray-500 mt-2">Check browser console for detailed logs</p>
         </div>
     `;
     noDataSection.classList.remove('hidden');
 }
 
-function loadSeasonRecommendation() {
-    // Load season recommendation data and update the UI
-    console.log('Loading season recommendation...');
-
-    fetch(`/api/season-recommendation?season=${encodeURIComponent(currentSeason)}`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            console.log('Season recommendation loaded:', data);
-
-            if (data.success && data.recommendation) {
-                recommendationData = data;
-                updateRecommendationWidget(data);
-                updateAdaptiveStrategyDescription(data.recommendation);
-            } else {
-                console.error('Failed to load recommendation:', data.error);
-                hideRecommendationWidget();
-            }
-        })
-        .catch(error => {
-            console.error('Error loading season recommendation:', error);
-            hideRecommendationWidget();
-        });
-}
-
-function updateRecommendationWidget(data) {
-    // Update the recommendation widget with loaded data
-    const widget = document.getElementById('recommendationWidget');
-    const rec = data.recommendation;
-    const guidance = data.switch_guidance;
-    const historical = data.historical_context;
-
-    // Update main info
-    document.getElementById('recommendationTitle').textContent =
-        `Strategy Recommendation: ${rec.recommended_strategy.toUpperCase()}`;
-    document.getElementById('recommendationSubtitle').textContent =
-        `Based on ${rec.total_matches} matches this season`;
-
-    // Update confidence badge
-    const confidenceBadge = document.getElementById('confidenceBadge');
-    confidenceBadge.textContent = rec.confidence_level.charAt(0).toUpperCase() + rec.confidence_level.slice(1) + ' Confidence';
-    confidenceBadge.className = `px-3 py-1 rounded-full text-sm font-medium text-white ${getConfidenceColor(rec.confidence_level)}`;
-
-    // Update current season stats
-    document.getElementById('seasonMatches').textContent = rec.total_matches;
-    document.getElementById('seasonLowScoring').textContent = `${rec.low_scoring_percentage.toFixed(1)}%`;
-    document.getElementById('seasonAvgGoals').textContent = rec.goals_per_game_avg.toFixed(1);
-
-    // Update recommendation
-    document.getElementById('recommendedStrategy').textContent = rec.recommended_strategy.toUpperCase() + ' Strategy';
-    document.getElementById('expectedImprovement').textContent =
-        `Expected improvement: +${rec.expected_points_improvement.toFixed(2)} pts/game`;
-
-    // Update switch timing
-    document.getElementById('switchAction').textContent = guidance.action_recommended.replace('_', ' ').toUpperCase();
-    document.getElementById('nextReview').textContent = `Next review: Week ${guidance.next_review_week}`;
-
-    // Update detailed recommendation
-    document.getElementById('recommendationReason').textContent = rec.recommendation_reason;
-    document.getElementById('timingGuidance').textContent = guidance.timing_message;
-
-    // Update historical context if available
-    if (historical && historical.similar_seasons && historical.similar_seasons.length > 0) {
-        const contextDiv = document.getElementById('historicalContext');
-        const similarText = historical.similar_seasons.slice(0, 3).map(s =>
-            `${s.season} (${s.percentage.toFixed(1)}% low-scoring, ${s.optimal_strategy} optimal)`
-        ).join('; ');
-        document.getElementById('historicalSimilar').textContent = `Similar seasons: ${similarText}`;
-        contextDiv.classList.remove('hidden');
-    }
-
-    // Show the widget
-    widget.classList.remove('hidden');
-}
-
-function getConfidenceColor(confidence) {
-    // Get CSS color class for confidence level
-    switch(confidence) {
-        case 'high': return 'bg-green-600';
-        case 'moderate': return 'bg-yellow-600';
-        case 'early': return 'bg-blue-600';
-        default: return 'bg-gray-600';
-    }
-}
-
-function hideRecommendationWidget() {
-    // Hide the recommendation widget if data loading fails
-    document.getElementById('recommendationWidget').classList.add('hidden');
-}
-
-function updateAdaptiveStrategyDescription(recommendation) {
-    // Update the adaptive strategy description based on current recommendation
-    const currentStrategy = recommendation.recommended_strategy;
-    const confidence = recommendation.confidence_level;
-    const percentage = recommendation.low_scoring_percentage;
-
-    strategyDescriptions.adaptive = `Currently recommending ${currentStrategy.toUpperCase()} strategy based on ${percentage.toFixed(1)}% low-scoring matches this season. Confidence: ${confidence}. Automatically adapts between 1-0 and 2-1 predictions based on real-time scoring patterns.`;
-}
-
-// Initialize custom predictions functionality
 document.addEventListener('DOMContentLoaded', function() {
     setupEventListeners();
     setupCustomPredictions();
     loadFixtures(currentGameweek);
     loadSeasonPerformance();
-    loadSeasonRecommendation(); // Load recommendation data
 });
 </script>
 {% endblock %}
