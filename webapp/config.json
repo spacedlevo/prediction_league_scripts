@@ -66,6 +66,27 @@
       "name": "Test Script",
       "description": "Debug script to test webapp execution environment",
       "timeout": 30
+    },
+    "mysql_sync": {
+      "path": "database/mysql_sync.py",
+      "name": "Sync MySQL Database",
+      "description": "Zero-downtime sync of core tables from SQLite to PythonAnywhere MySQL (skips if no changes)",
+      "args": ["--full-sync"],
+      "timeout": 300
+    },
+    "mysql_sync_force": {
+      "path": "database/mysql_sync.py",
+      "name": "Force Sync MySQL Database",
+      "description": "Force full sync of all core tables to PythonAnywhere MySQL regardless of change detection",
+      "args": ["--full-sync", "--force"],
+      "timeout": 300
+    },
+    "mysql_test_connection": {
+      "path": "database/mysql_sync.py",
+      "name": "Test MySQL Connection",
+      "description": "Test SSH tunnel and MySQL connection to PythonAnywhere, shows table row counts",
+      "args": ["--test"],
+      "timeout": 60
     }
   }
 }

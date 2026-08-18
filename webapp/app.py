@@ -2765,7 +2765,7 @@ def execute_script(script_key: str, script_info: Dict):
         logger.info(f"Working directory exists: {project_root.exists()}")
         
         # Execute script
-        cmd = [str(venv_python), str(script_path)]
+        cmd = [str(venv_python), str(script_path)] + script_info.get('args', [])
         logger.info(f"Command: {' '.join(cmd)}")
         
         process = subprocess.Popen(
