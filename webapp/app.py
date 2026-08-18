@@ -1910,22 +1910,18 @@ def get_players_missing_predictions(cursor) -> Dict:
             active_players = cursor.fetchall()
             
             players_missing = []
-            players_with_invalid = []
-            
+
             for player_id, player_name in active_players:
-                # Check predictions for this player in current gameweek
                 cursor.execute("""
-                    SELECT COUNT(*) as total_predictions,
-                           SUM(CASE WHEN home_goals != 9 OR away_goals != 9 THEN 1 ELSE 0 END) as valid_predictions
+                    SELECT COUNT(*) as total_predictions
                     FROM predictions p
                     JOIN fixtures f ON p.fixture_id = f.fixture_id
                     WHERE p.player_id = ? AND f.gameweek = ? AND f.season = '2026/2027'
                 """, (player_id, current_gameweek))
-                
+
                 result = cursor.fetchone()
                 total_predictions = result[0] if result else 0
-                valid_predictions = result[1] if result else 0
-                
+
                 if total_predictions < total_fixtures:
                     players_missing.append({
                         'player_name': player_name,
@@ -1933,17 +1929,8 @@ def get_players_missing_predictions(cursor) -> Dict:
                         'total_fixtures': total_fixtures,
                         'missing_count': total_fixtures - total_predictions
                     })
-                elif valid_predictions < total_fixtures and total_predictions == total_fixtures:
-                    # Player has all predictions but some are still 9-9 (incomplete)
-                    players_with_invalid.append({
-                        'player_name': player_name,
-                        'valid_count': valid_predictions,
-                        'total_fixtures': total_fixtures,
-                        'invalid_count': total_fixtures - valid_predictions
-                    })
-            
+
             missing_data['current']['players_missing'] = players_missing
-            missing_data['current']['players_with_invalid'] = players_with_invalid
         
         # Process next gameweek
         if next_gameweek:
@@ -1958,22 +1945,18 @@ def get_players_missing_predictions(cursor) -> Dict:
             active_players = cursor.fetchall()
             
             players_missing = []
-            players_with_invalid = []
-            
+
             for player_id, player_name in active_players:
-                # Check predictions for this player in next gameweek
                 cursor.execute("""
-                    SELECT COUNT(*) as total_predictions,
-                           SUM(CASE WHEN home_goals != 9 OR away_goals != 9 THEN 1 ELSE 0 END) as valid_predictions
+                    SELECT COUNT(*) as total_predictions
                     FROM predictions p
                     JOIN fixtures f ON p.fixture_id = f.fixture_id
                     WHERE p.player_id = ? AND f.gameweek = ? AND f.season = '2026/2027'
                 """, (player_id, next_gameweek))
-                
+
                 result = cursor.fetchone()
                 total_predictions = result[0] if result else 0
-                valid_predictions = result[1] if result else 0
-                
+
                 if total_predictions < total_fixtures:
                     players_missing.append({
                         'player_name': player_name,
@@ -1981,17 +1964,8 @@ def get_players_missing_predictions(cursor) -> Dict:
                         'total_fixtures': total_fixtures,
                         'missing_count': total_fixtures - total_predictions
                     })
-                elif valid_predictions < total_fixtures and total_predictions == total_fixtures:
-                    # Player has all predictions but some are still 9-9 (incomplete)
-                    players_with_invalid.append({
-                        'player_name': player_name,
-                        'valid_count': valid_predictions,
-                        'total_fixtures': total_fixtures,
-                        'invalid_count': total_fixtures - valid_predictions
-                    })
-            
+
             missing_data['next']['players_missing'] = players_missing
-            missing_data['next']['players_with_invalid'] = players_with_invalid
     
     except Exception as e:
         print(f"Error getting missing predictions: {e}")
@@ -2013,28 +1987,22 @@ def get_detailed_missing_fixtures(cursor, player_name: str, gameweek: int) -> Li
         
         player_id = player_result[0]
         
-        # Get all fixtures for the gameweek that either:
-        # 1. Don't have predictions from this player, OR
-        # 2. Have placeholder predictions (9-9)
+        # Get all fixtures for the gameweek that don't have a prediction from this player
         cursor.execute("""
-            SELECT 
+            SELECT
                 f.fixture_id,
                 t_home.team_name as home_team,
                 t_away.team_name as away_team,
                 strftime('%Y-%m-%d %H:%M', f.kickoff_dttm) as kickoff_time,
                 p.home_goals,
                 p.away_goals,
-                CASE 
-                    WHEN p.fixture_id IS NULL THEN 'No prediction'
-                    WHEN p.home_goals = 9 AND p.away_goals = 9 THEN 'Placeholder (9-9)'
-                    ELSE 'Has prediction'
-                END as prediction_status
+                'No prediction' as prediction_status
             FROM fixtures f
             JOIN teams t_home ON f.home_teamid = t_home.team_id
             JOIN teams t_away ON f.away_teamid = t_away.team_id
             LEFT JOIN predictions p ON f.fixture_id = p.fixture_id AND p.player_id = ?
-            WHERE f.gameweek = ? AND f.season = '2026/2027' 
-            AND (p.fixture_id IS NULL OR (p.home_goals = 9 AND p.away_goals = 9))
+            WHERE f.gameweek = ? AND f.season = '2026/2027'
+            AND p.fixture_id IS NULL
             ORDER BY f.kickoff_dttm
         """, (player_id, gameweek))
         
@@ -2076,9 +2044,8 @@ def get_players_with_identical_predictions(cursor) -> Dict:
             identical_data['current']['gameweek'] = current_gameweek
             identical_data['current']['players_with_identical'] = []
             
-            # Get players with identical predictions (excluding 9-9)
             cursor.execute("""
-                SELECT 
+                SELECT
                     pl.player_name,
                     p.home_goals,
                     p.away_goals,
@@ -2090,7 +2057,6 @@ def get_players_with_identical_predictions(cursor) -> Dict:
                 JOIN teams t_home ON f.home_teamid = t_home.team_id
                 JOIN teams t_away ON f.away_teamid = t_away.team_id
                 WHERE f.gameweek = ? AND f.season = '2026/2027'
-                  AND NOT (p.home_goals = 9 AND p.away_goals = 9)
                   AND pl.active = 1
                 GROUP BY p.player_id, p.home_goals, p.away_goals
                 HAVING COUNT(*) > 1
@@ -2131,9 +2097,8 @@ def get_players_with_identical_predictions(cursor) -> Dict:
             identical_data['next']['gameweek'] = next_gameweek
             identical_data['next']['players_with_identical'] = []
             
-            # Get players with identical predictions (excluding 9-9)
             cursor.execute("""
-                SELECT 
+                SELECT
                     pl.player_name,
                     p.home_goals,
                     p.away_goals,
@@ -2145,7 +2110,6 @@ def get_players_with_identical_predictions(cursor) -> Dict:
                 JOIN teams t_home ON f.home_teamid = t_home.team_id
                 JOIN teams t_away ON f.away_teamid = t_away.team_id
                 WHERE f.gameweek = ? AND f.season = '2026/2027'
-                  AND NOT (p.home_goals = 9 AND p.away_goals = 9)
                   AND pl.active = 1
                 GROUP BY p.player_id, p.home_goals, p.away_goals
                 HAVING COUNT(*) > 1

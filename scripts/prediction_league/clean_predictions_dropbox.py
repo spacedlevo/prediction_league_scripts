@@ -700,31 +700,14 @@ def clean_predictions_content(content, teams, players, gameweek, logger):
     return predictions
 
 def check_for_missing_players(predictions, players, gameweek, cursor, logger):
-    """Add default predictions for players who haven't submitted"""
+    """Log players who haven't submitted predictions for the gameweek"""
     submitted_players = set([pred[1] for pred in predictions])
     missing_players = [p for p in players if p not in submitted_players]
-    
+
     if not missing_players:
         return predictions
-    
-    logger.info(f"Adding default predictions for {len(missing_players)} missing players")
-    
-    # Get fixtures for this gameweek
-    cursor.execute("""
-        SELECT ht.team_name, at.team_name
-        FROM fixtures
-        JOIN teams AS ht ON ht.team_id = fixtures.home_teamid
-        JOIN teams AS at ON at.team_id = fixtures.away_teamid
-        WHERE gameweek = ? AND season = ?
-    """, (gameweek, CURRENT_SEASON_DB))
-    
-    fixtures = cursor.fetchall()
-    
-    for player in missing_players:
-        for home_team, away_team in fixtures:
-            default_prediction = [gameweek, player, home_team.lower(), away_team.lower(), 9, 9]
-            predictions.append(default_prediction)
-    
+
+    logger.info(f"{len(missing_players)} players have not submitted for gameweek {gameweek}: {', '.join(missing_players)}")
     return predictions
 
 def keep_latest_predictions(predictions):
@@ -805,23 +788,25 @@ def get_next_gameweek_deadline(cursor, logger):
         return None, None
 
 def check_missing_predictions(gameweek, cursor, logger):
-    """Get list of players with missing predictions (9-9 scores) for the gameweek"""
+    """Get list of active players who have not submitted any predictions for the gameweek"""
     try:
         cursor.execute("""
-            SELECT DISTINCT pl.player_name
-            FROM predictions p
-            JOIN players pl ON p.player_id = pl.player_id
-            JOIN fixtures f ON p.fixture_id = f.fixture_id
-            WHERE f.gameweek = ?
-            AND f.season = ?
-            AND p.home_goals = 9
-            AND p.away_goals = 9
-            AND pl.active = 1
+            SELECT pl.player_name
+            FROM players pl
+            WHERE pl.active = 1
+            AND pl.pundit = 0
+            AND pl.player_id NOT IN (
+                SELECT DISTINCT p.player_id
+                FROM predictions p
+                JOIN fixtures f ON p.fixture_id = f.fixture_id
+                WHERE f.gameweek = ?
+                AND f.season = ?
+            )
             ORDER BY pl.player_name
         """, (gameweek, CURRENT_SEASON_DB))
 
         missing_players = [row[0] for row in cursor.fetchall()]
-        logger.debug(f"Found {len(missing_players)} players with missing predictions for gameweek {gameweek}")
+        logger.debug(f"Found {len(missing_players)} players with no submissions for gameweek {gameweek}")
         return missing_players
 
     except Exception as e:

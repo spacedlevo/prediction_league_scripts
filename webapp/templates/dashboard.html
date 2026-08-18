@@ -236,8 +236,7 @@
             </div>
             <div class="p-6">
                 {% set current_missing = missing_predictions.current.players_missing %}
-                {% set current_invalid = missing_predictions.current.players_with_invalid %}
-                
+
                 {% if current_missing %}
                 <div class="mb-4">
                     <h4 class="text-sm font-medium text-gray-900 mb-2">Players with Missing Predictions:</h4>
@@ -246,7 +245,7 @@
                             {% for player in current_missing %}
                             <li class="flex justify-between items-center">
                                 <span class="text-red-800">{{ player.player_name }}</span>
-                                <button onclick="showMissingFixtures('{{ player.player_name }}', {{ missing_predictions.current.gameweek }})" 
+                                <button onclick="showMissingFixtures('{{ player.player_name }}', {{ missing_predictions.current.gameweek }})"
                                         class="text-red-600 text-xs hover:text-red-800 hover:underline cursor-pointer">
                                     {{ player.missing_count }} missing
                                 </button>
@@ -256,27 +255,8 @@
                     </div>
                 </div>
                 {% endif %}
-                
-                {% if current_invalid %}
-                <div class="mb-4">
-                    <h4 class="text-sm font-medium text-gray-900 mb-2">Players with Incomplete Predictions:</h4>
-                    <div class="bg-yellow-50 rounded-lg p-3 max-h-32 overflow-y-auto">
-                        <ul class="space-y-1 text-sm">
-                            {% for player in current_invalid %}
-                            <li class="flex justify-between items-center">
-                                <span class="text-yellow-800">{{ player.player_name }}</span>
-                                <button onclick="showMissingFixtures('{{ player.player_name }}', {{ missing_predictions.current.gameweek }})" 
-                                        class="text-yellow-600 text-xs hover:text-yellow-800 hover:underline cursor-pointer">
-                                    {{ player.valid_count }}/{{ player.total_fixtures }}
-                                </button>
-                            </li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                </div>
-                {% endif %}
-                
-                {% if not current_missing and not current_invalid %}
+
+                {% if not current_missing %}
                 <div class="text-center py-4 text-green-600">
                     <div class="text-2xl mb-2">✅</div>
                     <p class="text-sm">All players have complete predictions!</p>
@@ -297,8 +277,7 @@
             </div>
             <div class="p-6">
                 {% set next_missing = missing_predictions.next.players_missing %}
-                {% set next_invalid = missing_predictions.next.players_with_invalid %}
-                
+
                 {% if next_missing %}
                 <div class="mb-4">
                     <h4 class="text-sm font-medium text-gray-900 mb-2">Players Starting Predictions:</h4>
@@ -307,7 +286,7 @@
                             {% for player in next_missing %}
                             <li class="flex justify-between items-center">
                                 <span class="text-blue-800">{{ player.player_name }}</span>
-                                <button onclick="showMissingFixtures('{{ player.player_name }}', {{ missing_predictions.next.gameweek }})" 
+                                <button onclick="showMissingFixtures('{{ player.player_name }}', {{ missing_predictions.next.gameweek }})"
                                         class="text-blue-600 text-xs hover:text-blue-800 hover:underline cursor-pointer">
                                     {{ player.predictions_count }}/{{ player.total_fixtures }}
                                 </button>
@@ -317,27 +296,8 @@
                     </div>
                 </div>
                 {% endif %}
-                
-                {% if next_invalid %}
-                <div class="mb-4">
-                    <h4 class="text-sm font-medium text-gray-900 mb-2">Players with Incomplete Predictions:</h4>
-                    <div class="bg-yellow-50 rounded-lg p-3 max-h-32 overflow-y-auto">
-                        <ul class="space-y-1 text-sm">
-                            {% for player in next_invalid %}
-                            <li class="flex justify-between items-center">
-                                <span class="text-yellow-800">{{ player.player_name }}</span>
-                                <button onclick="showMissingFixtures('{{ player.player_name }}', {{ missing_predictions.next.gameweek }})" 
-                                        class="text-yellow-600 text-xs hover:text-yellow-800 hover:underline cursor-pointer">
-                                    {{ player.valid_count }}/{{ player.total_fixtures }}
-                                </button>
-                            </li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                </div>
-                {% endif %}
-                
-                {% if not next_missing and not next_invalid %}
+
+                {% if not next_missing %}
                 <div class="text-center py-4 text-green-600">
                     <div class="text-2xl mb-2">🎯</div>
                     <p class="text-sm">All predictions complete for next gameweek!</p>
@@ -747,11 +707,7 @@ function showMissingFixtures(playerName, gameweek) {
                                         <div class="font-medium text-gray-900">${fixture.fixture_display}</div>
                                         <div class="text-sm text-gray-600">${fixture.kickoff_time}</div>
                                     </div>
-                                    <span class="text-xs px-2 py-1 rounded ${
-                                        fixture.prediction_status === 'No prediction' 
-                                            ? 'bg-red-100 text-red-800' 
-                                            : 'bg-yellow-100 text-yellow-800'
-                                    }">
+                                    <span class="text-xs px-2 py-1 rounded bg-red-100 text-red-800">
                                         ${fixture.prediction_status}
                                     </span>
                                 </div>
