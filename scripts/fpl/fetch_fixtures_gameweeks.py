@@ -122,6 +122,7 @@ def create_fixtures_table(cursor):
             home_win_odds REAL,
             draw_odds REAL,
             away_win_odds REAL,
+            code INTEGER,
             FOREIGN KEY (home_teamid) REFERENCES teams(team_id),
             FOREIGN KEY (away_teamid) REFERENCES teams(team_id)
         )
@@ -190,25 +191,26 @@ def load_team_mapping(cursor):
 def get_existing_fixtures_data(cursor, season):
     """Get existing fixtures data for comparison"""
     cursor.execute("""
-        SELECT 
+        SELECT
             fpl_fixture_id, kickoff_dttm, home_teamid, away_teamid,
-            finished, started, provisional_finished, gameweek, pulse_id
-        FROM fixtures 
+            finished, started, provisional_finished, gameweek, pulse_id, code
+        FROM fixtures
         WHERE season = ?
     """, (season,))
-    
+
     existing_data = {}
     for row in cursor.fetchall():
         fpl_fixture_id = row[0]
         existing_data[fpl_fixture_id] = {
             'kickoff_dttm': row[1],
-            'home_teamid': row[2], 
+            'home_teamid': row[2],
             'away_teamid': row[3],
             'finished': row[4],
             'started': row[5],
             'provisional_finished': row[6],
             'gameweek': row[7],
-            'pulse_id': row[8]
+            'pulse_id': row[8],
+            'code': row[9]
         }
     
     return existing_data
@@ -243,9 +245,9 @@ def has_fixture_changed(existing_data, new_fixture_data):
     
     # Compare all relevant fields
     compare_fields = [
-        'kickoff_dttm', 'home_teamid', 'away_teamid', 
-        'finished', 'started', 'provisional_finished', 
-        'gameweek', 'pulse_id'
+        'kickoff_dttm', 'home_teamid', 'away_teamid',
+        'finished', 'started', 'provisional_finished',
+        'gameweek', 'pulse_id', 'code'
     ]
     
     for field in compare_fields:
@@ -509,7 +511,8 @@ def process_fixtures(cursor, fixtures_data, team_mapping, season, logger):
                 'started': fixture.get("started", False),
                 'provisional_finished': fixture.get("finished_provisional", False),
                 'gameweek': fixture.get("event"),
-                'pulse_id': fixture.get("pulse_id")
+                'pulse_id': fixture.get("pulse_id"),
+                'code': fixture.get("code")
             }
             
             existing_data = existing_fixtures_data.get(fpl_fixture_id)
@@ -528,6 +531,7 @@ def process_fixtures(cursor, fixtures_data, team_mapping, season, logger):
                         season,                                         # season
                         fixture.get("event"),                          # gameweek
                         fixture.get("pulse_id"),                       # pulse_id
+                        fixture.get("code"),                           # code
                         fpl_fixture_id,                                # WHERE clause
                         season                                          # WHERE clause
                     )
@@ -548,7 +552,8 @@ def process_fixtures(cursor, fixtures_data, team_mapping, season, logger):
                     fixture.get("finished_provisional", False),  # provisional_finished
                     season,                                # season
                     fixture.get("event"),                  # gameweek
-                    fixture.get("pulse_id")                # pulse_id
+                    fixture.get("pulse_id"),               # pulse_id
+                    fixture.get("code")                    # code
                 )
                 fixtures_to_insert.append(fixture_insert_data)
                 inserted_count += 1
@@ -563,18 +568,18 @@ def process_fixtures(cursor, fixtures_data, team_mapping, season, logger):
         cursor.executemany("""
             INSERT INTO fixtures (
                 fpl_fixture_id, kickoff_dttm, home_teamid, away_teamid,
-                finished, started, provisional_finished, season, gameweek, pulse_id,
+                finished, started, provisional_finished, season, gameweek, pulse_id, code,
                 created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         """, fixtures_to_insert)
         
     # Batch update existing fixtures
     if fixtures_to_update:
         cursor.executemany("""
-            UPDATE fixtures SET 
+            UPDATE fixtures SET
                 kickoff_dttm = ?, home_teamid = ?, away_teamid = ?,
-                finished = ?, started = ?, provisional_finished = ?, 
-                season = ?, gameweek = ?, pulse_id = ?
+                finished = ?, started = ?, provisional_finished = ?,
+                season = ?, gameweek = ?, pulse_id = ?, code = ?
             WHERE fpl_fixture_id = ? AND season = ?
         """, fixtures_to_update)
     
