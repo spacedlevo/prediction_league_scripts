@@ -145,6 +145,51 @@ def get_table_columns(table_name: str, sqlite_cursor: sql.Cursor) -> List[str]:
     return columns
 
 
+SQLITE_TO_MYSQL_TYPE_MAP = {
+    'INTEGER': 'INT',
+    'INT': 'INT',
+    'REAL': 'DOUBLE',
+    'FLOAT': 'DOUBLE',
+    'NUMERIC': 'DOUBLE',
+    'TEXT': 'TEXT',
+    'BLOB': 'LONGBLOB',
+    'BOOLEAN': 'TINYINT(1)',
+    'DATETIME': 'DATETIME',
+    'DATE': 'DATE',
+    'TIME': 'TIME',
+}
+
+
+def map_sqlite_type_to_mysql(sqlite_type: str) -> str:
+    """Map a SQLite column type to an equivalent MySQL type"""
+    normalised = sqlite_type.strip().upper()
+    return SQLITE_TO_MYSQL_TYPE_MAP.get(normalised, 'TEXT')
+
+
+def get_mysql_column_names(table_name: str, mysql_cursor: pymysql.cursors.Cursor) -> List[str]:
+    """Return the set of column names that currently exist in the MySQL table"""
+    mysql_cursor.execute("SHOW COLUMNS FROM `%s`" % table_name)
+    return [row[0] for row in mysql_cursor.fetchall()]
+
+
+def ensure_mysql_columns_match(table_name: str, sqlite_cursor: sql.Cursor,
+                                mysql_cursor: pymysql.cursors.Cursor,
+                                logger: logging.Logger) -> None:
+    """Add any columns present in SQLite but missing from MySQL via ALTER TABLE"""
+    sqlite_cursor.execute(f"PRAGMA table_info({table_name})")
+    sqlite_cols = {row[1]: row[2] for row in sqlite_cursor.fetchall()}  # name -> type
+
+    mysql_col_names = set(get_mysql_column_names(table_name, mysql_cursor))
+
+    for col_name, col_type in sqlite_cols.items():
+        if col_name not in mysql_col_names:
+            mysql_type = map_sqlite_type_to_mysql(col_type)
+            logger.info(f"Table {table_name}: adding missing MySQL column `{col_name}` {mysql_type}")
+            mysql_cursor.execute(
+                f"ALTER TABLE `{table_name}` ADD COLUMN `{col_name}` {mysql_type} DEFAULT NULL"
+            )
+
+
 def create_temp_table(table_name: str, mysql_cursor: pymysql.cursors.Cursor, logger: logging.Logger) -> bool:
     """Create temporary table with same structure as original"""
     temp_table_name = f"{table_name}_temp"
@@ -475,6 +520,13 @@ def full_sync_zero_downtime(config: dict, logger: logging.Logger, force: bool = 
         
         total_synced = 0
         
+        # Phase 0: Ensure MySQL schema matches SQLite (adds missing columns)
+        logger.info("Phase 0: Checking MySQL schema for missing columns...")
+        for table_name in SYNC_TABLES:
+            ensure_mysql_columns_match(table_name, sqlite_cursor, mysql_cursor, logger)
+        mysql_conn.commit()
+        logger.info("Schema check complete")
+
         # Phase 1: Create temporary tables
         logger.info("Phase 1: Creating temporary tables...")
         for table_name in SYNC_TABLES:
