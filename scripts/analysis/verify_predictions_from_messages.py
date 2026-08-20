@@ -39,11 +39,11 @@ from collections import defaultdict
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # Import centralized configuration
-from scripts.config import CURRENT_SEASON
+from scripts.config import CURRENT_SEASON, get_season_dropbox_format
 
 # Configuration
 CURRENT_SEASON_DB = CURRENT_SEASON
-DROPBOX_MESSAGES_FOLDER = "/Messages"
+DROPBOX_MESSAGES_FOLDER = f"/Messages/{get_season_dropbox_format()}"
 
 # Name aliases - map message variations to database names
 NAME_ALIASES = {
