@@ -106,9 +106,11 @@ def build_team_alias_map():
         "bournemouth": ["cherries", "afcb", "bmouth", "bournemo"],
         "brentford": ["bees", "bfc"],
         "fulham": ["cottagers", "ffc"],
-        "leeds": ["leeds utd", "lufc"],
+        "leeds": ["leeds utd", "lufc", "dirty leeds"],
         "burnley": ["clarets"],
-        "sunderland": ["safc", "black cats"]
+        "sunderland": ["safc", "black cats"],
+        "hull city": ["hull"],
+        "coventry city": ["coventry"]
     }
 
     # Flatten to {alias: canonical} dictionary

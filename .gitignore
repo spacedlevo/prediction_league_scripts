@@ -184,7 +184,7 @@ dev_data/
 *.dev
 
 # Generated CSV Files (can be regenerated)
-data/predictions/*.csv
+data/predictions/
 data/cleaned/*.csv
 
 # Analysis Reports (generated output)
