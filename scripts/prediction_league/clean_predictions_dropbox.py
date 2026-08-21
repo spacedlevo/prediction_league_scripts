@@ -860,8 +860,9 @@ def has_notification_been_sent(gameweek, cursor, logger):
             prev_deadline_dt = datetime.fromisoformat(prev_deadline_str.replace('Z', '')).replace(tzinfo=timezone.utc)
             prev_deadline_timestamp = prev_deadline_dt.timestamp()
         else:
-            # If no previous gameweek, use a very old timestamp
-            prev_deadline_timestamp = 0
+            # No previous gameweek (e.g. GW1) — use one week before current deadline
+            # so old notifications from prior seasons don't falsely match
+            prev_deadline_timestamp = current_deadline_timestamp - 7 * 24 * 3600
 
         # Check if notification was sent between last deadline and current deadline
         if prev_deadline_timestamp < notification_timestamp < current_deadline_timestamp:
