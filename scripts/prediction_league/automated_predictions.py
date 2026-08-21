@@ -53,7 +53,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # Import centralized configuration
-from scripts.config import CURRENT_SEASON
+from scripts.config import CURRENT_SEASON, get_season_dropbox_format
 
 # Paths
 db_path = Path(__file__).parent.parent.parent / "data" / "database.db"
@@ -383,7 +383,7 @@ def upload_to_dropbox(predictions_string, gameweek, config, logger):
 
 def append_or_create_gameweek_predictions(predictions_string, gameweek, config, logger):
     """Append predictions to the main gameweek predictions file or create it if it doesn't exist"""
-    file_path = f"/Predictions/2025_26/gameweek{gameweek}.txt"
+    file_path = f"/Predictions/{get_season_dropbox_format()}/gameweek{gameweek}.txt"
     
     try:
         existing_content = ""
