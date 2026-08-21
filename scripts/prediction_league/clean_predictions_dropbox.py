@@ -37,7 +37,7 @@ import tempfile
 import shutil
 import sys
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Add project root to path for imports
@@ -777,7 +777,7 @@ def get_next_gameweek_deadline(cursor, logger):
         if result:
             gameweek, deadline_str = result
             # Convert deadline string to timestamp (database stores UTC)
-            deadline_dt = datetime.fromisoformat(deadline_str.replace('Z', ''))
+            deadline_dt = datetime.fromisoformat(deadline_str.replace('Z', '')).replace(tzinfo=timezone.utc)
             deadline_timestamp = deadline_dt.timestamp()
             logger.debug(f"Next gameweek: {gameweek}, deadline: {deadline_dt}")
             return gameweek, deadline_timestamp
@@ -844,7 +844,7 @@ def has_notification_been_sent(gameweek, cursor, logger):
             return False
 
         deadline_str = deadline_result[0]
-        deadline_dt = datetime.fromisoformat(deadline_str.replace('Z', ''))
+        deadline_dt = datetime.fromisoformat(deadline_str.replace('Z', '')).replace(tzinfo=timezone.utc)
         current_deadline_timestamp = deadline_dt.timestamp()
 
         # Get the deadline for previous gameweek
@@ -857,7 +857,7 @@ def has_notification_been_sent(gameweek, cursor, logger):
         prev_result = cursor.fetchone()
         if prev_result:
             prev_deadline_str = prev_result[0]
-            prev_deadline_dt = datetime.fromisoformat(prev_deadline_str.replace('Z', ''))
+            prev_deadline_dt = datetime.fromisoformat(prev_deadline_str.replace('Z', '')).replace(tzinfo=timezone.utc)
             prev_deadline_timestamp = prev_deadline_dt.timestamp()
         else:
             # If no previous gameweek, use a very old timestamp
