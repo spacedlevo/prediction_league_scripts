@@ -334,39 +334,88 @@ def add_player():
 def toggle_player_field(player_id, field):
     """Toggle boolean fields for a player"""
     allowed_fields = ['active', 'paid', 'mini_league', 'mini_league_paid', 'pundit']
-    
+
     if field not in allowed_fields:
         flash(f'Invalid field: {field}', 'error')
         return redirect(url_for('admin'))
-    
+
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         # Get current value
         cursor.execute(f"SELECT {field}, player_name FROM players WHERE player_id = ?", (player_id,))
         result = cursor.fetchone()
-        
+
         if not result:
             flash('Player not found', 'error')
             conn.close()
             return redirect(url_for('admin'))
-        
+
         current_value = result[0]
         player_name = result[1]
         new_value = 1 - current_value  # Toggle 0/1
-        
+
         # Update the field
         cursor.execute(f"UPDATE players SET {field} = ? WHERE player_id = ?", (new_value, player_id))
         conn.commit()
         conn.close()
-        
+
         status = "enabled" if new_value else "disabled"
         flash(f'{field.replace("_", " ").title()} {status} for {player_name}', 'success')
-        
+
     except Exception as e:
         flash(f'Error updating player: {e}', 'error')
-    
+
+    return redirect(url_for('admin'))
+
+
+@app.route('/admin/player/<int:player_id>/edit', methods=['POST'])
+@require_auth
+def edit_player(player_id):
+    """Update a player's name and web name"""
+    try:
+        new_name = request.form.get('player_name', '').strip()
+        new_web_name = request.form.get('web_name', '').strip()
+
+        if not new_name:
+            flash('Player name is required', 'error')
+            return redirect(url_for('admin'))
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT player_name FROM players WHERE player_id = ?", (player_id,))
+        row = cursor.fetchone()
+        if not row:
+            flash('Player not found', 'error')
+            conn.close()
+            return redirect(url_for('admin'))
+
+        old_name = row[0]
+
+        # Check for duplicate name (excluding this player)
+        cursor.execute(
+            "SELECT player_id FROM players WHERE LOWER(player_name) = LOWER(?) AND player_id != ?",
+            (new_name, player_id)
+        )
+        if cursor.fetchone():
+            flash(f'Player "{new_name}" already exists', 'error')
+            conn.close()
+            return redirect(url_for('admin'))
+
+        cursor.execute(
+            "UPDATE players SET player_name = ?, web_name = ? WHERE player_id = ?",
+            (new_name, new_web_name or None, player_id)
+        )
+        conn.commit()
+        conn.close()
+
+        flash(f'Player renamed from "{old_name}" to "{new_name}"', 'success')
+
+    except Exception as e:
+        flash(f'Error updating player: {e}', 'error')
+
     return redirect(url_for('admin'))
 
 

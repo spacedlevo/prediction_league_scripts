@@ -82,7 +82,8 @@
                     {% for player in players %}
                     <tr class="hover:bg-gray-50">
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="flex items-center">
+                            <!-- View mode -->
+                            <div id="view-{{ player.player_id }}" class="flex items-center group">
                                 <div class="text-sm font-medium text-gray-900">{{ player.player_name }}</div>
                                 {% if player.web_name %}
                                 <div class="ml-2">
@@ -91,7 +92,31 @@
                                     </span>
                                 </div>
                                 {% endif %}
+                                <button onclick="startEdit({{ player.player_id }}, '{{ player.player_name | e }}', '{{ player.web_name | e }}')"
+                                        class="ml-2 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-blue-600 transition-opacity"
+                                        title="Edit name">
+                                    ✏️
+                                </button>
                             </div>
+                            <!-- Edit mode (hidden by default) -->
+                            <form id="edit-{{ player.player_id }}" class="hidden" method="POST"
+                                  action="/admin/player/{{ player.player_id }}/edit">
+                                <div class="flex items-center gap-2">
+                                    <input type="text" name="player_name"
+                                           class="border border-gray-300 rounded px-2 py-1 text-sm w-32 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                           required>
+                                    <input type="text" name="web_name" placeholder="Web name"
+                                           class="border border-gray-300 rounded px-2 py-1 text-sm w-20 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <button type="submit"
+                                            class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded">
+                                        Save
+                                    </button>
+                                    <button type="button" onclick="cancelEdit({{ player.player_id }})"
+                                            class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded">
+                                        Cancel
+                                    </button>
+                                </div>
+                            </form>
                         </td>
 
                         <td class="px-6 py-4 whitespace-nowrap text-center">
@@ -168,6 +193,21 @@ function toggleField(playerId, field) {
     window.location.href = `/admin/player/${playerId}/toggle/${field}`;
 }
 
+function startEdit(playerId, currentName, currentWebName) {
+    const view = document.getElementById(`view-${playerId}`);
+    const form = document.getElementById(`edit-${playerId}`);
+    form.querySelector('[name="player_name"]').value = currentName;
+    form.querySelector('[name="web_name"]').value = currentWebName || '';
+    view.classList.add('hidden');
+    form.classList.remove('hidden');
+    form.querySelector('[name="player_name"]').focus();
+}
+
+function cancelEdit(playerId) {
+    document.getElementById(`view-${playerId}`).classList.remove('hidden');
+    document.getElementById(`edit-${playerId}`).classList.add('hidden');
+}
+
 // Close add form when clicking outside
 document.addEventListener('click', function(event) {
     const form = document.getElementById('addPlayerForm');
@@ -181,6 +221,10 @@ document.addEventListener('click', function(event) {
 document.addEventListener('keydown', function(event) {
     if (event.key === 'Escape') {
         document.getElementById('addPlayerForm').classList.add('hidden');
+        document.querySelectorAll('[id^="edit-"]').forEach(f => {
+            const id = f.id.replace('edit-', '');
+            cancelEdit(id);
+        });
     }
     if (event.ctrlKey && event.key === 'n') {
         event.preventDefault();
