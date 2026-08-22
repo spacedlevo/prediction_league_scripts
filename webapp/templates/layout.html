@@ -75,10 +75,15 @@
                                   {% if request.endpoint == 'predictions_analysis' %}active{% endif %}">
                             🎯 Predictions
                         </a>
-                        <a href="{{ url_for('analysis') }}" 
+                        <a href="{{ url_for('analysis') }}"
                            class="nav-link px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50
                                   {% if request.endpoint == 'analysis' %}active{% endif %}">
                             📈 Analysis
+                        </a>
+                        <a href="{{ url_for('player_predictions') }}"
+                           class="nav-link px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50
+                                  {% if request.endpoint == 'player_predictions' %}active{% endif %}">
+                            👁 Player Picks
                         </a>
                     </div>
                 </div>
@@ -119,9 +124,13 @@
                    class="block px-3 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50">
                     🎯 Predictions
                 </a>
-                <a href="{{ url_for('analysis') }}" 
+                <a href="{{ url_for('analysis') }}"
                    class="block px-3 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50">
                     📈 Analysis
+                </a>
+                <a href="{{ url_for('player_predictions') }}"
+                   class="block px-3 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50">
+                    👁 Player Picks
                 </a>
             </div>
         </div>

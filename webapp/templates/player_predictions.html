@@ -1,0 +1,508 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap');
+
+.picks-page { font-family: 'Outfit', system-ui, sans-serif; }
+
+/* Dark header */
+.picks-header {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #0c2340 100%);
+    position: relative;
+    overflow: hidden;
+    border-radius: 0.75rem;
+}
+.picks-header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(circle at 80% 20%, rgba(59,130,246,0.12) 0%, transparent 50%),
+                      radial-gradient(circle at 10% 80%, rgba(99,102,241,0.08) 0%, transparent 40%);
+    pointer-events: none;
+}
+
+/* Player chips */
+.player-chip {
+    transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease, transform 0.1s ease;
+    font-family: 'Outfit', sans-serif;
+    cursor: pointer;
+    user-select: none;
+}
+.player-chip:active { transform: scale(0.94); }
+
+/* Monospace scores */
+.score-mono {
+    font-family: 'DM Mono', 'Courier New', monospace;
+    font-size: 0.8rem;
+    letter-spacing: -0.01em;
+    font-weight: 500;
+}
+
+/* Sticky first column */
+.col-sticky {
+    position: sticky;
+    left: 0;
+    z-index: 4;
+}
+.col-sticky::after {
+    content: '';
+    position: absolute;
+    top: 0; right: -10px; bottom: 0;
+    width: 10px;
+    background: linear-gradient(to right, rgba(0,0,0,0.06), transparent);
+    pointer-events: none;
+}
+
+/* Table scroll container */
+.matrix-scroll {
+    overflow-x: auto;
+    overflow-y: auto;
+    max-height: 68vh;
+}
+
+/* Row hover — needs JS because sticky bg is inline */
+.picks-row { transition: filter 0.1s; }
+.picks-row:hover { filter: brightness(0.97); }
+
+/* Cell states */
+.c-exact   { background: #dcfce7; color: #15803d; border-color: #86efac; }
+.c-correct { background: #fef9c3; color: #92400e; border-color: #fde047; }
+.c-wrong   { background: #fee2e2; color: #b91c1c; border-color: #fca5a5; }
+.c-pending { background: #f8fafc; color: #64748b; border-color: #e2e8f0; }
+.c-missing { background: transparent; color: #d1d5db; border-color: #e5e7eb; border-style: dashed; }
+
+/* Stat block */
+.stat-block { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 52px; }
+.stat-num   { font-size: 1.25rem; font-weight: 700; line-height: 1; }
+.stat-lbl   { font-size: 0.625rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: #9ca3af; }
+
+/* Points column colouring */
+.pts-hi  { color: #15803d; font-weight: 700; }
+.pts-mid { color: #374151; font-weight: 600; }
+.pts-lo  { color: #94a3b8; font-weight: 500; }
+.pts-nil { color: #d1d5db; }
+
+/* Loading spinner */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+    width: 32px; height: 32px;
+    border: 3px solid #e2e8f0;
+    border-top-color: #1e293b;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+</style>
+
+<div class="picks-page space-y-4">
+
+    <!-- ── Header ─────────────────────────────────────────── -->
+    <div class="picks-header px-6 py-6">
+        <div class="relative z-10 flex flex-wrap items-start justify-between gap-5">
+
+            <!-- Title + legend -->
+            <div>
+                <h1 class="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+                    ⚽ Player Picks
+                </h1>
+                <p class="text-slate-400 text-sm mt-0.5">Every player's prediction for each fixture</p>
+
+                <!-- Legend -->
+                <div class="flex flex-wrap gap-x-5 gap-y-1.5 mt-4 text-xs text-slate-300">
+                    <span class="flex items-center gap-1.5">
+                        <span class="inline-block w-3 h-3 rounded-sm border" style="background:#dcfce7;border-color:#86efac;"></span>
+                        Exact score <span class="text-slate-500 ml-0.5">2 pts</span>
+                    </span>
+                    <span class="flex items-center gap-1.5">
+                        <span class="inline-block w-3 h-3 rounded-sm border" style="background:#fef9c3;border-color:#fde047;"></span>
+                        Correct result <span class="text-slate-500 ml-0.5">1 pt</span>
+                    </span>
+                    <span class="flex items-center gap-1.5">
+                        <span class="inline-block w-3 h-3 rounded-sm border" style="background:#fee2e2;border-color:#fca5a5;"></span>
+                        Wrong <span class="text-slate-500 ml-0.5">0 pts</span>
+                    </span>
+                    <span class="flex items-center gap-1.5">
+                        <span class="inline-block w-3 h-3 rounded-sm border border-slate-600" style="background:rgba(255,255,255,0.04);"></span>
+                        No result yet
+                    </span>
+                    <span class="flex items-center gap-1.5">
+                        <span class="inline-block w-3 h-3 rounded-sm border border-dashed border-slate-600" style="background:transparent;"></span>
+                        No prediction
+                    </span>
+                </div>
+            </div>
+
+            <!-- Gameweek selector -->
+            <div class="flex flex-col gap-1.5">
+                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Gameweek</label>
+                <select id="gameweekSelect"
+                    class="px-4 py-2 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    style="background:rgba(255,255,255,0.1); color:#f1f5f9; border: 1px solid rgba(255,255,255,0.18); backdrop-filter:blur(4px);">
+                    {% for gw in available_gameweeks %}
+                    <option value="{{ gw }}" {% if gw == current_gameweek %}selected{% endif %}
+                        style="background:#1e293b; color:#f1f5f9;">
+                        Gameweek {{ gw }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Player Filter ───────────────────────────────────── -->
+    <div class="bg-white shadow-sm rounded-xl border border-gray-100 px-5 py-4">
+        <div class="flex items-center justify-between mb-3">
+            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Players</span>
+            <div class="flex gap-2">
+                <button id="selectAllBtn"
+                    class="text-xs px-3 py-1 rounded-full font-semibold transition-colors"
+                    style="background:#0f172a; color:#fff;">
+                    All
+                </button>
+                <button id="deselectAllBtn"
+                    class="text-xs px-3 py-1 rounded-full font-semibold bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors">
+                    None
+                </button>
+            </div>
+        </div>
+        <div id="playerChips" class="flex flex-wrap gap-1.5">
+            {% for player in players %}
+            <button class="player-chip px-3 py-1.5 rounded-full text-xs border font-semibold"
+                data-player-id="{{ player.player_id }}"
+                data-selected="true"
+                style="background:#0f172a; color:#ffffff; border-color:#0f172a;">
+                {{ player.player_name | title }}
+            </button>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- ── Loading ─────────────────────────────────────────── -->
+    <div id="loadingState" class="bg-white shadow-sm rounded-xl border border-gray-100 p-12 flex flex-col items-center gap-3">
+        <div class="spinner"></div>
+        <p class="text-sm text-gray-400 font-medium">Loading predictions…</p>
+    </div>
+
+    <!-- ── Matrix Container ───────────────────────────────── -->
+    <div id="matrixContainer" class="hidden space-y-3">
+
+        <!-- Summary bar -->
+        <div id="summaryBar" class="bg-white shadow-sm rounded-xl border border-gray-100 px-5 py-4">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                    <div id="summaryTitle" class="font-bold text-gray-800 text-sm"></div>
+                    <div id="summarySubtitle" class="text-xs text-gray-400 mt-0.5"></div>
+                </div>
+                <div id="summaryStats" class="flex items-center gap-5 flex-wrap"></div>
+            </div>
+        </div>
+
+        <!-- Table card -->
+        <div class="bg-white shadow-sm rounded-xl border border-gray-100 overflow-hidden">
+            <div class="matrix-scroll">
+                <table class="border-collapse" id="predictionsMatrix" style="width:100%;">
+                    <thead id="matrixHead" class="sticky top-0 z-10"></thead>
+                    <tbody id="matrixBody"></tbody>
+                    <tfoot id="matrixFoot"></tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Empty state ─────────────────────────────────────── -->
+    <div id="emptyState" class="hidden bg-white shadow-sm rounded-xl border border-gray-100 p-14 text-center">
+        <div class="text-4xl mb-3 opacity-20">📋</div>
+        <p class="font-semibold text-gray-500 text-sm">No predictions found</p>
+        <p class="text-xs text-gray-400 mt-1">Try a different gameweek or check that predictions have been submitted.</p>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentGameweek = {{ current_gameweek }};
+let fixturesData      = [];
+let predictionsIndex  = {};
+let selectedPlayers   = new Set({{ players | map(attribute='player_id') | list | tojson }});
+
+const ALL_PLAYERS = {{ players | tojson }};
+
+/* ── scoring ─────────────────────────────────────────────── */
+function pointsFor(pH, pA, rH, rA) {
+    if (rH === null || rA === null || pH === null || pA === null) return null;
+    if (pH === rH && pA === rA) return 2;
+    const pR = pH > pA ? 'H' : pH < pA ? 'A' : 'D';
+    const aR = rH > rA ? 'H' : rH < rA ? 'A' : 'D';
+    return pR === aR ? 1 : 0;
+}
+
+function cellCls(pts, hasPred, hasResult) {
+    if (!hasPred) return 'c-missing';
+    if (!hasResult) return 'c-pending';
+    if (pts === 2) return 'c-exact';
+    if (pts === 1) return 'c-correct';
+    return 'c-wrong';
+}
+
+/* ── data ────────────────────────────────────────────────── */
+function loadGameweek(gw) {
+    show('loadingState');
+    hide('matrixContainer');
+    hide('emptyState');
+
+    fetch(`/api/player-predictions/gameweek/${gw}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) throw new Error(data.error);
+            fixturesData     = data.fixtures     || [];
+            predictionsIndex = data.predictions  || {};
+            hide('loadingState');
+            fixturesData.length === 0 ? show('emptyState') : renderMatrix();
+        })
+        .catch(err => {
+            hide('loadingState');
+            show('emptyState');
+            console.error(err);
+        });
+}
+
+/* ── render ──────────────────────────────────────────────── */
+function renderMatrix() {
+    const vis = ALL_PLAYERS.filter(p => selectedPlayers.has(p.player_id));
+    if (vis.length === 0) { hide('matrixContainer'); show('emptyState'); return; }
+    hide('emptyState');
+    show('matrixContainer');
+    buildHead(vis);
+    buildBody(vis);
+    buildFoot(vis);
+    buildSummary(vis);
+}
+
+function fmtKO(raw) {
+    if (!raw) return { date: '', time: '' };
+    const d = new Date(raw);
+    if (isNaN(d)) return { date: raw, time: '' };
+    return {
+        date: d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }),
+        time: d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+    };
+}
+
+function buildHead(vis) {
+    const thead = document.getElementById('matrixHead');
+    let html = '<tr style="background:#0f172a;">';
+
+    html += `<th class="col-sticky px-4 py-3 text-left border-r" style="background:#0f172a; border-color:#1e293b; min-width:140px; white-space:nowrap;">
+        <span style="font-size:0.65rem; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#475569;">Player</span>
+    </th>`;
+
+    fixturesData.forEach(f => {
+        const ko = fmtKO(f.kickoff_dttm);
+        const hasResult = f.result_home !== null;
+        const badge = hasResult
+            ? `<div class="score-mono" style="display:inline-block;margin-top:4px;padding:1px 7px;border-radius:4px;background:rgba(59,130,246,0.22);color:#93c5fd;font-size:0.78rem;">${f.result_home}–${f.result_away}</div>`
+            : `<div style="display:inline-block;margin-top:4px;padding:1px 6px;border-radius:4px;background:rgba(255,255,255,0.05);color:#475569;font-size:0.65rem;font-weight:600;">TBD</div>`;
+
+        html += `<th style="min-width:118px; max-width:148px; padding:10px 10px; text-align:center; border-right:1px solid #1e293b; vertical-align:top;">
+            <div style="font-weight:700; color:#f1f5f9; font-size:0.78rem; line-height:1.25;">${esc(f.home_team)}</div>
+            <div style="color:#64748b; font-size:0.68rem; margin-top:1px;">vs ${esc(f.away_team)}</div>
+            ${ko.date ? `<div style="color:#475569; font-size:0.62rem; margin-top:1px;">${ko.date}</div>` : ''}
+            ${badge}
+        </th>`;
+    });
+
+    html += `<th style="padding:10px 12px; text-align:center; white-space:nowrap; background:#0f172a; min-width:52px;">
+        <span style="font-size:0.65rem; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#475569;">Pts</span>
+    </th>`;
+    html += '</tr>';
+    thead.innerHTML = html;
+}
+
+function buildBody(vis) {
+    const tbody = document.getElementById('matrixBody');
+    let html = '';
+
+    vis.forEach((player, idx) => {
+        const bg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
+        let total = 0, withResults = 0;
+
+        let row = `<tr class="picks-row" style="background:${bg};">`;
+        row += `<td class="col-sticky border-r" style="background:${bg}; border-color:#f1f5f9; padding:8px 16px; white-space:nowrap;">
+            <span style="font-size:0.875rem; font-weight:600; color:#1e293b;">${esc(titleCase(player.player_name))}</span>
+        </td>`;
+
+        fixturesData.forEach(f => {
+            const key   = `${player.player_id}:${f.fixture_id}`;
+            const pred  = predictionsIndex[key];
+            const hasPr = pred && pred.home_goals !== null;
+            const hasRe = f.result_home !== null;
+            const pts   = hasPr ? pointsFor(pred.home_goals, pred.away_goals, f.result_home, f.result_away) : null;
+
+            if (hasRe && hasPr) { withResults++; if (pts !== null) total += pts; }
+
+            const cls   = cellCls(pts, hasPr, hasRe);
+            const score = hasPr ? `${pred.home_goals}–${pred.away_goals}` : '—';
+
+            row += `<td style="padding:6px 8px; text-align:center; border-right:1px solid #f1f5f9;">
+                <span class="score-mono ${cls}" style="display:inline-block; padding:3px 8px; border-radius:6px; border:1px solid; min-width:40px;">${score}</span>
+            </td>`;
+        });
+
+        const display = withResults > 0 ? total : '–';
+        const ratio   = withResults > 0 ? total / (withResults * 2) : -1;
+        const ptsCls  = ratio < 0 ? 'pts-nil' : ratio >= 0.65 ? 'pts-hi' : ratio >= 0.3 ? 'pts-mid' : 'pts-lo';
+
+        row += `<td style="padding:6px 12px; text-align:center;">
+            <span class="score-mono ${ptsCls}" style="font-size:0.9rem;">${display}</span>
+        </td>`;
+        row += '</tr>';
+        html += row;
+    });
+
+    tbody.innerHTML = html;
+}
+
+function buildFoot(vis) {
+    const tfoot = document.getElementById('matrixFoot');
+    let html = '<tr style="background:#f1f5f9; border-top:2px solid #e2e8f0;">';
+
+    html += `<td class="col-sticky border-r" style="background:#f1f5f9; border-color:#e2e8f0; padding:8px 16px; white-space:nowrap;">
+        <span style="font-size:0.65rem; font-weight:700; text-transform:uppercase; letter-spacing:0.09em; color:#94a3b8;">Consensus</span>
+    </td>`;
+
+    fixturesData.forEach(f => {
+        const tally = {};
+        vis.forEach(p => {
+            const pred = predictionsIndex[`${p.player_id}:${f.fixture_id}`];
+            if (pred && pred.home_goals !== null) {
+                const s = `${pred.home_goals}–${pred.away_goals}`;
+                tally[s] = (tally[s] || 0) + 1;
+            }
+        });
+        const sorted = Object.entries(tally).sort((a, b) => b[1] - a[1]);
+        if (!sorted.length) {
+            html += '<td style="padding:8px; text-align:center; border-right:1px solid #e2e8f0; color:#d1d5db; font-size:0.75rem;">—</td>';
+        } else {
+            const [score, count] = sorted[0];
+            const pct = Math.round((count / vis.length) * 100);
+            html += `<td style="padding:8px; text-align:center; border-right:1px solid #e2e8f0;">
+                <span class="score-mono" style="font-size:0.78rem; font-weight:600; color:#374151;">${score}</span>
+                <div style="font-size:0.62rem; color:#94a3b8; margin-top:1px;">${pct}%</div>
+            </td>`;
+        }
+    });
+
+    html += '<td style="padding:8px;"></td></tr>';
+    tfoot.innerHTML = html;
+}
+
+function buildSummary(vis) {
+    document.getElementById('summaryTitle').textContent    = `Gameweek ${currentGameweek}`;
+    document.getElementById('summarySubtitle').textContent = `${vis.length} player${vis.length !== 1 ? 's' : ''} selected`;
+
+    const completed = fixturesData.filter(f => f.result_home !== null).length;
+    const total     = fixturesData.length;
+
+    if (!completed) {
+        document.getElementById('summaryStats').innerHTML =
+            `<span style="font-size:0.8rem; color:#94a3b8;">${completed}/${total} fixtures played — awaiting results</span>`;
+        return;
+    }
+
+    let exact = 0, correct = 0, wrong = 0, counted = 0;
+    vis.forEach(player => {
+        fixturesData.forEach(f => {
+            if (f.result_home === null) return;
+            const pred = predictionsIndex[`${player.player_id}:${f.fixture_id}`];
+            if (!pred || pred.home_goals === null) return;
+            const pts = pointsFor(pred.home_goals, pred.away_goals, f.result_home, f.result_away);
+            counted++;
+            if (pts === 2) exact++;
+            else if (pts === 1) correct++;
+            else wrong++;
+        });
+    });
+
+    const acc = counted > 0 ? Math.round(((exact + correct) / counted) * 100) : 0;
+
+    document.getElementById('summaryStats').innerHTML = `
+        <div class="stat-block">
+            <span class="stat-num" style="color:#374151;">${completed}/${total}</span>
+            <span class="stat-lbl">Played</span>
+        </div>
+        <div style="width:1px; background:#e5e7eb; align-self:stretch;"></div>
+        <div class="stat-block">
+            <span class="stat-num" style="color:#15803d;">${exact}</span>
+            <span class="stat-lbl">Exact</span>
+        </div>
+        <div class="stat-block">
+            <span class="stat-num" style="color:#b45309;">${correct}</span>
+            <span class="stat-lbl">Result</span>
+        </div>
+        <div class="stat-block">
+            <span class="stat-num" style="color:#b91c1c;">${wrong}</span>
+            <span class="stat-lbl">Wrong</span>
+        </div>
+        <div style="width:1px; background:#e5e7eb; align-self:stretch;"></div>
+        <div class="stat-block">
+            <span class="stat-num" style="color:#1d4ed8;">${acc}%</span>
+            <span class="stat-lbl">Accuracy</span>
+        </div>
+    `;
+}
+
+/* ── chips ───────────────────────────────────────────────── */
+function updateChips() {
+    document.querySelectorAll('.player-chip').forEach(chip => {
+        const on = selectedPlayers.has(parseInt(chip.dataset.playerId));
+        chip.dataset.selected = on ? 'true' : 'false';
+        if (on) {
+            chip.style.cssText += ';background:#0f172a;color:#ffffff;border-color:#0f172a;';
+        } else {
+            chip.style.cssText += ';background:transparent;color:#6b7280;border-color:#d1d5db;';
+        }
+    });
+}
+
+/* ── utils ───────────────────────────────────────────────── */
+function show(id) { document.getElementById(id).classList.remove('hidden'); }
+function hide(id) { document.getElementById(id).classList.add('hidden'); }
+
+function titleCase(s) {
+    return s.replace(/\w\S*/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase());
+}
+
+function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ── events ──────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('gameweekSelect').addEventListener('change', function () {
+        currentGameweek = parseInt(this.value);
+        loadGameweek(currentGameweek);
+    });
+
+    document.getElementById('selectAllBtn').addEventListener('click', () => {
+        ALL_PLAYERS.forEach(p => selectedPlayers.add(p.player_id));
+        updateChips(); renderMatrix();
+    });
+
+    document.getElementById('deselectAllBtn').addEventListener('click', () => {
+        selectedPlayers.clear();
+        updateChips(); renderMatrix();
+    });
+
+    document.getElementById('playerChips').addEventListener('click', e => {
+        const chip = e.target.closest('.player-chip');
+        if (!chip) return;
+        const id = parseInt(chip.dataset.playerId);
+        selectedPlayers.has(id) ? selectedPlayers.delete(id) : selectedPlayers.add(id);
+        updateChips(); renderMatrix();
+    });
+
+    loadGameweek(currentGameweek);
+});
+</script>
+{% endblock %}

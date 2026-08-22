@@ -3559,6 +3559,113 @@ def api_result_types():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/player-predictions')
+@require_auth
+def player_predictions():
+    """Player predictions viewer — compare predictions across players and fixtures"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT gameweek FROM gameweeks
+            WHERE current_gameweek = 1 OR next_gameweek = 1
+            ORDER BY gameweek ASC LIMIT 1
+        """)
+        current_gw = cursor.fetchone()
+        current_gameweek = current_gw[0] if current_gw else 1
+
+        cursor.execute("""
+            SELECT DISTINCT gameweek FROM fixtures
+            WHERE season = (SELECT MAX(season) FROM fixtures)
+            ORDER BY gameweek
+        """)
+        available_gameweeks = [row[0] for row in cursor.fetchall()]
+
+        cursor.execute("""
+            SELECT player_id, player_name FROM players
+            WHERE active = 1 ORDER BY player_name
+        """)
+        players = [dict(row) for row in cursor.fetchall()]
+
+        conn.close()
+
+        return render_template('player_predictions.html',
+                               current_gameweek=current_gameweek,
+                               available_gameweeks=available_gameweeks,
+                               players=players,
+                               page_title='Player Predictions')
+
+    except Exception as e:
+        flash(f'Error loading player predictions: {e}', 'error')
+        return render_template('player_predictions.html',
+                               current_gameweek=1,
+                               available_gameweeks=[],
+                               players=[],
+                               page_title='Player Predictions')
+
+
+@app.route('/api/player-predictions/gameweek/<int:gameweek>')
+@require_auth
+def get_player_predictions_for_gameweek(gameweek):
+    """Return all active players' predictions for every fixture in the given gameweek"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT MAX(season) FROM fixtures
+        """)
+        season_row = cursor.fetchone()
+        season = season_row[0] if season_row else '2025/2026'
+
+        cursor.execute("""
+            SELECT f.fixture_id, f.kickoff_dttm,
+                   ht.team_name AS home_team, at.team_name AS away_team,
+                   r.home_goals AS result_home, r.away_goals AS result_away, r.result
+            FROM fixtures f
+            JOIN teams ht ON f.home_teamid = ht.team_id
+            JOIN teams at ON f.away_teamid = at.team_id
+            LEFT JOIN results r ON r.fixture_id = f.fixture_id
+            WHERE f.gameweek = ? AND f.season = ?
+            ORDER BY f.kickoff_dttm
+        """, (gameweek, season))
+        fixtures = [dict(row) for row in cursor.fetchall()]
+
+        cursor.execute("""
+            SELECT p.player_id, p.player_name,
+                   pr.fixture_id, pr.home_goals, pr.away_goals, pr.predicted_result
+            FROM players p
+            JOIN predictions pr ON pr.player_id = p.player_id
+            JOIN fixtures f ON pr.fixture_id = f.fixture_id
+            WHERE f.gameweek = ? AND f.season = ? AND p.active = 1
+        """, (gameweek, season))
+        predictions_rows = cursor.fetchall()
+
+        conn.close()
+
+        pred_index = {}
+        for row in predictions_rows:
+            key = (row['player_id'], row['fixture_id'])
+            pred_index[key] = {
+                'home_goals': row['home_goals'],
+                'away_goals': row['away_goals'],
+                'predicted_result': row['predicted_result']
+            }
+
+        return jsonify({
+            'gameweek': gameweek,
+            'season': season,
+            'fixtures': fixtures,
+            'predictions': {
+                f"{k[0]}:{k[1]}": v for k, v in pred_index.items()
+            }
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 # Initialize application
 if __name__ == '__main__':
     try:
