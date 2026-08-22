@@ -72,6 +72,7 @@
                         </tbody>
                     </table>
                 </div>
+                <div id="standings-note" class="text-xs text-gray-500 mt-2 text-center"></div>
             </div>
         </div>
 
@@ -376,9 +377,10 @@ async function fetchJson(url) {
 }
 
 // Initialize the dashboard with prioritized loading
-document.addEventListener('DOMContentLoaded', function() {
-    // Load essential above-fold components immediately
-    loadSeasons();
+document.addEventListener('DOMContentLoaded', async function() {
+    // Load seasons first so dropdowns have correct values before any cards load
+    await loadSeasons();
+
     loadStandings();
     loadPlayersList();
 
@@ -408,28 +410,25 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Load available seasons for dropdowns
 function loadSeasons() {
-    fetchJson('/api/analysis/seasons')
+    return fetchJson('/api/analysis/seasons')
         .then(data => {
             if (data.error) throw new Error(data.error);
-            
+
             const seasonDropdowns = ['standings-season', 'trends-season', 'heatmap-season', 'performers-season', 'result-types-season'];
-            
+
             seasonDropdowns.forEach(dropdownId => {
                 const dropdown = document.getElementById(dropdownId);
                 const currentValue = dropdown.value;
-                
-                // Clear existing options
+
                 dropdown.innerHTML = '';
-                
-                // Add season options
+
                 data.seasons.forEach(season => {
                     const option = document.createElement('option');
                     option.value = season;
                     option.textContent = season;
                     dropdown.appendChild(option);
                 });
-                
-                // Set default to current season or restore previous value
+
                 if (data.seasons.includes(currentSeason)) {
                     dropdown.value = currentSeason;
                 } else if (currentValue && data.seasons.includes(currentValue)) {
@@ -483,12 +482,10 @@ function loadStandings() {
 
             hideLoading('standings');
 
-            if (data.standings.length > 10) {
-                const note = document.createElement('p');
-                note.className = 'text-xs text-gray-500 mt-2 text-center';
-                note.textContent = `Showing top 10 of ${data.standings.length} players`;
-                document.getElementById('standings-content').appendChild(note);
-            }
+            const note = document.getElementById('standings-note');
+            note.textContent = data.standings.length > 10
+                ? `Showing top 10 of ${data.standings.length} players`
+                : '';
         })
         .catch(error => {
             console.error('Error loading standings:', error);
