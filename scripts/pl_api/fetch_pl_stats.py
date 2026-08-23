@@ -5,7 +5,7 @@ Premier League Match Stats Fetching Script
 Fetches per-team match statistics from the PL API for finished fixtures and stores
 them in the pl_match_stats table (one row per team per fixture, 192 stat columns).
 
-API endpoint: https://sdp-prem-prod.premier-league-prod.pulselive.com/api/v3/matches/<pulse_id>/stats
+API endpoint: https://sdp-prem-prod.premier-league-prod.pulselive.com/api/v3/matches/<code>/stats
 
 Team IDs in the API response are team codes that map to teams.code in the database.
 The nested fastestPlayer.playerId is stored as fastest_player_code (maps to fpl_players_bootstrap.code).
@@ -144,7 +144,7 @@ def create_table(cursor):
         CREATE TABLE IF NOT EXISTS pl_match_stats (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             fixture_id INTEGER NOT NULL,
-            pulse_id INTEGER NOT NULL,
+            code INTEGER NOT NULL,
             team_id INTEGER,
             side TEXT,
             fastest_player_code INTEGER,
@@ -174,20 +174,20 @@ def get_fixtures_needing_stats(cursor, season, force_all=False):
     """Get finished fixtures that are missing stats data"""
     if force_all:
         cursor.execute("""
-            SELECT f.pulse_id, f.fixture_id, f.gameweek
+            SELECT f.code, f.fixture_id, f.gameweek
             FROM fixtures f
-            WHERE f.pulse_id IS NOT NULL
-            AND f.finished = 1
+            WHERE f.code IS NOT NULL
+            AND f.provisional_finished = 1
             AND f.season = ?
             ORDER BY f.gameweek, f.fixture_id
         """, (season,))
     else:
         cursor.execute("""
-            SELECT f.pulse_id, f.fixture_id, f.gameweek
+            SELECT f.code, f.fixture_id, f.gameweek
             FROM fixtures f
             LEFT JOIN pl_match_stats pms ON f.fixture_id = pms.fixture_id
-            WHERE f.pulse_id IS NOT NULL
-            AND f.finished = 1
+            WHERE f.code IS NOT NULL
+            AND f.provisional_finished = 1
             AND f.season = ?
             AND pms.fixture_id IS NULL
             ORDER BY f.gameweek, f.fixture_id
@@ -195,15 +195,15 @@ def get_fixtures_needing_stats(cursor, season, force_all=False):
     return cursor.fetchall()
 
 
-def fetch_stats(pulse_id, logger, delay=DEFAULT_DELAY):
+def fetch_stats(code, logger, delay=DEFAULT_DELAY):
     """Fetch match stats from the PL API with retry and rate limiting"""
-    url = BASE_URL.format(code=pulse_id)
+    url = BASE_URL.format(code=code)
 
     for attempt in range(MAX_RETRIES):
         try:
             if attempt > 0:
                 wait_time = delay * (2 ** attempt) + uniform(0.5, 1.5)
-                logger.debug(f"Retry {attempt} for pulse_id {pulse_id}, waiting {wait_time:.1f}s")
+                logger.debug(f"Retry {attempt} for code {code}, waiting {wait_time:.1f}s")
                 time.sleep(wait_time)
             elif delay > 0:
                 time.sleep(uniform(delay * 0.8, delay * 1.2))
@@ -213,28 +213,28 @@ def fetch_stats(pulse_id, logger, delay=DEFAULT_DELAY):
             if response.status_code == 200:
                 return response.json()
             elif response.status_code == 404:
-                logger.warning(f"pulse_id {pulse_id} not found (404)")
+                logger.warning(f"code {code} not found (404)")
                 return None
             elif response.status_code == 429:
                 wait_time = delay * (2 ** (attempt + 2))
-                logger.warning(f"Rate limited for pulse_id {pulse_id}, waiting {wait_time:.1f}s")
+                logger.warning(f"Rate limited for code {code}, waiting {wait_time:.1f}s")
                 time.sleep(wait_time)
                 continue
             else:
-                logger.warning(f"API returned {response.status_code} for pulse_id {pulse_id}")
+                logger.warning(f"API returned {response.status_code} for code {code}")
                 if attempt == MAX_RETRIES - 1:
                     return None
 
         except Timeout:
-            logger.warning(f"Timeout fetching pulse_id {pulse_id} (attempt {attempt + 1})")
+            logger.warning(f"Timeout fetching code {code} (attempt {attempt + 1})")
             if attempt == MAX_RETRIES - 1:
                 return None
         except RequestException as e:
-            logger.warning(f"Request failed for pulse_id {pulse_id}: {e}")
+            logger.warning(f"Request failed for code {code}: {e}")
             if attempt == MAX_RETRIES - 1:
                 return None
 
-    logger.error(f"Failed to fetch stats for pulse_id {pulse_id} after {MAX_RETRIES} attempts")
+    logger.error(f"Failed to fetch stats for code {code} after {MAX_RETRIES} attempts")
     return None
 
 
@@ -244,24 +244,24 @@ def fetch_stats_concurrently(fixtures, logger, max_workers=3, delay=DEFAULT_DELA
     failed = []
 
     def fetch_one(fixture_info):
-        pulse_id, fixture_id, gameweek = fixture_info
-        data = fetch_stats(pulse_id, logger, delay)
-        return pulse_id, fixture_id, data
+        code, fixture_id, _gameweek = fixture_info
+        data = fetch_stats(code, logger, delay)
+        return code, fixture_id, data
 
     if max_workers == 1:
         for fixture_info in tqdm(fixtures, desc="Fetching stats"):
-            pulse_id, fixture_id, data = fetch_one(fixture_info)
+            code, fixture_id, data = fetch_one(fixture_info)
             if data is not None:
-                results[fixture_id] = (pulse_id, data)
+                results[fixture_id] = (code, data)
             else:
                 failed.append(fixture_id)
     else:
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {executor.submit(fetch_one, f): f for f in fixtures}
             for future in tqdm(as_completed(futures), total=len(futures), desc="Fetching stats"):
-                pulse_id, fixture_id, data = future.result()
+                code, fixture_id, data = future.result()
                 if data is not None:
-                    results[fixture_id] = (pulse_id, data)
+                    results[fixture_id] = (code, data)
                 else:
                     failed.append(fixture_id)
 
@@ -269,7 +269,7 @@ def fetch_stats_concurrently(fixtures, logger, max_workers=3, delay=DEFAULT_DELA
     return results, failed
 
 
-def store_team_stats(cursor, fixture_id, pulse_id, team_entry, team_code_mapping, logger):
+def store_team_stats(cursor, fixture_id, code, team_entry, team_code_mapping, logger):
     """Insert one row of stats for a single team in a fixture"""
     team_code_str = team_entry.get("teamId")
     team_id = None
@@ -294,13 +294,13 @@ def store_team_stats(cursor, fixture_id, pulse_id, team_entry, team_code_mapping
     # Build column list and values dynamically from known stat fields
     stat_values = {field: stats.get(field) for field in ALL_STAT_FIELDS}
 
-    columns = ["fixture_id", "pulse_id", "team_id", "side", "fastest_player_code"] + ALL_STAT_FIELDS
+    columns = ["fixture_id", "code", "team_id", "side", "fastest_player_code"] + ALL_STAT_FIELDS
     placeholders = ", ".join("?" for _ in columns)
     col_str = ", ".join(columns)
 
     values = [
         fixture_id,
-        pulse_id,
+        code,
         team_id,
         team_entry.get("side"),
         fastest_player_code,
@@ -312,10 +312,10 @@ def store_team_stats(cursor, fixture_id, pulse_id, team_entry, team_code_mapping
     )
 
 
-def store_match_stats(cursor, fixture_id, pulse_id, data, team_code_mapping, logger):
+def store_match_stats(cursor, fixture_id, code, data, team_code_mapping, logger):
     """Insert stats rows for both teams in a fixture"""
     for team_entry in data:
-        store_team_stats(cursor, fixture_id, pulse_id, team_entry, team_code_mapping, logger)
+        store_team_stats(cursor, fixture_id, code, team_entry, team_code_mapping, logger)
 
 
 def clear_stats_data(cursor, conn, season, logger):
@@ -323,7 +323,7 @@ def clear_stats_data(cursor, conn, season, logger):
     cursor.execute("""
         DELETE FROM pl_match_stats
         WHERE fixture_id IN (
-            SELECT fixture_id FROM fixtures WHERE season = ? AND pulse_id IS NOT NULL
+            SELECT fixture_id FROM fixtures WHERE season = ? AND code IS NOT NULL
         )
     """, (season,))
     deleted = cursor.rowcount
@@ -343,10 +343,10 @@ def update_last_update_table(cursor, logger):
         logger.error(f"Error updating last_update table: {e}")
 
 
-def save_sample_data(pulse_id, data, logger):
+def save_sample_data(code, data, logger):
     """Save a stats API response as a JSON sample"""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_file = SAMPLES_DIR / f"stats_{pulse_id}_{timestamp}.json"
+    output_file = SAMPLES_DIR / f"stats_{code}_{timestamp}.json"
     try:
         with open(output_file, 'w') as f:
             json.dump(data, f, indent=2)
@@ -397,20 +397,20 @@ def run(season, max_workers=3, delay=DEFAULT_DELAY, dry_run=False, force_refresh
         stats_results, failed = fetch_stats_concurrently(fixtures, logger, max_workers, delay)
 
         fixtures_stored = 0
-        for fixture_id, (pulse_id, data) in stats_results.items():
+        for fixture_id, (code, data) in stats_results.items():
             if not data:
                 logger.warning(f"Empty stats response for fixture_id {fixture_id}")
                 continue
 
             if save_samples:
-                save_sample_data(pulse_id, data, logger)
+                save_sample_data(code, data, logger)
 
             if dry_run:
                 logger.info(f"DRY RUN: fixture_id {fixture_id} would insert {len(data)} team stat rows")
                 continue
 
             try:
-                store_match_stats(cursor, fixture_id, pulse_id, data, team_code_mapping, logger)
+                store_match_stats(cursor, fixture_id, code, data, team_code_mapping, logger)
                 fixtures_stored += 1
                 logger.debug(f"fixture_id {fixture_id}: stored stats for {len(data)} teams")
             except Exception as e:

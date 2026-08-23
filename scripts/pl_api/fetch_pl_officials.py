@@ -5,7 +5,7 @@ Premier League Match Officials Fetching Script
 Fetches match official data from the PL API for finished fixtures and stores them
 in the pl_officials table (one row per official per fixture).
 
-API endpoint: https://sdp-prem-prod.premier-league-prod.pulselive.com/api/v1/matches/<pulse_id>/officials
+API endpoint: https://sdp-prem-prod.premier-league-prod.pulselive.com/api/v1/matches/<code>/officials
 
 Official types: Referee, Assistant Referee#1, Assistant Referee#2, Fourth official,
 Video Assistant Referee, Assistant VAR Official.
@@ -87,7 +87,7 @@ def create_table(cursor):
         CREATE TABLE IF NOT EXISTS pl_officials (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             fixture_id INTEGER NOT NULL,
-            pulse_id INTEGER NOT NULL,
+            code INTEGER NOT NULL,
             first_name TEXT,
             last_name TEXT,
             name TEXT,
@@ -109,20 +109,20 @@ def get_fixtures_needing_officials(cursor, season, force_all=False):
     """Get finished fixtures that are missing officials data"""
     if force_all:
         cursor.execute("""
-            SELECT f.pulse_id, f.fixture_id, f.gameweek
+            SELECT f.code, f.fixture_id, f.gameweek
             FROM fixtures f
-            WHERE f.pulse_id IS NOT NULL
-            AND f.finished = 1
+            WHERE f.code IS NOT NULL
+            AND f.provisional_finished = 1
             AND f.season = ?
             ORDER BY f.gameweek, f.fixture_id
         """, (season,))
     else:
         cursor.execute("""
-            SELECT f.pulse_id, f.fixture_id, f.gameweek
+            SELECT f.code, f.fixture_id, f.gameweek
             FROM fixtures f
             LEFT JOIN pl_officials po ON f.fixture_id = po.fixture_id
-            WHERE f.pulse_id IS NOT NULL
-            AND f.finished = 1
+            WHERE f.code IS NOT NULL
+            AND f.provisional_finished = 1
             AND f.season = ?
             AND po.fixture_id IS NULL
             ORDER BY f.gameweek, f.fixture_id
@@ -130,15 +130,15 @@ def get_fixtures_needing_officials(cursor, season, force_all=False):
     return cursor.fetchall()
 
 
-def fetch_officials(pulse_id, logger, delay=DEFAULT_DELAY):
+def fetch_officials(code, logger, delay=DEFAULT_DELAY):
     """Fetch officials data from the PL API with retry and rate limiting"""
-    url = BASE_URL.format(code=pulse_id)
+    url = BASE_URL.format(code=code)
 
     for attempt in range(MAX_RETRIES):
         try:
             if attempt > 0:
                 wait_time = delay * (2 ** attempt) + uniform(0.5, 1.5)
-                logger.debug(f"Retry {attempt} for pulse_id {pulse_id}, waiting {wait_time:.1f}s")
+                logger.debug(f"Retry {attempt} for code {code}, waiting {wait_time:.1f}s")
                 time.sleep(wait_time)
             elif delay > 0:
                 time.sleep(uniform(delay * 0.8, delay * 1.2))
@@ -148,28 +148,28 @@ def fetch_officials(pulse_id, logger, delay=DEFAULT_DELAY):
             if response.status_code == 200:
                 return response.json()
             elif response.status_code == 404:
-                logger.warning(f"pulse_id {pulse_id} not found (404)")
+                logger.warning(f"code {code} not found (404)")
                 return None
             elif response.status_code == 429:
                 wait_time = delay * (2 ** (attempt + 2))
-                logger.warning(f"Rate limited for pulse_id {pulse_id}, waiting {wait_time:.1f}s")
+                logger.warning(f"Rate limited for code {code}, waiting {wait_time:.1f}s")
                 time.sleep(wait_time)
                 continue
             else:
-                logger.warning(f"API returned {response.status_code} for pulse_id {pulse_id}")
+                logger.warning(f"API returned {response.status_code} for code {code}")
                 if attempt == MAX_RETRIES - 1:
                     return None
 
         except Timeout:
-            logger.warning(f"Timeout fetching pulse_id {pulse_id} (attempt {attempt + 1})")
+            logger.warning(f"Timeout fetching code {code} (attempt {attempt + 1})")
             if attempt == MAX_RETRIES - 1:
                 return None
         except RequestException as e:
-            logger.warning(f"Request failed for pulse_id {pulse_id}: {e}")
+            logger.warning(f"Request failed for code {code}: {e}")
             if attempt == MAX_RETRIES - 1:
                 return None
 
-    logger.error(f"Failed to fetch officials for pulse_id {pulse_id} after {MAX_RETRIES} attempts")
+    logger.error(f"Failed to fetch officials for code {code} after {MAX_RETRIES} attempts")
     return None
 
 
@@ -179,24 +179,24 @@ def fetch_officials_concurrently(fixtures, logger, max_workers=3, delay=DEFAULT_
     failed = []
 
     def fetch_one(fixture_info):
-        pulse_id, fixture_id, gameweek = fixture_info
-        data = fetch_officials(pulse_id, logger, delay)
-        return pulse_id, fixture_id, data
+        code, fixture_id, _gameweek = fixture_info
+        data = fetch_officials(code, logger, delay)
+        return code, fixture_id, data
 
     if max_workers == 1:
         for fixture_info in tqdm(fixtures, desc="Fetching officials"):
-            pulse_id, fixture_id, data = fetch_one(fixture_info)
+            code, fixture_id, data = fetch_one(fixture_info)
             if data is not None:
-                results[fixture_id] = (pulse_id, data)
+                results[fixture_id] = (code, data)
             else:
                 failed.append(fixture_id)
     else:
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {executor.submit(fetch_one, f): f for f in fixtures}
             for future in tqdm(as_completed(futures), total=len(futures), desc="Fetching officials"):
-                pulse_id, fixture_id, data = future.result()
+                code, fixture_id, data = future.result()
                 if data is not None:
-                    results[fixture_id] = (pulse_id, data)
+                    results[fixture_id] = (code, data)
                 else:
                     failed.append(fixture_id)
 
@@ -204,17 +204,17 @@ def fetch_officials_concurrently(fixtures, logger, max_workers=3, delay=DEFAULT_
     return results, failed
 
 
-def store_officials(cursor, fixture_id, pulse_id, data):
+def store_officials(cursor, fixture_id, code, data):
     """Insert official rows for a fixture"""
     inserted = 0
     for entry in data.get("matchOfficials", []):
         official = entry.get("official", {})
         cursor.execute("""
-            INSERT INTO pl_officials (fixture_id, pulse_id, first_name, last_name, name, type)
+            INSERT INTO pl_officials (fixture_id, code, first_name, last_name, name, type)
             VALUES (?, ?, ?, ?, ?, ?)
         """, (
             fixture_id,
-            pulse_id,
+            code,
             official.get("firstName"),
             official.get("lastName"),
             official.get("name"),
@@ -229,7 +229,7 @@ def clear_officials_data(cursor, conn, season, logger):
     cursor.execute("""
         DELETE FROM pl_officials
         WHERE fixture_id IN (
-            SELECT fixture_id FROM fixtures WHERE season = ? AND pulse_id IS NOT NULL
+            SELECT fixture_id FROM fixtures WHERE season = ? AND code IS NOT NULL
         )
     """, (season,))
     deleted = cursor.rowcount
@@ -249,10 +249,10 @@ def update_last_update_table(cursor, logger):
         logger.error(f"Error updating last_update table: {e}")
 
 
-def save_sample_data(pulse_id, data, logger):
+def save_sample_data(code, data, logger):
     """Save an officials API response as a JSON sample"""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_file = SAMPLES_DIR / f"officials_{pulse_id}_{timestamp}.json"
+    output_file = SAMPLES_DIR / f"officials_{code}_{timestamp}.json"
     try:
         with open(output_file, 'w') as f:
             json.dump(data, f, indent=2)
@@ -300,9 +300,9 @@ def run(season, max_workers=3, delay=DEFAULT_DELAY, dry_run=False, force_refresh
         results, failed = fetch_officials_concurrently(fixtures, logger, max_workers, delay)
 
         total_inserted = 0
-        for fixture_id, (pulse_id, data) in results.items():
+        for fixture_id, (code, data) in results.items():
             if save_samples:
-                save_sample_data(pulse_id, data, logger)
+                save_sample_data(code, data, logger)
 
             if dry_run:
                 count = len(data.get("matchOfficials", []))
@@ -310,7 +310,7 @@ def run(season, max_workers=3, delay=DEFAULT_DELAY, dry_run=False, force_refresh
                 continue
 
             try:
-                inserted = store_officials(cursor, fixture_id, pulse_id, data)
+                inserted = store_officials(cursor, fixture_id, code, data)
                 total_inserted += inserted
                 logger.debug(f"fixture_id {fixture_id}: inserted {inserted} officials")
             except Exception as e:

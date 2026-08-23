@@ -7,7 +7,7 @@ two tables:
   - pl_lineups: one row per team per fixture (formation, manager)
   - pl_lineup_players: one row per player per fixture (starters and substitutes)
 
-API endpoint: https://sdp-prem-prod.premier-league-prod.pulselive.com/api/v3/matches/<pulse_id>/lineups
+API endpoint: https://sdp-prem-prod.premier-league-prod.pulselive.com/api/v3/matches/<code>/lineups
 
 Team IDs in the API response are team codes that map to teams.code in the database.
 Player IDs in the API response are player codes that map to fpl_players_bootstrap.code.
@@ -89,7 +89,7 @@ def create_tables(cursor):
         CREATE TABLE IF NOT EXISTS pl_lineups (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             fixture_id INTEGER NOT NULL,
-            pulse_id INTEGER NOT NULL,
+            code INTEGER NOT NULL,
             team_id INTEGER,
             formation TEXT,
             manager_name TEXT,
@@ -102,7 +102,7 @@ def create_tables(cursor):
         CREATE TABLE IF NOT EXISTS pl_lineup_players (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             fixture_id INTEGER NOT NULL,
-            pulse_id INTEGER NOT NULL,
+            code INTEGER NOT NULL,
             team_id INTEGER,
             player_code INTEGER,
             first_name TEXT,
@@ -141,19 +141,19 @@ def get_fixtures_needing_lineups(cursor, season, force_all=False):
     """Get finished fixtures that are missing lineup data"""
     if force_all:
         cursor.execute("""
-            SELECT f.pulse_id, f.fixture_id, f.gameweek
+            SELECT f.code, f.fixture_id, f.gameweek
             FROM fixtures f
-            WHERE f.pulse_id IS NOT NULL
+            WHERE f.code IS NOT NULL
             AND f.provisional_finished = 1
             AND f.season = ?
             ORDER BY f.gameweek, f.fixture_id
         """, (season,))
     else:
         cursor.execute("""
-            SELECT f.pulse_id, f.fixture_id, f.gameweek
+            SELECT f.code, f.fixture_id, f.gameweek
             FROM fixtures f
             LEFT JOIN pl_lineups pl ON f.fixture_id = pl.fixture_id
-            WHERE f.pulse_id IS NOT NULL
+            WHERE f.code IS NOT NULL
             AND f.provisional_finished = 1
             AND f.season = ?
             AND pl.fixture_id IS NULL
@@ -162,15 +162,15 @@ def get_fixtures_needing_lineups(cursor, season, force_all=False):
     return cursor.fetchall()
 
 
-def fetch_lineups(pulse_id, logger, delay=DEFAULT_DELAY):
+def fetch_lineups(code, logger, delay=DEFAULT_DELAY):
     """Fetch lineup data from the PL API with retry and rate limiting"""
-    url = BASE_URL.format(code=pulse_id)
+    url = BASE_URL.format(code=code)
 
     for attempt in range(MAX_RETRIES):
         try:
             if attempt > 0:
                 wait_time = delay * (2 ** attempt) + uniform(0.5, 1.5)
-                logger.debug(f"Retry {attempt} for pulse_id {pulse_id}, waiting {wait_time:.1f}s")
+                logger.debug(f"Retry {attempt} for code {code}, waiting {wait_time:.1f}s")
                 time.sleep(wait_time)
             elif delay > 0:
                 time.sleep(uniform(delay * 0.8, delay * 1.2))
@@ -180,28 +180,28 @@ def fetch_lineups(pulse_id, logger, delay=DEFAULT_DELAY):
             if response.status_code == 200:
                 return response.json()
             elif response.status_code == 404:
-                logger.warning(f"pulse_id {pulse_id} not found (404)")
+                logger.warning(f"code {code} not found (404)")
                 return None
             elif response.status_code == 429:
                 wait_time = delay * (2 ** (attempt + 2))
-                logger.warning(f"Rate limited for pulse_id {pulse_id}, waiting {wait_time:.1f}s")
+                logger.warning(f"Rate limited for code {code}, waiting {wait_time:.1f}s")
                 time.sleep(wait_time)
                 continue
             else:
-                logger.warning(f"API returned {response.status_code} for pulse_id {pulse_id}")
+                logger.warning(f"API returned {response.status_code} for code {code}")
                 if attempt == MAX_RETRIES - 1:
                     return None
 
         except Timeout:
-            logger.warning(f"Timeout fetching pulse_id {pulse_id} (attempt {attempt + 1})")
+            logger.warning(f"Timeout fetching code {code} (attempt {attempt + 1})")
             if attempt == MAX_RETRIES - 1:
                 return None
         except RequestException as e:
-            logger.warning(f"Request failed for pulse_id {pulse_id}: {e}")
+            logger.warning(f"Request failed for code {code}: {e}")
             if attempt == MAX_RETRIES - 1:
                 return None
 
-    logger.error(f"Failed to fetch lineups for pulse_id {pulse_id} after {MAX_RETRIES} attempts")
+    logger.error(f"Failed to fetch lineups for code {code} after {MAX_RETRIES} attempts")
     return None
 
 
@@ -211,24 +211,24 @@ def fetch_lineups_concurrently(fixtures, logger, max_workers=3, delay=DEFAULT_DE
     failed = []
 
     def fetch_one(fixture_info):
-        pulse_id, fixture_id, gameweek = fixture_info
-        data = fetch_lineups(pulse_id, logger, delay)
-        return pulse_id, fixture_id, data
+        code, fixture_id, gameweek = fixture_info
+        data = fetch_lineups(code, logger, delay)
+        return code, fixture_id, data
 
     if max_workers == 1:
         for fixture_info in tqdm(fixtures, desc="Fetching lineups"):
-            pulse_id, fixture_id, data = fetch_one(fixture_info)
+            code, fixture_id, data = fetch_one(fixture_info)
             if data is not None:
-                results[fixture_id] = (pulse_id, data)
+                results[fixture_id] = (code, data)
             else:
                 failed.append(fixture_id)
     else:
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {executor.submit(fetch_one, f): f for f in fixtures}
             for future in tqdm(as_completed(futures), total=len(futures), desc="Fetching lineups"):
-                pulse_id, fixture_id, data = future.result()
+                code, fixture_id, data = future.result()
                 if data is not None:
-                    results[fixture_id] = (pulse_id, data)
+                    results[fixture_id] = (code, data)
                 else:
                     failed.append(fixture_id)
 
@@ -236,7 +236,7 @@ def fetch_lineups_concurrently(fixtures, logger, max_workers=3, delay=DEFAULT_DE
     return results, failed
 
 
-def store_team_lineup(cursor, fixture_id, pulse_id, team_key, team_data, team_code_mapping, logger):
+def store_team_lineup(cursor, fixture_id, code, team_key, team_data, team_code_mapping, logger):
     """Insert lineup and player rows for one team in a fixture"""
     team_code_str = team_data.get("teamId")
     team_id = None
@@ -266,9 +266,9 @@ def store_team_lineup(cursor, fixture_id, pulse_id, team_key, team_data, team_co
                 pass
 
     cursor.execute("""
-        INSERT INTO pl_lineups (fixture_id, pulse_id, team_id, formation, manager_name, manager_code)
+        INSERT INTO pl_lineups (fixture_id, code, team_id, formation, manager_name, manager_code)
         VALUES (?, ?, ?, ?, ?, ?)
-    """, (fixture_id, pulse_id, team_id, formation_str, manager_name, manager_code))
+    """, (fixture_id, code, team_id, formation_str, manager_name, manager_code))
 
     players_inserted = 0
     for player in team_data.get("players", []):
@@ -285,12 +285,12 @@ def store_team_lineup(cursor, fixture_id, pulse_id, team_key, team_data, team_co
 
         cursor.execute("""
             INSERT INTO pl_lineup_players
-                (fixture_id, pulse_id, team_id, player_code, first_name, last_name, known_name,
+                (fixture_id, code, team_id, player_code, first_name, last_name, known_name,
                  shirt_number, is_captain, position, sub_position, is_starter)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             fixture_id,
-            pulse_id,
+            code,
             team_id,
             player_code,
             player.get("firstName"),
@@ -307,7 +307,7 @@ def store_team_lineup(cursor, fixture_id, pulse_id, team_key, team_data, team_co
     return players_inserted
 
 
-def store_lineup_data(cursor, fixture_id, pulse_id, data, team_code_mapping, logger):
+def store_lineup_data(cursor, fixture_id, code, data, team_code_mapping, logger):
     """Insert all lineup data for a fixture (both teams)"""
     total_players = 0
     for team_key in ("home_team", "away_team"):
@@ -315,7 +315,7 @@ def store_lineup_data(cursor, fixture_id, pulse_id, data, team_code_mapping, log
         if not team_data:
             logger.warning(f"Missing {team_key} data for fixture_id {fixture_id}")
             continue
-        total_players += store_team_lineup(cursor, fixture_id, pulse_id, team_key, team_data, team_code_mapping, logger)
+        total_players += store_team_lineup(cursor, fixture_id, code, team_key, team_data, team_code_mapping, logger)
     return total_players
 
 
@@ -324,7 +324,7 @@ def clear_lineup_data(cursor, conn, season, logger):
     cursor.execute("""
         DELETE FROM pl_lineup_players
         WHERE fixture_id IN (
-            SELECT fixture_id FROM fixtures WHERE season = ? AND pulse_id IS NOT NULL
+            SELECT fixture_id FROM fixtures WHERE season = ? AND code IS NOT NULL
         )
     """, (season,))
     players_deleted = cursor.rowcount
@@ -332,7 +332,7 @@ def clear_lineup_data(cursor, conn, season, logger):
     cursor.execute("""
         DELETE FROM pl_lineups
         WHERE fixture_id IN (
-            SELECT fixture_id FROM fixtures WHERE season = ? AND pulse_id IS NOT NULL
+            SELECT fixture_id FROM fixtures WHERE season = ? AND code IS NOT NULL
         )
     """, (season,))
     lineups_deleted = cursor.rowcount
@@ -353,10 +353,10 @@ def update_last_update_table(cursor, logger):
         logger.error(f"Error updating last_update table: {e}")
 
 
-def save_sample_data(pulse_id, data, logger):
+def save_sample_data(code, data, logger):
     """Save a lineup API response as a JSON sample"""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_file = SAMPLES_DIR / f"lineups_{pulse_id}_{timestamp}.json"
+    output_file = SAMPLES_DIR / f"lineups_{code}_{timestamp}.json"
     try:
         with open(output_file, 'w') as f:
             json.dump(data, f, indent=2)
@@ -407,9 +407,9 @@ def run(season, max_workers=3, delay=DEFAULT_DELAY, dry_run=False, force_refresh
         lineup_results, failed = fetch_lineups_concurrently(fixtures, logger, max_workers, delay)
 
         total_players = 0
-        for fixture_id, (pulse_id, data) in lineup_results.items():
+        for fixture_id, (code, data) in lineup_results.items():
             if save_samples:
-                save_sample_data(pulse_id, data, logger)
+                save_sample_data(code, data, logger)
 
             if dry_run:
                 home_count = len(data.get("home_team", {}).get("players", []))
@@ -418,7 +418,7 @@ def run(season, max_workers=3, delay=DEFAULT_DELAY, dry_run=False, force_refresh
                 continue
 
             try:
-                inserted = store_lineup_data(cursor, fixture_id, pulse_id, data, team_code_mapping, logger)
+                inserted = store_lineup_data(cursor, fixture_id, code, data, team_code_mapping, logger)
                 total_players += inserted
                 logger.debug(f"fixture_id {fixture_id}: inserted {inserted} players")
             except Exception as e:

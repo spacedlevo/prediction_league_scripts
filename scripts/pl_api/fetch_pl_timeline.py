@@ -5,7 +5,7 @@ Premier League Timeline Data Fetching Script
 Fetches match timeline events from the PL API for finished fixtures and stores them
 in the pl_match_events table. Replaces the old Pulse Live API (fetch_pulse_data.py).
 
-API endpoint: https://sdp-prem-prod.premier-league-prod.pulselive.com/api/v1/matches/<pulse_id>/timeline
+API endpoint: https://sdp-prem-prod.premier-league-prod.pulselive.com/api/v1/matches/<code>/timeline
 
 Event types captured: GOAL, YELLOW_CARD, RED_CARD, PLAYER_SUBSTITUTE_ON, PLAYER_SUBSTITUTE_OFF,
 FIRST_HALF_START, FIRST_HALF_END, SECOND_HALF_START, SECOND_HALF_END, and others.
@@ -90,7 +90,7 @@ def create_table(cursor):
         CREATE TABLE IF NOT EXISTS pl_match_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             fixture_id INTEGER NOT NULL,
-            pulse_id INTEGER NOT NULL,
+            code INTEGER NOT NULL,
             period_id INTEGER,
             minutes INTEGER,
             seconds INTEGER,
@@ -112,8 +112,8 @@ def create_table(cursor):
         ON pl_match_events(event_type)
     """)
     cursor.execute("""
-        CREATE INDEX IF NOT EXISTS idx_pl_match_events_pulse_id
-        ON pl_match_events(pulse_id)
+        CREATE INDEX IF NOT EXISTS idx_pl_match_events_code
+        ON pl_match_events(code)
     """)
 
 
@@ -127,20 +127,20 @@ def get_fixtures_needing_timeline(cursor, season, force_all=False):
     """Get finished fixtures that are missing timeline data"""
     if force_all:
         cursor.execute("""
-            SELECT f.pulse_id, f.fixture_id, f.gameweek
+            SELECT f.code, f.fixture_id, f.gameweek
             FROM fixtures f
-            WHERE f.pulse_id IS NOT NULL
-            AND f.finished = 1
+            WHERE f.code IS NOT NULL
+            AND f.provisional_finished = 1
             AND f.season = ?
             ORDER BY f.gameweek, f.fixture_id
         """, (season,))
     else:
         cursor.execute("""
-            SELECT f.pulse_id, f.fixture_id, f.gameweek
+            SELECT f.code, f.fixture_id, f.gameweek
             FROM fixtures f
             LEFT JOIN pl_match_events pme ON f.fixture_id = pme.fixture_id
-            WHERE f.pulse_id IS NOT NULL
-            AND f.finished = 1
+            WHERE f.code IS NOT NULL
+            AND f.provisional_finished = 1
             AND f.season = ?
             AND pme.fixture_id IS NULL
             ORDER BY f.gameweek, f.fixture_id
@@ -148,15 +148,15 @@ def get_fixtures_needing_timeline(cursor, season, force_all=False):
     return cursor.fetchall()
 
 
-def fetch_timeline(pulse_id, logger, delay=DEFAULT_DELAY):
+def fetch_timeline(code, logger, delay=DEFAULT_DELAY):
     """Fetch timeline events from the PL API with retry and rate limiting"""
-    url = BASE_URL.format(code=pulse_id)
+    url = BASE_URL.format(code=code)
 
     for attempt in range(MAX_RETRIES):
         try:
             if attempt > 0:
                 wait_time = delay * (2 ** attempt) + uniform(0.5, 1.5)
-                logger.debug(f"Retry {attempt} for pulse_id {pulse_id}, waiting {wait_time:.1f}s")
+                logger.debug(f"Retry {attempt} for code {code}, waiting {wait_time:.1f}s")
                 time.sleep(wait_time)
             elif delay > 0:
                 time.sleep(uniform(delay * 0.8, delay * 1.2))
@@ -166,28 +166,28 @@ def fetch_timeline(pulse_id, logger, delay=DEFAULT_DELAY):
             if response.status_code == 200:
                 return response.json()
             elif response.status_code == 404:
-                logger.warning(f"pulse_id {pulse_id} not found (404)")
+                logger.warning(f"code {code} not found (404)")
                 return None
             elif response.status_code == 429:
                 wait_time = delay * (2 ** (attempt + 2))
-                logger.warning(f"Rate limited for pulse_id {pulse_id}, waiting {wait_time:.1f}s")
+                logger.warning(f"Rate limited for code {code}, waiting {wait_time:.1f}s")
                 time.sleep(wait_time)
                 continue
             else:
-                logger.warning(f"API returned {response.status_code} for pulse_id {pulse_id}")
+                logger.warning(f"API returned {response.status_code} for code {code}")
                 if attempt == MAX_RETRIES - 1:
                     return None
 
         except Timeout:
-            logger.warning(f"Timeout fetching pulse_id {pulse_id} (attempt {attempt + 1})")
+            logger.warning(f"Timeout fetching code {code} (attempt {attempt + 1})")
             if attempt == MAX_RETRIES - 1:
                 return None
         except RequestException as e:
-            logger.warning(f"Request failed for pulse_id {pulse_id}: {e}")
+            logger.warning(f"Request failed for code {code}: {e}")
             if attempt == MAX_RETRIES - 1:
                 return None
 
-    logger.error(f"Failed to fetch timeline for pulse_id {pulse_id} after {MAX_RETRIES} attempts")
+    logger.error(f"Failed to fetch timeline for code {code} after {MAX_RETRIES} attempts")
     return None
 
 
@@ -197,24 +197,24 @@ def fetch_timelines_concurrently(fixtures, logger, max_workers=3, delay=DEFAULT_
     failed = []
 
     def fetch_one(fixture_info):
-        pulse_id, fixture_id, gameweek = fixture_info
-        data = fetch_timeline(pulse_id, logger, delay)
-        return pulse_id, fixture_id, data
+        code, fixture_id, gameweek = fixture_info
+        data = fetch_timeline(code, logger, delay)
+        return code, fixture_id, data
 
     if max_workers == 1:
         for fixture_info in tqdm(fixtures, desc="Fetching timelines"):
-            pulse_id, fixture_id, data = fetch_one(fixture_info)
+            code, fixture_id, data = fetch_one(fixture_info)
             if data is not None:
-                results[fixture_id] = (pulse_id, data)
+                results[fixture_id] = (code, data)
             else:
                 failed.append(fixture_id)
     else:
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {executor.submit(fetch_one, f): f for f in fixtures}
             for future in tqdm(as_completed(futures), total=len(futures), desc="Fetching timelines"):
-                pulse_id, fixture_id, data = future.result()
+                code, fixture_id, data = future.result()
                 if data is not None:
-                    results[fixture_id] = (pulse_id, data)
+                    results[fixture_id] = (code, data)
                 else:
                     failed.append(fixture_id)
 
@@ -222,7 +222,7 @@ def fetch_timelines_concurrently(fixtures, logger, max_workers=3, delay=DEFAULT_
     return results, failed
 
 
-def store_timeline_events(cursor, fixture_id, pulse_id, events, team_code_mapping, logger):
+def store_timeline_events(cursor, fixture_id, code, events, team_code_mapping, logger):
     """Insert timeline events for a single fixture"""
     inserted = 0
     for event in events:
@@ -230,7 +230,6 @@ def store_timeline_events(cursor, fixture_id, pulse_id, events, team_code_mappin
         if not event_type:
             continue
 
-        # Map team code string to database team_id
         team_code_str = event.get("teamId")
         team_id = None
         if team_code_str is not None:
@@ -239,7 +238,6 @@ def store_timeline_events(cursor, fixture_id, pulse_id, events, team_code_mappin
             except (ValueError, TypeError):
                 pass
 
-        # playerId is the player code — maps to fpl_players_bootstrap.code
         player_code_str = event.get("playerId")
         player_code = None
         if player_code_str is not None:
@@ -258,11 +256,11 @@ def store_timeline_events(cursor, fixture_id, pulse_id, events, team_code_mappin
 
         cursor.execute("""
             INSERT INTO pl_match_events
-                (fixture_id, pulse_id, period_id, minutes, seconds, event_type, tag, team_id, player_code, timestamp_utc)
+                (fixture_id, code, period_id, minutes, seconds, event_type, tag, team_id, player_code, timestamp_utc)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             fixture_id,
-            pulse_id,
+            code,
             period_id,
             event.get("minutes"),
             event.get("seconds"),
@@ -282,7 +280,7 @@ def clear_timeline_data(cursor, conn, season, logger):
     cursor.execute("""
         DELETE FROM pl_match_events
         WHERE fixture_id IN (
-            SELECT fixture_id FROM fixtures WHERE season = ? AND pulse_id IS NOT NULL
+            SELECT fixture_id FROM fixtures WHERE season = ? AND code IS NOT NULL
         )
     """, (season,))
     deleted = cursor.rowcount
@@ -302,10 +300,10 @@ def update_last_update_table(cursor, logger):
         logger.error(f"Error updating last_update table: {e}")
 
 
-def save_sample_data(pulse_id, fixture_id, events, logger):
+def save_sample_data(code, fixture_id, events, logger):
     """Save a timeline API response as a JSON sample"""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_file = SAMPLES_DIR / f"timeline_{pulse_id}_{timestamp}.json"
+    output_file = SAMPLES_DIR / f"timeline_{code}_{timestamp}.json"
     try:
         with open(output_file, 'w') as f:
             json.dump(events, f, indent=2)
@@ -356,20 +354,20 @@ def run(season, max_workers=3, delay=DEFAULT_DELAY, dry_run=False, force_refresh
         timeline_results, failed = fetch_timelines_concurrently(fixtures, logger, max_workers, delay)
 
         total_inserted = 0
-        for fixture_id, (pulse_id, events) in timeline_results.items():
+        for fixture_id, (code, events) in timeline_results.items():
             if not events:
-                logger.warning(f"Empty timeline for fixture_id {fixture_id} (pulse_id {pulse_id})")
+                logger.warning(f"Empty timeline for fixture_id {fixture_id} (code {code})")
                 continue
 
             if save_samples:
-                save_sample_data(pulse_id, fixture_id, events, logger)
+                save_sample_data(code, fixture_id, events, logger)
 
             if dry_run:
                 logger.info(f"DRY RUN: fixture_id {fixture_id} would insert {len(events)} events")
                 continue
 
             try:
-                inserted = store_timeline_events(cursor, fixture_id, pulse_id, events, team_code_mapping, logger)
+                inserted = store_timeline_events(cursor, fixture_id, code, events, team_code_mapping, logger)
                 total_inserted += inserted
                 logger.debug(f"fixture_id {fixture_id}: inserted {inserted} events")
             except Exception as e:
@@ -409,7 +407,6 @@ def test_with_sample_data(logger):
         logger.info(f"Sample has {len(events)} events")
         logger.info(f"Event types: {set(e.get('eventType') for e in events)}")
         logger.info(f"Team codes seen: {set(e.get('teamId') for e in events if e.get('teamId'))}")
-        # Show which team codes map successfully
         for code_str in set(e.get('teamId') for e in events if e.get('teamId')):
             try:
                 db_id = team_code_mapping.get(int(code_str))
