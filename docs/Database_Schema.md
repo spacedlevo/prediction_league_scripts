@@ -42,6 +42,7 @@ CREATE TABLE teams (
     strength_defence_home INTEGER,
     strength_defence_away INTEGER,
     pulse_id INTEGER,
+    code INTEGER,           -- PL API team code (from FPL bootstrap, used in sdp-prem-prod API)
     football_data_name TEXT,
     odds_api_name TEXT  -- Used for API team name mapping
 );
@@ -50,6 +51,7 @@ CREATE TABLE teams (
 **Key Fields**:
 - `team_id`: Primary key for internal references
 - `team_name`: Display name (e.g., "Man City")
+- `code`: Team identifier used in the new PL API (`sdp-prem-prod.premier-league-prod.pulselive.com`)
 - `odds_api_name`: Name used by The Odds API (e.g., "manchester city")
 
 ### `fixtures`

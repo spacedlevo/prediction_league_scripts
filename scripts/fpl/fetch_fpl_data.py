@@ -414,6 +414,26 @@ def load_team_mapping(cursor):
     mapping = {fpl_id: team_id for fpl_id, team_id in cursor.fetchall()}
     return mapping
 
+def ensure_team_code_column(cursor):
+    """Add code column to teams table if it doesn't already exist"""
+    try:
+        cursor.execute("ALTER TABLE teams ADD COLUMN code INTEGER")
+    except sql.OperationalError:
+        pass  # column already exists
+
+def update_team_codes(cursor, teams_data, logger):
+    """Update team codes in the teams table from FPL bootstrap data"""
+    updated = 0
+    for team in teams_data:
+        fpl_id = team.get("id")
+        code = team.get("code")
+        if fpl_id is None or code is None:
+            continue
+        cursor.execute("UPDATE teams SET code = ? WHERE fpl_id = ?", (code, fpl_id))
+        if cursor.rowcount:
+            updated += 1
+    logger.info(f"Updated team codes for {updated} teams")
+
 def load_existing_bootstrap_data(cursor):
     """Load existing bootstrap data from database for comparison"""
     cursor.execute("""
@@ -820,22 +840,23 @@ def load_fixture_mapping(cursor):
     return mapping
 
 def fetch_bootstrap_data(logger):
-    """Fetch initial player data from FPL bootstrap endpoint"""
+    """Fetch player and team data from FPL bootstrap endpoint"""
     url = f"{BASE_URL}bootstrap-static/"
-    
+
     try:
         logger.info("Fetching FPL bootstrap data...")
         response = requests.get(url, timeout=30)
-        
+
         if response.status_code == 200:
             data = response.json()
             players = data.get("elements", [])
-            logger.info(f"Retrieved {len(players)} players from FPL API")
-            return players
+            teams = data.get("teams", [])
+            logger.info(f"Retrieved {len(players)} players and {len(teams)} teams from FPL API")
+            return {"players": players, "teams": teams}
         else:
             logger.error(f"Bootstrap API request failed with status {response.status_code}")
             return None
-            
+
     except Timeout:
         logger.error("Bootstrap API request timed out after 30 seconds")
         return None
@@ -1131,70 +1152,74 @@ def upsert_player_scores(cursor, player_scores, existing_data, fixture_mapping, 
 
 def collect_fpl_data(logger, max_workers=5, debug=False, force_refresh=False, dry_run=False):
     """Collect FPL data with smart bootstrap-based filtering"""
-    # Get bootstrap data
-    players = fetch_bootstrap_data(logger)
-    if not players:
+    bootstrap_data = fetch_bootstrap_data(logger)
+    if not bootstrap_data:
         logger.error("Failed to fetch bootstrap data")
         return None
-    
+
+    players = bootstrap_data["players"]
+    teams_data = bootstrap_data["teams"]
+
     # Setup database connection for bootstrap operations
     conn = sql.connect(db_path)
     cursor = conn.cursor()
-    
+
     try:
-        # Ensure bootstrap table exists
+        # Ensure tables and columns exist
         create_bootstrap_table(cursor)
-        
-        # Ensure fantasy_pl_scores has team_id column
         create_fantasy_scores_team_column(cursor)
-        
+        ensure_team_code_column(cursor)
+
+        # Update team codes from bootstrap
+        update_team_codes(cursor, teams_data, logger)
+
         # Load team mapping for FPL ID to database team_id
         logger.info("Loading team mapping...")
         team_mapping = load_team_mapping(cursor)
         logger.info(f"Loaded {len(team_mapping)} team mappings")
-        
+
         # Handle force refresh option
         if force_refresh:
             logger.info("Force refresh enabled - clearing existing FPL data...")
             clear_existing_fpl_data(cursor, conn, CURRENT_SEASON, logger, dry_run)
-            existing_bootstrap_data = {}  # Empty since we cleared everything
-            players_to_update = players  # Update all players
+            existing_bootstrap_data = {}
+            players_to_update = players
             logger.info(f"Force refresh: All {len(players)} players marked for update")
         else:
             # Load existing bootstrap data
             logger.info("Loading existing bootstrap data for comparison...")
             existing_bootstrap_data = load_existing_bootstrap_data(cursor)
             logger.info(f"Loaded {len(existing_bootstrap_data)} existing bootstrap records")
-            
+
             # Identify which players need individual API calls
             players_to_update = identify_players_to_update(players, existing_bootstrap_data, logger, debug)
-        
+
         # Update bootstrap table with current data
         logger.info("Updating bootstrap table with current player data...")
         update_bootstrap_data(cursor, players, team_mapping, logger)
-        
-        # Log bootstrap updates whenever we update the table (unless dry-run)
+
         if not dry_run:
             logger.info("Bootstrap data updated - logging update timestamp")
             update_last_update_table("fpl_players_bootstrap", cursor, logger)
-        
+
         conn.commit()
-        
+
         # Collect player scores for filtered players
         if players_to_update:
             all_player_scores, api_errors = fetch_players_concurrently(players_to_update, logger, max_workers)
         else:
             logger.info("No players need updating - using existing data")
             all_player_scores, api_errors = [], 0
-        
+
         logger.info(f"Collected {len(all_player_scores)} player performance records")
         if api_errors > 0:
             logger.warning(f"Failed to fetch data for {api_errors} players due to API errors")
-        
+
         return {
             'players': players,
+            'teams': teams_data,
             'player_scores': all_player_scores,
-            'team_mapping': team_mapping,  # Include team mapping for processing
+            'team_mapping': team_mapping,
             'metadata': {
                 'fetch_time': datetime.now().isoformat(),
                 'total_players': len(players),
@@ -1204,7 +1229,7 @@ def collect_fpl_data(logger, max_workers=5, debug=False, force_refresh=False, dr
                 'season': CURRENT_SEASON
             }
         }
-    
+
     except Exception as e:
         conn.rollback()
         logger.error(f"Error in collect_fpl_data: {e}")
