@@ -237,11 +237,35 @@ if [[ $current_hour -eq 7 ]] && [[ $current_minute -eq 5 ]]; then
     fi
 fi
 
-# Daily at 8 AM (Pulse API data collection)
+# Daily at 8 AM (PL timeline data collection)
 if [[ $current_hour -eq 8 ]] && [[ $current_minute -eq 0 ]]; then
-    if [[ "$ENABLE_FETCH_PULSE_DATA" == "true" ]]; then
-        run_script "scripts/pulse_api/fetch_pulse_data.py" "fetch_pulse_data" &
-        log "DEBUG" "Triggered fetch_pulse_data (daily 8 AM)"
+    if [[ "$ENABLE_FETCH_PL_TIMELINE" == "true" ]]; then
+        run_script "scripts/pl_api/fetch_pl_timeline.py" "fetch_pl_timeline" &
+        log "DEBUG" "Triggered fetch_pl_timeline (daily 8 AM)"
+    fi
+fi
+
+# Daily at 8:05 AM (PL lineup data collection)
+if [[ $current_hour -eq 8 ]] && [[ $current_minute -eq 5 ]]; then
+    if [[ "$ENABLE_FETCH_PL_LINEUPS" == "true" ]]; then
+        run_script "scripts/pl_api/fetch_pl_lineups.py" "fetch_pl_lineups" &
+        log "DEBUG" "Triggered fetch_pl_lineups (daily 8:05 AM)"
+    fi
+fi
+
+# Daily at 8:10 AM (PL match stats collection)
+if [[ $current_hour -eq 8 ]] && [[ $current_minute -eq 10 ]]; then
+    if [[ "$ENABLE_FETCH_PL_STATS" == "true" ]]; then
+        run_script "scripts/pl_api/fetch_pl_stats.py" "fetch_pl_stats" &
+        log "DEBUG" "Triggered fetch_pl_stats (daily 8:10 AM)"
+    fi
+fi
+
+# Daily at 8:15 AM (PL match officials collection)
+if [[ $current_hour -eq 8 ]] && [[ $current_minute -eq 15 ]]; then
+    if [[ "$ENABLE_FETCH_PL_OFFICIALS" == "true" ]]; then
+        run_script "scripts/pl_api/fetch_pl_officials.py" "fetch_pl_officials" &
+        log "DEBUG" "Triggered fetch_pl_officials (daily 8:15 AM)"
     fi
 fi
 
