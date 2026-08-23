@@ -144,7 +144,7 @@ def get_fixtures_needing_lineups(cursor, season, force_all=False):
             SELECT f.pulse_id, f.fixture_id, f.gameweek
             FROM fixtures f
             WHERE f.pulse_id IS NOT NULL
-            AND f.finished = 1
+            AND f.provisional_finished = 1
             AND f.season = ?
             ORDER BY f.gameweek, f.fixture_id
         """, (season,))
@@ -154,7 +154,7 @@ def get_fixtures_needing_lineups(cursor, season, force_all=False):
             FROM fixtures f
             LEFT JOIN pl_lineups pl ON f.fixture_id = pl.fixture_id
             WHERE f.pulse_id IS NOT NULL
-            AND f.finished = 1
+            AND f.provisional_finished = 1
             AND f.season = ?
             AND pl.fixture_id IS NULL
             ORDER BY f.gameweek, f.fixture_id
