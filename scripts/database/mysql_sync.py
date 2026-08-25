@@ -731,7 +731,8 @@ def check_tables_need_sync(sqlite_cursor: sql.Cursor, logger: logging.Logger) ->
         
         # Also check for cleaned_predictions which maps to predictions table
         table_mapping = {
-            'cleaned_predictions': 'predictions'
+            'cleaned_predictions': 'predictions',
+            'fixtures_gameweeks': 'fixtures'
         }
         
         for table_name in SYNC_TABLES:
