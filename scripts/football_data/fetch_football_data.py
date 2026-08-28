@@ -45,7 +45,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from scripts.config import CURRENT_SEASON, get_football_data_url_code
 
 # Configuration
-FOOTBALL_DATA_URL = f"https://www.football-data.co.uk/mmz4281/{get_football_data_url_code()}/E0.csv"
+_url_code = get_football_data_url_code()
+CURRENT_SEASON_SHORT = f"{_url_code[:2]}/{_url_code[2:]}"
+FOOTBALL_DATA_URL = f"https://www.football-data.co.uk/mmz4281/{_url_code}/E0.csv"
 
 # Paths
 db_path = Path(__file__).parent.parent.parent / "data" / "database.db"
@@ -274,13 +276,13 @@ def process_match_data(cursor, match_data, team_mapping, logger):
         formatted_date = convert_date_format(date_str)
 
         # Lookup fixture_id from fixtures table
-        fixture_id = lookup_fixture_id(cursor, "25/26", home_team_id, away_team_id, logger)
+        fixture_id = lookup_fixture_id(cursor, CURRENT_SEASON_SHORT, home_team_id, away_team_id, logger)
 
         # Check if match already exists
         cursor.execute("""
             SELECT GameID FROM football_stats
             WHERE Date = ? AND home_team_id = ? AND away_team_id = ? AND Season = ?
-        """, (formatted_date, home_team_id, away_team_id, "25/26"))
+        """, (formatted_date, home_team_id, away_team_id, CURRENT_SEASON_SHORT))
 
         existing_match = cursor.fetchone()
 
@@ -292,7 +294,7 @@ def process_match_data(cursor, match_data, team_mapping, logger):
             'AwayTeam': away_team,
             'home_team_id': home_team_id,
             'away_team_id': away_team_id,
-            'Season': "25/26",
+            'Season': CURRENT_SEASON_SHORT,
             'Time': match.get('Time', ''),
             'FTHG': int(match['FTHG']) if match.get('FTHG', '').isdigit() else None,
             'FTAG': int(match['FTAG']) if match.get('FTAG', '').isdigit() else None,
@@ -441,9 +443,9 @@ def main_fetch(args, logger):
             logger.info("No data changes, but timestamp updated")
         
         # Report current statistics
-        cursor.execute("SELECT COUNT(*) FROM football_stats WHERE Season = '25/26'")
+        cursor.execute("SELECT COUNT(*) FROM football_stats WHERE Season = ?", (CURRENT_SEASON_SHORT,))
         current_season_count = cursor.fetchone()[0]
-        logger.info(f"Current season (25/26) now has {current_season_count} matches")
+        logger.info(f"Current season ({CURRENT_SEASON_SHORT}) now has {current_season_count} matches")
         
         return True
         

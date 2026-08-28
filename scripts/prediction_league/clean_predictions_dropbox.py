@@ -676,10 +676,13 @@ def clean_predictions_content(content, teams, players, gameweek, logger):
             scores = find_scores(line)
             
             if len(sides) == 2:
+                if len(scores) < 2:
+                    logger.warning(f"Skipping line '{line}' for {current_player}: could not extract two scores")
+                    continue
                 try:
-                    home_goals = scores[0] if len(scores) >= 1 else 9
-                    away_goals = scores[1] if len(scores) >= 2 else 9
-                    
+                    home_goals = scores[0]
+                    away_goals = scores[1]
+
                     prediction = [
                         gameweek,
                         current_player,
@@ -690,13 +693,9 @@ def clean_predictions_content(content, teams, players, gameweek, logger):
                     ]
                     predictions.append(prediction)
                     logger.debug(f"Added prediction: {prediction}")
-                    
+
                 except (IndexError, ValueError) as e:
-                    logger.warning(f"Error processing line '{line}' for {current_player}: {e}")
-                    
-                    # Add default prediction
-                    prediction = [gameweek, current_player, sides[0], sides[1], 9, 9]
-                    predictions.append(prediction)
+                    logger.warning(f"Skipping line '{line}' for {current_player}: {e}")
     
     logger.info(f"Processed {len(predictions)} predictions from file content")
     return predictions

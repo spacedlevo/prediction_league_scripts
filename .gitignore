@@ -190,6 +190,9 @@ data/cleaned/*.csv
 # Analysis Reports (generated output)
 analysis_reports/
 
+# GW Prediction Playbook (personal working notes)
+docs/GW_Prediction_Playbook.md
+
 # OAuth Tokens and Refresh Data
 *_token*
 .oauth_*
