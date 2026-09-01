@@ -121,7 +121,16 @@ def build_chip_map(history_data):
     return chip_map
 
 
-def store_picks(cursor, gameweek, picks_data, logger):
+def ensure_team_id_columns(cursor):
+    """Add team_id column to fpl_team_picks and fpl_team_gameweek_summary if missing"""
+    for table in ('fpl_team_picks', 'fpl_team_gameweek_summary'):
+        try:
+            cursor.execute(f"ALTER TABLE {table} ADD COLUMN team_id INTEGER")
+        except sql.OperationalError:
+            pass  # column already exists
+
+
+def store_picks(cursor, gameweek, picks_data, fpl_team_id, logger):
     """Store player picks for a gameweek"""
     picks = picks_data.get('picks', [])
     if not picks:
@@ -132,8 +141,8 @@ def store_picks(cursor, gameweek, picks_data, logger):
     for pick in picks:
         cursor.execute("""
             INSERT OR REPLACE INTO fpl_team_picks
-            (season, gameweek, player_id, position, is_captain, is_vice_captain, multiplier)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            (season, gameweek, player_id, position, is_captain, is_vice_captain, multiplier, team_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             CURRENT_SEASON,
             gameweek,
@@ -141,14 +150,15 @@ def store_picks(cursor, gameweek, picks_data, logger):
             pick['position'],
             1 if pick.get('is_captain') else 0,
             1 if pick.get('is_vice_captain') else 0,
-            pick.get('multiplier', 1)
+            pick.get('multiplier', 1),
+            fpl_team_id
         ))
         stored_count += 1
 
     return stored_count
 
 
-def store_gameweek_summary(cursor, gameweek, picks_data, history_gw_data, chip_map, logger):
+def store_gameweek_summary(cursor, gameweek, picks_data, history_gw_data, chip_map, fpl_team_id, logger):
     """Store gameweek summary from picks entry_history and season history"""
     entry_history = picks_data.get('entry_history', {})
 
@@ -165,11 +175,11 @@ def store_gameweek_summary(cursor, gameweek, picks_data, history_gw_data, chip_m
     cursor.execute("""
         INSERT OR REPLACE INTO fpl_team_gameweek_summary
         (season, gameweek, total_points, gameweek_rank, overall_rank, bank, squad_value,
-         points_on_bench, transfers_made, transfers_cost, chip_used)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         points_on_bench, transfers_made, transfers_cost, chip_used, team_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         CURRENT_SEASON, gameweek, total_points, gameweek_rank, overall_rank,
-        bank, squad_value, points_on_bench, transfers_made, transfers_cost, chip_used
+        bank, squad_value, points_on_bench, transfers_made, transfers_cost, chip_used, fpl_team_id
     ))
 
 
@@ -227,6 +237,8 @@ def main():
     cursor = conn.cursor()
 
     try:
+        ensure_team_id_columns(cursor)
+
         finished_gameweeks = get_finished_gameweeks(cursor)
         stored_gameweeks = get_stored_pick_gameweeks(cursor)
         missing_gameweeks = [gw for gw in finished_gameweeks if gw not in stored_gameweeks]
@@ -268,11 +280,11 @@ def main():
 
             all_fetched_data['picks_by_gameweek'][gw] = picks_data
 
-            picks_count = store_picks(cursor, gw, picks_data, logger)
+            picks_count = store_picks(cursor, gw, picks_data, team_id, logger)
             total_picks_stored += picks_count
 
             history_gw_data = history_by_gw.get(gw, {})
-            store_gameweek_summary(cursor, gw, picks_data, history_gw_data, chip_map, logger)
+            store_gameweek_summary(cursor, gw, picks_data, history_gw_data, chip_map, team_id, logger)
 
             logger.info(f"GW{gw}: stored {picks_count} picks")
 
@@ -302,10 +314,13 @@ def test_with_sample_data():
         logger.error("No sample data available for testing")
         return
 
+    fpl_team_id = load_fpl_team_id()
     conn = sql.connect(db_path)
     cursor = conn.cursor()
 
     try:
+        ensure_team_id_columns(cursor)
+
         history_data = sample_data.get('history', {})
         picks_by_gw = sample_data.get('picks_by_gameweek', {})
 
@@ -318,11 +333,11 @@ def test_with_sample_data():
         total_picks = 0
         for gw_str, picks_data in picks_by_gw.items():
             gw = int(gw_str)
-            picks_count = store_picks(cursor, gw, picks_data, logger)
+            picks_count = store_picks(cursor, gw, picks_data, fpl_team_id, logger)
             total_picks += picks_count
 
             history_gw_data = history_by_gw.get(gw, {})
-            store_gameweek_summary(cursor, gw, picks_data, history_gw_data, chip_map, logger)
+            store_gameweek_summary(cursor, gw, picks_data, history_gw_data, chip_map, fpl_team_id, logger)
             logger.info(f"GW{gw}: stored {picks_count} picks")
 
         if total_picks > 0:
