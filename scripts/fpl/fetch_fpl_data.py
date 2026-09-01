@@ -982,17 +982,17 @@ def get_existing_player_data(cursor):
     cursor.execute("""
         SELECT player_id, gameweek, fixture_id, total_points, minutes, goals_scored, assists,
                clean_sheets, goals_conceded, saves, yellow_cards, red_cards, bonus, bps,
-               clearances_blocks_interceptions, recoveries, tackles, defensive_contribution
+               clearances_blocks_interceptions, recoveries, tackles, defensive_contribution, created_at
         FROM fantasy_pl_scores
     """)
-    
-    # Create a dictionary keyed by (player_id, gameweek, fixture_id) 
+
+    # Create a dictionary keyed by (player_id, gameweek, fixture_id)
     existing_data = {}
     for row in cursor.fetchall():
         key = (row[0], row[1], row[2])  # player_id, gameweek, fixture_id
         existing_data[key] = {
             'total_points': row[3],
-            'minutes': row[4], 
+            'minutes': row[4],
             'goals_scored': row[5],
             'assists': row[6],
             'clean_sheets': row[7],
@@ -1005,9 +1005,10 @@ def get_existing_player_data(cursor):
             'clearances_blocks_interceptions': row[14],
             'recoveries': row[15],
             'tackles': row[16],
-            'defensive_contribution': row[17]
+            'defensive_contribution': row[17],
+            'created_at': row[18]
         }
-    
+
     return existing_data
 
 def has_data_changed(new_record, existing_record):
@@ -1112,6 +1113,9 @@ def upsert_player_scores(cursor, player_scores, existing_data, fixture_mapping, 
             skipped_count += 1
             continue
         
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        created_at = existing_record['created_at'] if existing_record and existing_record.get('created_at') else now
+
         # Use INSERT OR REPLACE for efficient upsert
         cursor.execute("""
             INSERT OR REPLACE INTO fantasy_pl_scores (
@@ -1122,8 +1126,8 @@ def upsert_player_scores(cursor, player_scores, existing_data, fixture_mapping, 
                 expected_goal_involvements, expected_goals_conceded, value, transfers_balance,
                 selected, transfers_in, transfers_out, opponent_team, kickoff_time, team_h_score,
                 team_a_score, element, clearances_blocks_interceptions, recoveries, tackles,
-                defensive_contribution, season
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                defensive_contribution, season, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             db_record['player_name'], db_record['gameweek'], db_record['player_id'],
             db_record['total_points'], db_record['fixture_id'], db_record['team_id'], db_record['was_home'],
@@ -1139,7 +1143,7 @@ def upsert_player_scores(cursor, player_scores, existing_data, fixture_mapping, 
             db_record['opponent_team'], db_record['kickoff_time'], db_record['team_h_score'],
             db_record['team_a_score'], db_record['element'], db_record['clearances_blocks_interceptions'],
             db_record['recoveries'], db_record['tackles'], db_record['defensive_contribution'],
-            CURRENT_SEASON
+            CURRENT_SEASON, created_at, now
         ))
         
         if existing_record:
