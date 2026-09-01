@@ -121,13 +121,18 @@ def build_chip_map(history_data):
     return chip_map
 
 
-def ensure_team_id_columns(cursor):
-    """Add team_id column to fpl_team_picks and fpl_team_gameweek_summary if missing"""
+def ensure_team_id_columns(cursor, fpl_team_id):
+    """Add team_id column to fpl_team_picks and fpl_team_gameweek_summary if missing,
+    then backfill any current-season rows that have NULL team_id."""
     for table in ('fpl_team_picks', 'fpl_team_gameweek_summary'):
         try:
             cursor.execute(f"ALTER TABLE {table} ADD COLUMN team_id INTEGER")
         except sql.OperationalError:
             pass  # column already exists
+        cursor.execute(
+            f"UPDATE {table} SET team_id = ? WHERE season = ? AND team_id IS NULL",
+            (fpl_team_id, CURRENT_SEASON)
+        )
 
 
 def store_picks(cursor, gameweek, picks_data, fpl_team_id, logger):
@@ -237,7 +242,7 @@ def main():
     cursor = conn.cursor()
 
     try:
-        ensure_team_id_columns(cursor)
+        ensure_team_id_columns(cursor, team_id)
 
         finished_gameweeks = get_finished_gameweeks(cursor)
         stored_gameweeks = get_stored_pick_gameweeks(cursor)
@@ -319,7 +324,7 @@ def test_with_sample_data():
     cursor = conn.cursor()
 
     try:
-        ensure_team_id_columns(cursor)
+        ensure_team_id_columns(cursor, fpl_team_id)
 
         history_data = sample_data.get('history', {})
         picks_by_gw = sample_data.get('picks_by_gameweek', {})
