@@ -52,7 +52,7 @@ def get_league_standings(cursor, season):
         LEFT JOIN predictions pred ON p.player_id = pred.player_id
         LEFT JOIN fixtures f ON pred.fixture_id = f.fixture_id AND f.season = ?
         LEFT JOIN results r ON f.fixture_id = r.fixture_id
-        WHERE p.active = 1
+        WHERE p.active = 1 AND p.pundit = 0
         GROUP BY p.player_id, p.player_name, p.web_name
         ORDER BY total_points DESC, correct_results DESC, correct_scores DESC
     """, (season,))

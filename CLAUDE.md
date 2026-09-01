@@ -468,6 +468,7 @@ Remember: This is a hobby project. Perfect is the enemy of done. Focus on code t
 - **[FIXES_CHANGELOG.md](docs/FIXES_CHANGELOG.md)** - Historical fixes and system improvements
 - **[Database_Schema.md](docs/Database_Schema.md)** - Complete database schema reference and migration history
 - **[scripts/database/README.md](scripts/database/README.md)** - Database maintenance scripts and migrations
+- **[CUP_COMPETITION.md](docs/CUP_COMPETITION.md)** - Cup competition format, seeding, bracket generation
 
 ### Quick Reference
 

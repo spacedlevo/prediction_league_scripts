@@ -155,9 +155,9 @@ def cleanup_old_sample_files(keep_count=5, logger=None):
 
 def create_bootstrap_table(cursor):
     """Create fpl_players_bootstrap table if it doesn't exist"""
-    cursor.execute(f"""
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS fpl_players_bootstrap (
-            player_id INTEGER PRIMARY KEY,
+            player_id INTEGER NOT NULL,
             player_name TEXT NOT NULL,
             team_id INTEGER,
             db_team_id INTEGER,
@@ -271,7 +271,8 @@ def create_bootstrap_table(cursor):
             ict_index_rank_type INTEGER,
             
             last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            season TEXT DEFAULT '{CURRENT_SEASON}',
+            season TEXT NOT NULL,
+            PRIMARY KEY (player_id, season),
             FOREIGN KEY (db_team_id) REFERENCES teams(team_id)
         )
     """)
